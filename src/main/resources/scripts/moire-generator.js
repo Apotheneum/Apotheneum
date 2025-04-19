@@ -3,6 +3,7 @@
  * This script generates dynamic moiré patterns inspired by Carsten Nicolai's
  * 'The Moiré Index'. Moiré patterns emerge from overlapping grids, producing
  * interference effects.
+ * @author Theresa Silver
  */
 
 knob("frequency", "Frequency", "Base frequency of the moiré pattern", 0.5);
