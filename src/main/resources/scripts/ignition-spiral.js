@@ -2,6 +2,7 @@
 /**
  * Ignition Spiral (with Saturation Control)
  * Flame-inspired swirl with radial band and full saturation control
+ * @author Theresa Silver
  */
 
 knob("spiralFreq", "Spiral Frequency", "Number of spiral arms", 0.4);
