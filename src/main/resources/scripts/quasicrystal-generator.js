@@ -2,6 +2,7 @@
  * Quasicrystal Tiling Generator
  * This script iterates across tiling symmetries from 1-fold to 10-fold
  * Each pattern is generated dynamically based on the selected symmetry.
+ * @author Theresa Silver
  */
 
 knob("symmetry", "Symmetry", "Choose tiling symmetry (1 to 10)", 0.5);
