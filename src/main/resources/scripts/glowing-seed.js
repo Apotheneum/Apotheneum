@@ -2,6 +2,7 @@
 /**
  * Glowing Seed (Relative Normalization + Orientation Control)
  * Works across cube faces with manual rotation knob
+ * @author Theresa Silver
  */
 
 knob("swirlFreq", "Swirl Frequency", "Swirl density", 0.5);
