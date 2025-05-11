@@ -33,6 +33,8 @@ public class Apotheneum {
   public static final int CYLINDER_HEIGHT = 43;
   public static final int RING_LENGTH = 120;
 
+  public static final String IMAGE_CATEGORY = "Image";
+
   public static class Cube {
 
     public static class Orientation {
@@ -56,7 +58,8 @@ public class Apotheneum {
         this.left = new Face(model.sub("cubeLeft" + suffix).get(0));
         this.faces = new Face[] { this.front, this.right, this.back, this.left };
 
-        this.columns = new LXModel[this.front.columns.length + this.right.columns.length + this.back.columns.length + this.left.columns.length];
+        this.columns = new LXModel[this.front.columns.length + this.right.columns.length + this.back.columns.length
+            + this.left.columns.length];
         int cIndex = 0;
         System.arraycopy(this.front.columns, 0, this.columns, cIndex, this.front.columns.length);
         cIndex += this.front.columns.length;
@@ -71,11 +74,10 @@ public class Apotheneum {
           this.rings[i] = new Ring(i, this.columns);
         }
 
-        this.size =
-          this.front.model.size +
-          this.right.model.size +
-          this.back.model.size +
-          this.left.model.size;
+        this.size = this.front.model.size +
+            this.right.model.size +
+            this.back.model.size +
+            this.left.model.size;
       }
 
     }
@@ -224,7 +226,7 @@ public class Apotheneum {
           cylinder = new Cylinder(model);
           hasInterior = (cube.interior != null);
           exists = true;
-          LX.log("Detected Apotheneum fixtures, hasInterior: " + hasInterior +  " numPoints: " + model.size);
+          LX.log("Detected Apotheneum fixtures, hasInterior: " + hasInterior + " numPoints: " + model.size);
         }
       } catch (Exception x) {
         cube = null;
