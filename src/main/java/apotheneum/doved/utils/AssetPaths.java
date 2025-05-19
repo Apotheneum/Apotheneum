@@ -44,7 +44,12 @@ public class AssetPaths {
       System.out.println("Using assets folder from environment: " + assetsFromEnv);
       return new File(assetsFromEnv + File.separator);
     }
-    return new File("Assets" + File.separator);
+
+    // Use ~/Chromatik/Assets as default
+    String homeDir = System.getProperty("user.home");
+    String defaultAssetsPath = homeDir + File.separator + "Chromatik" + File.separator + "Assets" + File.separator;
+    System.out.println("Using default assets folder: " + defaultAssetsPath);
+    return new File(defaultAssetsPath);
   }
 
   // Helper function to check if a given path is an absolute path

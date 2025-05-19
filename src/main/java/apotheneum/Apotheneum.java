@@ -233,7 +233,9 @@ public class Apotheneum {
         cylinder = null;
         exists = false;
         LX.error(x, "Error building Apotheneum helpers");
-        lx.pushError(x, "Apotheneum model is out of date, you may need to update your fixture files.\n" + x.getMessage());;
+        lx.pushError(x,
+            "Apotheneum model is out of date, you may need to update your fixture files.\n" + x.getMessage());
+        ;
       }
     }
   }
