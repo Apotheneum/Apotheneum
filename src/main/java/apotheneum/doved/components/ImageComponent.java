@@ -15,6 +15,7 @@ import heronarts.lx.parameter.LXParameter;
 import apotheneum.doved.utils.AssetPaths;
 import apotheneum.doved.utils.GifFrameExtractor;
 import apotheneum.doved.utils.Image;
+import apotheneum.doved.utils.Kaleidoscope;
 import java.io.IOException;
 
 public class ImageComponent extends LXComponent implements LXComponent.Renamable, LXOscComponent {
@@ -130,6 +131,25 @@ public class ImageComponent extends LXComponent implements LXComponent.Renamable
   })
       .setDescription("Zero out the distance moved from speed");
 
+  // Kaleidoscope parameters
+  public final Kaleidoscope kaleidoscope = new Kaleidoscope();
+
+  // Rotation parameters
+  public final CompoundParameter yaw = new CompoundParameter("Yaw", 0, -360, 360)
+      .setPolarity(CompoundParameter.Polarity.BIPOLAR)
+      .setUnits(CompoundParameter.Units.DEGREES)
+      .setDescription("Rotation of the image about the vertical axis");
+
+  public final CompoundParameter pitch = new CompoundParameter("Pitch", 0, -360, 360)
+      .setPolarity(CompoundParameter.Polarity.BIPOLAR)
+      .setUnits(CompoundParameter.Units.DEGREES)
+      .setDescription("Pitch of the image about the horizontal plane");
+
+  public final CompoundParameter roll = new CompoundParameter("Roll", 0, -360, 360)
+      .setPolarity(CompoundParameter.Polarity.BIPOLAR)
+      .setUnits(CompoundParameter.Units.DEGREES)
+      .setDescription("Roll of the image");
+
   private int index;
   public apotheneum.doved.utils.Image stillImage;
   private apotheneum.doved.utils.Image[] imageFrames = null;
@@ -160,6 +180,19 @@ public class ImageComponent extends LXComponent implements LXComponent.Renamable
     addParameter("speedX", this.speedX);
     addParameter("speedY", this.speedY);
     addParameter("resetDistance", this.resetDistance);
+
+    // Add kaleidoscope parameters
+    addParameter("segments", this.kaleidoscope.params.segments);
+    addParameter("krtheta", this.kaleidoscope.params.rotateTheta);
+    addParameter("krphi", this.kaleidoscope.params.rotatePhi);
+    addParameter("kx", this.kaleidoscope.params.x);
+    addParameter("ky", this.kaleidoscope.params.y);
+    addParameter("kz", this.kaleidoscope.params.z);
+
+    // Add rotation parameters
+    addParameter("yaw", this.yaw);
+    addParameter("pitch", this.pitch);
+    addParameter("roll", this.roll);
   }
 
   @Override

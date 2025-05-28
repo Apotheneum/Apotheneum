@@ -120,21 +120,6 @@ public class DeformableSlideshowPattern extends LXPattern
   public final List<ImageComponent> images = Collections.unmodifiableList(this.mutableImages);
   private LXMatrix matrix = new LXMatrix();
 
-  public final CompoundParameter yaw = new CompoundParameter("Yaw", 0, -360, 360)
-      .setPolarity(CompoundParameter.Polarity.BIPOLAR)
-      .setUnits(CompoundParameter.Units.DEGREES)
-      .setDescription("Rotation of the image about the vertical axis");
-
-  public final CompoundParameter pitch = new CompoundParameter("Pitch", 0, -360, 360)
-      .setPolarity(CompoundParameter.Polarity.BIPOLAR)
-      .setUnits(CompoundParameter.Units.DEGREES)
-      .setDescription("Pitch of the image about the horizontal plane");
-
-  public final CompoundParameter roll = new CompoundParameter("Roll", 0, -360, 360)
-      .setPolarity(CompoundParameter.Polarity.BIPOLAR)
-      .setUnits(CompoundParameter.Units.DEGREES)
-      .setDescription("Roll of the image");
-
   /**
    * Whether auto pattern transition is enabled on this channel
    */
@@ -188,22 +173,8 @@ public class DeformableSlideshowPattern extends LXPattern
 
   private final ModelBuffer blendBuffer = new ModelBuffer(lx);
 
-  public final Kaleidoscope kaleidoscope = new Kaleidoscope();
-
   public DeformableSlideshowPattern(LX lx) {
     super(lx);
-
-    // is there a better way to do this without repeating the parameters?
-    addParameter("segements", this.kaleidoscope.params.segments);
-    addParameter("krtheta", this.kaleidoscope.params.rotateTheta);
-    addParameter("krphi", this.kaleidoscope.params.rotatePhi);
-    addParameter("kx", this.kaleidoscope.params.x);
-    addParameter("ky", this.kaleidoscope.params.y);
-    addParameter("kz", this.kaleidoscope.params.z);
-
-    addParameter("yaw", this.yaw);
-    addParameter("pitch", this.pitch);
-    addParameter("roll", this.roll);
 
     addParameter("focusedImage", this.focusedImage);
     addArray("image", this.images);
@@ -590,9 +561,9 @@ public class DeformableSlideshowPattern extends LXPattern
             xAspect * activeImage.stretchX.getValuef() / LXUtils.maxf(.0001f, scale * activeImage.scaleX.getValuef()),
             yAspect * activeImage.stretchY.getValuef() / LXUtils.maxf(.0001f, scale * activeImage.scaleY.getValuef()),
             1)
-        .rotateZ(this.roll.getValuef() * LX.PIf / 180f)
-        .rotateX(this.pitch.getValuef() * LX.PIf / 180f)
-        .rotateY(this.yaw.getValuef() * LX.PIf / 180f)
+        .rotateZ(activeImage.roll.getValuef() * LX.PIf / 180f)
+        .rotateX(activeImage.pitch.getValuef() * LX.PIf / 180f)
+        .rotateY(activeImage.yaw.getValuef() * LX.PIf / 180f)
         .translate(-.5f - tx, -.5f + ty, -.5f - tz);
   }
 
@@ -605,7 +576,7 @@ public class DeformableSlideshowPattern extends LXPattern
     ImageComponent.ImageCoordinateFunction function = image.imageMode.getEnum().function;
     float xn, yn;
     for (LXPoint p : model.points) {
-      LXVector pD = this.kaleidoscope.deform(p.xn, p.yn, p.zn);
+      LXVector pD = image.kaleidoscope.deform(p.xn, p.yn, p.zn);
 
       xn = function.getCoordinate(pD.x * matrix.m11 + (1 - pD.y) * matrix.m12 + pD.z * matrix.m13 + matrix.m14);
       yn = function.getCoordinate(pD.x * matrix.m21 + (1 - pD.y) * matrix.m22 + pD.z * matrix.m23 + matrix.m24);
@@ -910,15 +881,6 @@ public class DeformableSlideshowPattern extends LXPattern
     this.imageList.setDeletable(true);
     this.imageList.setShowCheckboxes(true);
     this.imageList.setDescription("Images loaded into the slideshow, click to select, double-click to activate");
-    addColumn(uiDevice, "Kaleidoscope", newKnob(this.kaleidoscope.params.segments),
-        newKnob(this.kaleidoscope.params.rotatePhi), newKnob(this.kaleidoscope.params.rotateTheta));
-    addColumn(uiDevice, "KCenter", newKnob(this.kaleidoscope.params.x),
-        newKnob(this.kaleidoscope.params.y), newKnob(this.kaleidoscope.params.z));
-
-    addColumn(uiDevice, "Rotate",
-        newKnob(yaw),
-        newKnob(pitch),
-        newKnob(roll)).setChildSpacing(6);
 
     addColumn(uiDevice, listWidth,
         new UIButton.Action(listWidth, 16, "Add Image") {
@@ -1122,6 +1084,23 @@ public class DeformableSlideshowPattern extends LXPattern
           newKnob(image.translateZ, 0)).setChildSpacing(6);
 
       addVerticalBreak(ui, this);
+
+      addColumn(this, UIKnob.WIDTH, "Kaleidoscope",
+          newKnob(image.kaleidoscope.params.segments, 0),
+          newKnob(image.kaleidoscope.params.rotatePhi, 0),
+          newKnob(image.kaleidoscope.params.rotateTheta, 0)).setChildSpacing(6);
+
+      addColumn(this, UIKnob.WIDTH, "KCenter",
+          newKnob(image.kaleidoscope.params.x, 0),
+          newKnob(image.kaleidoscope.params.y, 0),
+          newKnob(image.kaleidoscope.params.z, 0)).setChildSpacing(6);
+
+      addVerticalBreak(ui, this);
+
+      addColumn(this, UIKnob.WIDTH, "Rotate",
+          newKnob(image.yaw, 0),
+          newKnob(image.pitch, 0),
+          newKnob(image.roll, 0)).setChildSpacing(6);
 
       addColumn(this, UIKnob.WIDTH, "Speed",
           newKnob(image.speedX, 0),
