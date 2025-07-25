@@ -7,7 +7,7 @@ import java.awt.Graphics2D;
 import java.awt.geom.Path2D;
 import java.util.List;
 
-public class MidpointDisplacementAlgorithm {
+public class MidpointDisplacementAlgorithm implements LightningGenerator {
   
   public static class Parameters {
     public final double displacement;
@@ -37,6 +37,11 @@ public class MidpointDisplacementAlgorithm {
     }
   }
   
+  
+  @Override
+  public void generateLightning(List<LightningSegment> segments, Object params) {
+    generateLightning(segments, (Parameters) params);
+  }
   
   public static void generateLightning(List<LightningSegment> segments, Parameters params) {
     // Generate lightning from top to bottom using spread controls
@@ -118,7 +123,12 @@ public class MidpointDisplacementAlgorithm {
     }
   }
   
-  public static void render(Graphics2D graphics, List<LightningSegment> segments, double fadeAmount, double intensityValue, double thicknessValue, double bleedingValue) {
+  @Override
+  public void render(Graphics2D graphics, List<LightningSegment> segments, double fadeAmount, double intensityValue, double thicknessValue, double bleedingValue) {
+    renderStatic(graphics, segments, fadeAmount, intensityValue, thicknessValue, bleedingValue);
+  }
+  
+  public static void renderStatic(Graphics2D graphics, List<LightningSegment> segments, double fadeAmount, double intensityValue, double thicknessValue, double bleedingValue) {
     double alpha = fadeAmount * intensityValue;
     
     for (LightningSegment segment : segments) {

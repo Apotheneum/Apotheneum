@@ -35,11 +35,11 @@ public class GridResonance extends ApotheneumPattern {
 
   public GridResonance(LX lx) {
     super(lx);
-    addParameter(grid);
-    addParameter(width);
-    addParameter(tension);
-    addParameter(phase);
-    addParameter(contrast);
+    addParameter("grid", this.grid);
+    addParameter("width", this.width);
+    addParameter("tension", this.tension);
+    addParameter("phase", this.phase);
+    addParameter("contrast", this.contrast);
   }
 
   @Override

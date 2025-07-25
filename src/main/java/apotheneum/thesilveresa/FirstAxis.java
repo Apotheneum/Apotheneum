@@ -13,7 +13,7 @@ import heronarts.lx.parameter.CompoundParameter;
 public class FirstAxis extends ApotheneumPattern {
 
   final CompoundParameter symmetry =
-    new CompoundParameter("Symmetry", 0.0, 0.0, 1.0)
+    new CompoundParameter("Sym", 0.0, 0.0, 1.0)
       .setDescription("Fade in vertical axis to form a cross");
 
   final CompoundParameter lineWidth =
@@ -21,14 +21,14 @@ public class FirstAxis extends ApotheneumPattern {
       .setDescription("Thickness of axis lines");
 
   final CompoundParameter brightness =
-    new CompoundParameter("Brightness", 1.0, 0.0, 1.0)
+    new CompoundParameter("Bright", 1.0, 0.0, 1.0)
       .setDescription("Brightness of the axis lines");
 
   public FirstAxis(LX lx) {
     super(lx);
-    addParameter(symmetry);
-    addParameter(lineWidth);
-    addParameter(brightness);
+    addParameter("symmetry", this.symmetry);
+    addParameter("lineWidth", this.lineWidth);
+    addParameter("brightness", this.brightness);
   }
 
   @Override

@@ -32,28 +32,28 @@ public class RadialBloom2 extends ApotheneumPattern {
     .setDescription("Distortion of radial axis for symmetry warping");
 
   final DiscreteParameter symmetry =
-    new DiscreteParameter("Symmetry", 3, 1, 12)
+    new DiscreteParameter("Petals", 3, 1, 12)
     .setDescription("Number of radial petals or arms");
 
   final BooleanParameter inward =
-    new BooleanParameter("Inward", true)
+    new BooleanParameter("Bloom", true)
     .setDescription("Toggles between inward and outward bloom");
 
   final CompoundParameter jitter =
-    new CompoundParameter("Jitter", 0, 0, 1)
+    new CompoundParameter("Shimmer", 0, 0, 1)
     .setDescription("Adds shimmer to radius");
 
   private float time = 0;
 
   public RadialBloom2(LX lx) {
     super(lx);
-    addParameter(scale);
-    addParameter(hue);
-    addParameter(phase);
-    addParameter(warp);
-    addParameter(symmetry);
-    addParameter(inward);
-    addParameter(jitter);
+    addParameter("scaleVariance", this.scale);
+    addParameter("hueShift", this.hue);
+    addParameter("phaseDrift", this.phase);
+    addParameter("radialWarp", this.warp);
+    addParameter("numPetals", this.symmetry);
+    addParameter("bloomDir", this.inward);
+    addParameter("radialShimmer", this.jitter);
   }
 
   @Override

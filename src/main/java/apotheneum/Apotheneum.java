@@ -190,11 +190,11 @@ public class Apotheneum {
         this.rows = new Row[GRID_HEIGHT];
 
         if (this.columns.length != GRID_WIDTH) {
-          throw new IllegalStateException("Apotheneum face has wrong number of columns: " + this.columns.length);
+          throw new IllegalStateException("Apotheneum face expects " + GRID_WIDTH + " columns, found " + this.columns.length);
         }
         for (LXModel column : this.columns) {
           if (column.size != GRID_HEIGHT) {
-            throw new IllegalStateException("Apotheneum column has wrong length: " + column.size);
+            throw new IllegalStateException("Apotheneum cube column expects " + GRID_HEIGHT + " points, found " + column.size);
           }
         }
 
@@ -264,6 +264,15 @@ public class Apotheneum {
 
       private Orientation(LXModel model, String suffix) {
         this.columns = model.sub("cylinder" + suffix).toArray(new LXModel[0]);
+        if (this.columns.length != Ring.LENGTH) {
+          throw new IllegalStateException("Apotheneum cylinder expects " + Ring.LENGTH + " columns, found " + this.columns.length);
+        }
+        for (LXModel column : this.columns) {
+          if (column.size != CYLINDER_HEIGHT) {
+            throw new IllegalStateException("Apotheneum cylinder column expects " + CYLINDER_HEIGHT + " points, found " + column.size);
+          }
+        }
+
         this.rings = new Ring[this.columns[0].size];
         for (int i = 0; i < this.rings.length; ++i) {
           this.rings[i] = new Ring(i, this.columns);
@@ -354,7 +363,7 @@ public class Apotheneum {
         cylinder = null;
         exists = false;
         LX.error(x, "Error building Apotheneum helpers");
-        lx.pushError(x, "Apotheneum model is out of date, you may need to update your fixture files.\n" + x.getMessage());;
+        lx.pushError(x, "Apotheneum detected but contains errors. Fixture files may be out of date or multiple instances loaded?\n" + x.getMessage());;
       }
     }
   }

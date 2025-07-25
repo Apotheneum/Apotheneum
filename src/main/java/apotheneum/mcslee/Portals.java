@@ -51,6 +51,11 @@ public class Portals extends ApotheneumPattern {
     .setUnits(CompoundParameter.Units.PERCENT_NORMALIZED)
     .setDescription("Stripe sharpness");
 
+  public final CompoundParameter contrast =
+    new CompoundParameter("Contrast", 1, 1, 10)
+    .setUnits(CompoundParameter.Units.PERCENT_NORMALIZED)
+    .setDescription("Stripe contrast");
+
   public final CompoundParameter yRatio =
     new CompoundParameter("Ratio", 1, 1, 2)
     .setDescription("Aspect ratio");
@@ -61,6 +66,7 @@ public class Portals extends ApotheneumPattern {
     addParameter("distance", this.distance);
     addParameter("range", this.range);
     addParameter("sharp", this.sharp);
+    addParameter("contrast", this.contrast);
     addParameter("yRatio", this.yRatio);
   }
 
@@ -92,7 +98,8 @@ public class Portals extends ApotheneumPattern {
     final double range = this.range.getValue();
     final double minMax = this.minMax.getValue();
     final double yRatio = 1. / this.yRatio.getValue();
-    final double falloff = 1 / LXUtils.lerp(range, 1, this.sharp.getValuef());
+    final double contrast = this.contrast.getValue();
+    final double falloff = contrast / LXUtils.lerp(range, 1, this.sharp.getValuef());
 
     int pi = 0;
     for (LXPoint p : column.points) {
@@ -101,9 +108,9 @@ public class Portals extends ApotheneumPattern {
       double max = LXUtils.max(xDist, yDist);
       double dist = LXUtils.lerp(avg, max, minMax);
 
-      double b = 1 - falloff*Math.abs(LXUtils.wrapdist(dist % range, range*distance, range));
+      double b = contrast - falloff*Math.abs(LXUtils.wrapdist(dist % range, range*distance, range));
       if (b > 0) {
-        colors[p.index] = LXColor.grayn(b);
+        colors[p.index] = LXColor.grayn(LXUtils.min(1, b));
       }
       ++pi;
     }

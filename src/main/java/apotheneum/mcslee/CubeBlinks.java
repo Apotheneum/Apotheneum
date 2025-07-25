@@ -189,6 +189,10 @@ public class CubeBlinks extends ApotheneumPattern implements LXDeviceComponent.M
     .setUnits(CompoundParameter.Units.PERCENT_NORMALIZED)
     .setDescription("Amount velocity influences release time");
 
+  public final BooleanParameter midiAllFaces =
+    new BooleanParameter("Midi>A", false)
+    .setDescription("Whether MIDI notes always trigger all faces");
+
   public CubeBlinks(LX lx) {
     super(lx);
     addParameter("contrast", this.contrast);
@@ -198,6 +202,7 @@ public class CubeBlinks extends ApotheneumPattern implements LXDeviceComponent.M
     addParameter("peak", this.peak);
     addParameter("velocityPeak", this.velocityPeak);
     addParameter("velocityRelease", this.velocityRelease);
+    addParameter("midiAllFaces", this.midiAllFaces);
     for (Algo algo : this.algos) {
       String prefix = algo.getClass().getSimpleName().toLowerCase() + "-";
       addBlink(lx, prefix + "front", algo, "F", Apotheneum.cube.exterior.front);
@@ -503,7 +508,11 @@ public class CubeBlinks extends ApotheneumPattern implements LXDeviceComponent.M
   @Override
   public void noteOnReceived(MidiNoteOn note) {
     this.triggerVelocity = note.getVelocity() / 127.;
-    this.blinks.get(note.getPitch() % this.blinks.size()).trigger();
+    int trig = note.getPitch() % this.blinks.size();
+    if (this.midiAllFaces.isOn()) {
+      trig = 24 + (trig * 5) % 60;
+    }
+    this.blinks.get(trig).trigger();
 
     // Handled in the trigger above, set back to 1 for manual triggers
     this.triggerVelocity = 1;
@@ -522,9 +531,13 @@ public class CubeBlinks extends ApotheneumPattern implements LXDeviceComponent.M
 
     addColumn(uiDevice, UIKnob.WIDTH, "Level",
       newKnob(blinks.peak, 0),
-      newKnob(blinks.velocityPeak, 0),
-      newKnob(blinks.velocityRelease, 0)
+      newDoubleBox(blinks.velocityPeak, UIKnob.WIDTH),
+      controlLabel(ui, "Vel>Pk").setWidth(UIKnob.WIDTH),
+      newDoubleBox(blinks.velocityRelease, UIKnob.WIDTH),
+      controlLabel(ui, "Vel>Rls").setWidth(UIKnob.WIDTH),
+      newButton(blinks.midiAllFaces, UIKnob.WIDTH)
     ).setChildSpacing(6);
+
     addVerticalBreak(ui, uiDevice);
     addColumn(uiDevice, UIKnob.WIDTH, "Contrast",
       newKnob(blinks.contrast, 0)

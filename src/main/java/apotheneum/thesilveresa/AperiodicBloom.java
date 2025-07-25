@@ -27,9 +27,9 @@ public class AperiodicBloom extends ApotheneumPattern {
 
   public AperiodicBloom(LX lx) {
     super(lx);
-    addParameter(scale);
-    addParameter(tiling);
-    addParameter(hueShift);
+    addParameter("scaleVariance", this.scale);
+    addParameter("tilingKnob", this.tiling);
+    addParameter("hueShift", this.hueShift);
   }
 
   @Override

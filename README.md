@@ -18,15 +18,14 @@ This package currently requires macOS on an Apple Silicon machine. Windows instr
 
 
 
-* Download the latest [Chromatik pre-release](https://github.com/heronarts/Chromatik/releases/tag/1.1.1-SNAPSHOT-2025-06-27)
-  * [MacOS Build](https://github.com/heronarts/Chromatik/releases/download/1.1.1-SNAPSHOT-2025-06-27/Chromatik-1.1.1-SNAPSHOT-MacOS-Apple-Silicon.zip)
-  * [Windows Build](https://github.com/heronarts/Chromatik/releases/download/1.1.1-SNAPSHOT-2025-06-11/Chromatik-1.1.1-SNAPSHOT-Win64-Installer.msi)
+* Download the latest [Chromatik pre-release](https://github.com/heronarts/Chromatik/releases/tag/1.1.1-SNAPSHOT-2025-07-22)
+  * [MacOS Build](https://github.com/heronarts/Chromatik/releases/download/1.1.1-SNAPSHOT-2025-07-22/Chromatik-1.1.1-SNAPSHOT-MacOS-Apple-Silicon.zip)
 * Register a [Chromatik account](https://chromatik.co/login)
 * Authorize Chromatik with your free license
 
 #### Apotheneum Assets
 
-* Download the latest [Apotheneum release](https://github.com/Apotheneum/Apotheneum/releases/download/2025.06.27/apotheneum-0.0.1-SNAPSHOT.jar)
+* Download the latest [Apotheneum release](https://github.com/Apotheneum/Apotheneum/releases/download/2025.07.23/apotheneum-0.0.1-SNAPSHOT.jar)
 * Open Chromatik, drag-and-drop the Apotheneum file `apotheneum-0.0.1-SNAPSHOT.jar` onto the application window
 * From Chromatik, open the example project file `~/Chromatik/Projects/Apotheneum/Apotheneum.lxp`
 

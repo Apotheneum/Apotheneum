@@ -26,7 +26,7 @@ public class Nonrepeat1 extends ApotheneumPattern {
     .setDescription("Rate of phase misalignment");
 
   final CompoundParameter grainSize =
-    new CompoundParameter("GrainSize", 8, 2, 40)
+    new CompoundParameter("Granular", 8, 2, 40)
     .setDescription("Spacing or repetition hint");
 
   final CompoundParameter hueShift =
@@ -37,11 +37,11 @@ public class Nonrepeat1 extends ApotheneumPattern {
 
   public Nonrepeat1(LX lx) {
     super(lx);
-    addParameter(flicker);
-    addParameter(repeatHint);
-    addParameter(phaseDrift);
-    addParameter(grainSize);
-    addParameter(hueShift);
+    addParameter("flicker", this.flicker);
+    addParameter("repeat", this.repeatHint);
+    addParameter("phaseDrift", this.phaseDrift);
+    addParameter("grainSize", this.grainSize);
+    addParameter("hueShift", this.hueShift);
   }
 
   @Override

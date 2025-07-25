@@ -110,5 +110,10 @@ public abstract class ApotheneumEffect extends LXEffect {
     }
   }
 
+  protected void setColor(Apotheneum.Cube.Face face, int color) {
+    for (LXModel column : face.columns) {
+      setColor(column, color);
+    }
+  }
 
 }

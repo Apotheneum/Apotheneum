@@ -2,8 +2,8 @@
   "label": "Haptics",
   "tag": "haptics",
   "parameters": {
-    "host": { "label": "Host", "type": "string", "default": "10.0.1.201", "description": "Haptics IP" },
-    "outputEnabled": { "label": "On", "type": "boolean", "default": false, "description": "DMX Output On" }
+    "host": { "label": "DMX Host", "type": "string", "default": "10.0.1.201", "description": "Haptics IP" },
+    "outputEnabled": { "label": "DMX Output", "type": "boolean", "default": false, "description": "DMX Output On" }
   },
   "components": [
     {

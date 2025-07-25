@@ -35,7 +35,7 @@ public class EntropysEdge extends ApotheneumPattern {
       .setDescription("Scale of spatial pattern");
 
   final CompoundParameter saturation =
-    new CompoundParameter("Saturation", 1.0, 0.0, 1.0)
+    new CompoundParameter("Sat", 1.0, 0.0, 1.0)
       .setDescription("Color saturation from grayscale to full color");
 
   final CompoundParameter shiftX =
@@ -64,18 +64,18 @@ public class EntropysEdge extends ApotheneumPattern {
 
   public EntropysEdge(LX lx) {
     super(lx);
-    addParameter("order", order);
-    addParameter("disrupt", disrupt);
-    addParameter("warp", warp);
-    addParameter("contrast", contrast);
-    addParameter("scale", scale);
-    addParameter("saturation", saturation);
-    addParameter("shiftX", shiftX);
-    addParameter("shiftY", shiftY);
-    addParameter("mirror", mirror);
-    addParameter("hue1", hue1);
-    addParameter("hue2", hue2);
-    addParameter("hue3", hue3);
+    addParameter("order", this.order);
+    addParameter("disrupt", this.disrupt);
+    addParameter("warp", this.warp);
+    addParameter("contrast", this.contrast);
+    addParameter("scale", this.scale);
+    addParameter("saturate", this.saturation);
+    addParameter("shiftX", this.shiftX);
+    addParameter("shiftY", this.shiftY);
+    addParameter("mirror", this.mirror);
+    addParameter("hue1", this.hue1);
+    addParameter("hue2", this.hue2);
+    addParameter("hue3", this.hue3);
   }
 
   @Override

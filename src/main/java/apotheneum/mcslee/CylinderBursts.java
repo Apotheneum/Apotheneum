@@ -19,78 +19,50 @@
 package apotheneum.mcslee;
 
 import apotheneum.Apotheneum;
-import apotheneum.ApotheneumPattern;
 import heronarts.glx.ui.component.UIDropMenu;
 import heronarts.glx.ui.component.UIKnob;
 import heronarts.lx.LX;
 import heronarts.lx.LXCategory;
 import heronarts.lx.LXComponent;
 import heronarts.lx.LXComponentName;
-import heronarts.lx.parameter.BooleanParameter;
 import heronarts.lx.studio.LXStudio.UI;
 import heronarts.lx.studio.ui.device.UIDevice;
 import heronarts.lx.studio.ui.device.UIDeviceControls;
-import heronarts.lx.utils.LXUtils;
 
 @LXCategory("Apotheneum/mcslee")
-@LXComponentName("Cube Bursts")
-@LXComponent.Description("MIDI reactive emanations on the cube faces")
-public class CubeBursts extends Bursts implements ApotheneumPattern.Midi, UIDeviceControls<CubeBursts> {
+@LXComponentName("Cylinder Bursts")
+@LXComponent.Description("MIDI reactive emanations on the cylinder")
+public class CylinderBursts extends Bursts implements UIDeviceControls<CylinderBursts> {
 
-  public final BooleanParameter allFaces =
-    new BooleanParameter("All Faces", false)
-    .setDescription("Burst on all faces at once");
-
-  public final BooleanParameter allFacesSymmetry =
-    new BooleanParameter("Symmetry", false)
-    .setDescription("Burst on all faces are identical");
-
-  public CubeBursts(LX lx) {
+  public CylinderBursts(LX lx) {
     super(lx);
-    addParameter("allFaces", this.allFaces);
-    addParameter("allFacesSymmetry", this.allFacesSymmetry);
   }
 
   @Override
   protected boolean canBurstsWrap() {
-    return false;
+    return true;
   }
 
   @Override
   protected void generateBursts(int num) {
-    final boolean allFaces = this.allFaces.isOn();
-    final boolean allFacesSymmetry = this.allFacesSymmetry.isOn();
     for (int i = 0; i < num; ++i) {
-      if (allFaces) {
-        Burst b = null;
-        for (Apotheneum.Cube.Face face : Apotheneum.cube.exterior.faces) {
-          if (allFacesSymmetry && b != null) {
-            addBurst(new Burst(face, b));
-          } else {
-            addBurst(b = new Burst(face));
-          }
-        }
-      } else {
-        addBurst(new Burst(Apotheneum.cube.exterior.faces[LXUtils.randomi(0, 3)]));
-      }
+      addBurst(new Burst(Apotheneum.cylinder.exterior));
     }
   }
 
   @Override
   protected void afterRender() {
-    copyCubeExterior();
+    copyCylinderExterior();
   }
 
   @Override
-  public void buildDeviceControls(UI ui, UIDevice uiDevice, CubeBursts cubeBursts) {
+  public void buildDeviceControls(UI ui, UIDevice uiDevice, CylinderBursts cubeBursts) {
     uiDevice.setLayout(UIDevice.Layout.HORIZONTAL, 4);
 
     addColumn(uiDevice,
       newButton(cubeBursts.burst).setTriggerable(true).setBorderRounding(4),
       newKnob(cubeBursts.perTrig),
-      newKnob(cubeBursts.burstSpread),
-      newButton(cubeBursts.allFaces).setTopMargin(12),
-      newButton(cubeBursts.allFacesSymmetry)
+      newKnob(cubeBursts.burstSpread)
     ).setChildSpacing(4);
 
     addVerticalBreak(ui, uiDevice);

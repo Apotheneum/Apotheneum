@@ -12,7 +12,7 @@ import java.util.List;
  * Physically-based lightning algorithm inspired by actual lightning formation.
  * Simulates the stepped leader process and return stroke based on real lightning physics.
  */
-public class PhysicallyBasedAlgorithm {
+public class PhysicallyBasedAlgorithm implements LightningGenerator {
 
   public static class Parameters {
     public final double electricPotential;
@@ -96,6 +96,11 @@ public class PhysicallyBasedAlgorithm {
     }
   }
 
+  @Override
+  public void generateLightning(List<LightningSegment> segments, Object params) {
+    generateLightning(segments, (Parameters) params);
+  }
+  
   public static void generateLightning(List<LightningSegment> segments, Parameters params) {
     // Phase 1: Stepped Leader Formation
     List<SteppedLeader> allLeaders = new ArrayList<>();
@@ -287,7 +292,13 @@ public class PhysicallyBasedAlgorithm {
     }
   }
 
-  public static void render(Graphics2D graphics, List<LightningSegment> segments, double fadeAmount,
+  @Override
+  public void render(Graphics2D graphics, List<LightningSegment> segments, double fadeAmount,
+                           double intensityValue, double thicknessValue, double bleedingValue) {
+    renderStatic(graphics, segments, fadeAmount, intensityValue, thicknessValue, bleedingValue);
+  }
+  
+  public static void renderStatic(Graphics2D graphics, List<LightningSegment> segments, double fadeAmount,
                            double intensityValue, double thicknessValue, double bleedingValue) {
     double alpha = fadeAmount * intensityValue;
 

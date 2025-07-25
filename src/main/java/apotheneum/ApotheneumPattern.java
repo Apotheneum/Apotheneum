@@ -125,6 +125,12 @@ public abstract class ApotheneumPattern extends LXPattern {
     }
   }
 
+  protected void setColor(Apotheneum.Cube.Face face, int color) {
+    for (LXModel column : face.columns) {
+      setColor(column, color);
+    }
+  }
+
   protected abstract void render(double deltaMs);
 
 }

@@ -22,7 +22,7 @@ public class RadialBloom1 extends ApotheneumPattern {
       .setDescription("Base hue shift");
 
     final CompoundParameter phase =
-      new CompoundParameter("Phase Drift", 0, 0, 10)
+      new CompoundParameter("Bloom", 0, 0, 10)
       .setDescription("Speed of radial bloom oscillation");
 
     final CompoundParameter warp =
@@ -33,10 +33,10 @@ public class RadialBloom1 extends ApotheneumPattern {
 
     public RadialBloom1(LX lx) {
       super(lx);
-      addParameter(scale);
-      addParameter(hue);
-      addParameter(phase);
-      addParameter(warp);
+      addParameter("scaleVariance", this.scale);
+      addParameter("hueShift", this.hue);
+      addParameter("phaseBloom", this.phase);
+      addParameter("radialWarp", this.warp);
     }
 
     @Override

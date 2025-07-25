@@ -30,6 +30,20 @@ The installation has doors that affect pixel availability:
 
 ## Development Patterns
 
+### Thread Safety and Concurrency
+
+- **NEVER use synchronized blocks** - The LX framework handles rendering in a single thread context
+- Pattern rendering methods are called sequentially, not concurrently
+- Synchronization adds unnecessary overhead and can cause performance issues
+- Use standard Java collections and data structures without thread safety concerns
+
+### Performance Best Practices
+
+- **Avoid creating new ArrayLists in render loops** - Reuse collections or use pre-allocated arrays
+- Collections created in render methods are called at high frequency (60+ FPS)
+- Use `clear()` on existing collections instead of creating new ones
+- Consider using primitive arrays or pre-sized collections for performance-critical code
+
 ### Choosing the Right Base Class
 
 **Extend ApotheneumPattern when:**

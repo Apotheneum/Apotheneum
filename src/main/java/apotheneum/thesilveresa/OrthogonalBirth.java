@@ -22,7 +22,7 @@ public class OrthogonalBirth extends ApotheneumPattern {
       .setDescription("Thickness of the grid lines");
 
   final CompoundParameter brightness =
-    new CompoundParameter("Brightness", 1.0, 0.0, 1.0)
+    new CompoundParameter("Bright", 1.0, 0.0, 1.0)
       .setDescription("Maximum brightness");
 
   final CompoundParameter rate =
@@ -39,12 +39,12 @@ public class OrthogonalBirth extends ApotheneumPattern {
 
   public OrthogonalBirth(LX lx) {
     super(lx);
-    addParameter(grid);
-    addParameter(width);
-    addParameter(brightness);
-    addParameter(rate);
-    addParameter(pulse);
-    addParameter(phase);
+    addParameter("grid", this.grid);
+    addParameter("width", this.width);
+    addParameter("Bright", this.brightness);
+    addParameter("Rate", this.rate);
+    addParameter("pulse", this.pulse);
+    addParameter("Phase", this.phase);
   }
 
   @Override

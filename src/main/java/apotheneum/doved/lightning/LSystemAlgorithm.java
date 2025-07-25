@@ -10,7 +10,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class LSystemAlgorithm {
+public class LSystemAlgorithm implements LightningGenerator {
 
   public static class Parameters {
     public final int iterations;
@@ -67,6 +67,11 @@ public class LSystemAlgorithm {
     }
   }
 
+  @Override
+  public void generateLightning(List<LightningSegment> segments, Object params) {
+    generateLightning(segments, (Parameters) params);
+  }
+  
   public static void generateLightning(List<LightningSegment> segments, Parameters params) {
     // Generate L-system string
     String lSystemString = generateLSystemString(params.iterations);
@@ -160,7 +165,13 @@ public class LSystemAlgorithm {
     }
   }
 
-  public static void render(Graphics2D graphics, List<LightningSegment> segments, double fadeAmount,
+  @Override
+  public void render(Graphics2D graphics, List<LightningSegment> segments, double fadeAmount,
+      double intensityValue, double thicknessValue, double bleedingValue) {
+    renderStatic(graphics, segments, fadeAmount, intensityValue, thicknessValue, bleedingValue);
+  }
+  
+  public static void renderStatic(Graphics2D graphics, List<LightningSegment> segments, double fadeAmount,
       double intensityValue, double thicknessValue, double bleedingValue) {
     double alpha = fadeAmount * intensityValue;
 

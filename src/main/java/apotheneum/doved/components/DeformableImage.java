@@ -8,7 +8,6 @@ import heronarts.lx.parameter.BooleanParameter;
 import heronarts.lx.pattern.image.ImagePattern.Image;
 import heronarts.lx.model.LXModel;
 import heronarts.lx.model.LXPoint;
-import heronarts.lx.color.LXColor;
 import heronarts.lx.transform.LXVector;
 import heronarts.lx.transform.LXMatrix;
 import heronarts.lx.utils.LXUtils;
@@ -52,6 +51,7 @@ public class DeformableImage extends Image implements LXComponent.Renamable, LXO
 
   @Override
   public void onParameterChanged(LXParameter p) {
+    super.onParameterChanged(p);
     if (p == this.fileRelativePath) {
       // Convert relative path to absolute path for loading, following the original
       // pattern
@@ -60,8 +60,6 @@ public class DeformableImage extends Image implements LXComponent.Renamable, LXO
       String absolutePath = AssetPaths.toAbsolutePathFromAssets(relativePath);
 
       this.fileName.setValue(absolutePath);
-
-      super.onParameterChanged(this.fileName);
     }
   }
 
@@ -116,6 +114,7 @@ public class DeformableImage extends Image implements LXComponent.Renamable, LXO
    * This is the key method that adds kaleidoscope functionality to the base Image
    * class
    */
+  @Override
   public void render(LXModel model, int[] colors) {
     int backgroundColor = this.backgroundMode.getEnum().color;
 
@@ -128,7 +127,7 @@ public class DeformableImage extends Image implements LXComponent.Renamable, LXO
       this.computeTransformMatrix(model);
 
       // Get the imageMode for coordinate function
-      ImagePattern.ImageMode imageMode = (ImagePattern.ImageMode) this.imageMode.getEnum();
+      ImagePattern.ImageMode imageMode = this.imageMode.getEnum();
       float scrollX = (1.0f - this.scrollX.getValuef()) % 1.0f;
       float scrollY = (1.0f - this.scrollY.getValuef()) % 1.0f;
       GLXUtils.Image glxImage = this.getImage();

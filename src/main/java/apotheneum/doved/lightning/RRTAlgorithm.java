@@ -8,7 +8,7 @@ import java.awt.geom.Path2D;
 import java.util.ArrayList;
 import java.util.List;
 
-public class RRTAlgorithm {
+public class RRTAlgorithm implements LightningGenerator {
 
   public static class Parameters {
     public final double stepSize;
@@ -89,6 +89,11 @@ public class RRTAlgorithm {
     }
   }
 
+  @Override
+  public void generateLightning(List<LightningSegment> segments, Object params) {
+    generateLightning(segments, (Parameters) params);
+  }
+  
   public static void generateLightning(List<LightningSegment> segments, Parameters params) {
     // Initialize tree with root at configured startX position
     double startX = params.startX * params.rasterWidth;
@@ -279,7 +284,13 @@ public class RRTAlgorithm {
     }
   }
 
-  public static void render(Graphics2D graphics, List<LightningSegment> segments, double fadeAmount,
+  @Override
+  public void render(Graphics2D graphics, List<LightningSegment> segments, double fadeAmount,
+      double intensityValue, double thicknessValue, double bleedingValue) {
+    renderStatic(graphics, segments, fadeAmount, intensityValue, thicknessValue, bleedingValue);
+  }
+  
+  public static void renderStatic(Graphics2D graphics, List<LightningSegment> segments, double fadeAmount,
       double intensityValue, double thicknessValue, double bleedingValue) {
     double alpha = fadeAmount * intensityValue;
 
