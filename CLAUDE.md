@@ -12,6 +12,8 @@ Apotheneum is a visual, sonic and haptic instrument for immersive LED art instal
 - **Install**: `mvn -Pinstall install` - Builds and installs the package to ~/Chromatik/Packages
 - **Quick Install**: `./update.command` - Convenience script that runs `mvn install`
 
+**IMPORTANT**: Always use `mvn -Pinstall install` instead of `mvn compile` when working on patterns, as this updates the Chromatik code and makes changes available in the lighting system.
+
 ### Key Constants
 
 - `GRID_WIDTH = 50`, `GRID_HEIGHT = 45` - Cube face dimensions
@@ -68,6 +70,12 @@ The installation has doors that affect pixel availability:
 - `copyCubeFace(face)` - Copy one face to all cube faces
 - `copyExterior()` - Mirror exterior surfaces to interior
 - `setApotheneumColor(color)` - Set entire installation to one color
+
+### UI Design Guidelines
+
+- **Maximum 3 controls per column** - UI columns should never exceed 3 elements to prevent overflow and maintain visibility
+- **Logical grouping** - Group related parameters together (e.g., movement controls, visual controls, etc.)
+- **Clear button placement** - Important buttons like "Clear" should be easily accessible and not hidden by overcrowding
 
 ## Dependencies
 
