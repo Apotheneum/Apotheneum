@@ -30,6 +30,7 @@ public class Hyperspace extends ApotheneumPattern implements UIDeviceControls<Hy
     int color;      // Star color
     double lifespan; // Total lifespan in milliseconds
     double age;     // Current age in milliseconds
+    boolean dead;   // Mark for removal
     
     
     Star(double maxLifespan, LXPoint[] allPoints) {
@@ -54,6 +55,7 @@ public class Hyperspace extends ApotheneumPattern implements UIDeviceControls<Hy
       
       speed = 0.5f + (float)Math.random() * 1.0f; // Individual speed variation
       age = 0; // Reset age
+      dead = false;
       
       // Pure white stars with brightness variation
       float brightness = 0.8f + (float)Math.random() * 0.2f;
@@ -64,15 +66,10 @@ public class Hyperspace extends ApotheneumPattern implements UIDeviceControls<Hy
       );
     }
     
-    void update(double deltaMs, float baseSpeed, double maxLifespan, int axis, float direction) {
+    void update(double deltaMs, float baseSpeed, int axis, float direction) {
       // Age the star
       age += deltaMs;
-      
-      // Update lifespan if parameter changed
-      if (lifespan > maxLifespan * 1.5 || lifespan < maxLifespan * 0.5) {
-        lifespan = Math.random() * maxLifespan + maxLifespan * 0.5;
-      }
-      
+
       float currentSpeed = baseSpeed * speed;
       
       // Motion control moves the entire star field in one axis
@@ -92,45 +89,24 @@ public class Hyperspace extends ApotheneumPattern implements UIDeviceControls<Hy
       }
       
       
-      // Reset if out of bounds - spawn behind based on motion direction
-      // This creates a natural flow where stars come from behind and exit in front
-      boolean outOfBounds = false;
-      
-      // Check if star has exited the extended boundaries
+      // Mark as dead if out of bounds
       if (x < -0.2f || x > 1.2f || y < -0.2f || y > 1.2f || z < -0.2f || z > 1.2f) {
-        // Only respawn if the star is moving away from the installation
-        // This prevents stars from immediately respawning when they should be traveling through
-        switch (axis) {
-          case 0: // X-axis motion
-            if ((direction > 0 && x > 1.2f) || (direction < 0 && x < -0.2f)) {
-              outOfBounds = true;
-            }
-            break;
-          case 1: // Y-axis motion
-            if ((direction > 0 && y > 1.2f) || (direction < 0 && y < -0.2f)) {
-              outOfBounds = true;
-            }
-            break;
-          case 2: // Z-axis motion
-            if ((direction > 0 && z > 1.2f) || (direction < 0 && z < -0.2f)) {
-              outOfBounds = true;
-            }
-            break;
-        }
-        
-        if (outOfBounds) {
-          spawnBehind(axis, direction);
-          return; // Exit early, don't check lifespan
-        }
+        dead = true;
+        return;
       }
-      
+
+      // Mark as dead if exceeded lifespan
       if (age >= lifespan) {
-        spawnBehind(axis, direction);
+        dead = true;
       }
     }
     
     // Spawn star behind the installation based on motion direction
     void spawnBehind(int axis, float direction) {
+      // Mark as alive
+      dead = false;
+      age = 0;
+
       // Random position in the two perpendicular axes
       float rand1 = (float)Math.random();
       float rand2 = (float)Math.random();
@@ -166,10 +142,6 @@ public class Hyperspace extends ApotheneumPattern implements UIDeviceControls<Hy
           }
           break;
       }
-      
-      
-      // Reset age
-      age = 0;
     }
     
     float getBrightness() {
@@ -278,13 +250,16 @@ public class Hyperspace extends ApotheneumPattern implements UIDeviceControls<Hy
     }
   }
   
-  private final List<Star> stars = new ArrayList<>();
+  private static final int MAX_STARS = 5000; // Pre-allocated pool size
+  private final Star[] starPool = new Star[MAX_STARS];
+  private int activeStarCount = 0;
   private LXPoint[] allPoints; // Cache of all LED points for targeting
   private LEDSpatialGrid ledGrid; // Spatial grid for efficient LED search
   
   // Pre-computed LED mappings for performance
   private Map<Integer, Integer> exteriorToInteriorMap = new HashMap<>();
   private Map<Integer, Boolean> cubeLedsMap = new HashMap<>();
+  private Map<Integer, Integer> cubeFaceMap = new HashMap<>(); // Maps LED index to cube face (0=front, 1=right, 2=back, 3=left)
   
   // Performance monitoring
   private long frameCount = 0;
@@ -297,8 +272,8 @@ public class Hyperspace extends ApotheneumPattern implements UIDeviceControls<Hy
   public final CompoundParameter speed = new CompoundParameter("Speed", 0.5, 0.1, 50.0)
     .setDescription("Speed of hyperspace travel");
     
-  public final CompoundParameter density = new CompoundParameter("Density", 100, 10, 3000)
-    .setDescription("Number of stars");
+  public final CompoundParameter density = new CompoundParameter("Density", 100, 10, 2000)
+    .setDescription("Stars spawned per second");
     
   public final CompoundParameter starSize = new CompoundParameter("Star Size", 0.1, 0.05, 0.3)
     .setDescription("Size of stars and trails");
@@ -327,8 +302,13 @@ public class Hyperspace extends ApotheneumPattern implements UIDeviceControls<Hy
     
   public final BooleanParameter renderToCylinder = new BooleanParameter("Cylinder", true)
     .setDescription("Render stars to cylinder surfaces");
-  
+
+  public final BooleanParameter clearStars = new BooleanParameter("Clear", false)
+    .setMode(BooleanParameter.Mode.MOMENTARY)
+    .setDescription("Clear and respawn all stars");
+
   private double pulsePhase = 0;
+  private double spawnAccumulator = 0; // Accumulates fractional star spawns
   
   public Hyperspace(LX lx) {
     super(lx);
@@ -342,7 +322,8 @@ public class Hyperspace extends ApotheneumPattern implements UIDeviceControls<Hy
     addParameter("motionDirection", this.motionDirection);
     addParameter("renderToCube", this.renderToCube);
     addParameter("renderToCylinder", this.renderToCylinder);
-    
+    addParameter("clearStars", this.clearStars);
+
     // Cache all LED points for star targeting
     allPoints = model.points;
     
@@ -352,31 +333,59 @@ public class Hyperspace extends ApotheneumPattern implements UIDeviceControls<Hy
     
     // Pre-compute LED mappings for performance
     precomputeLEDMappings();
-    
-    updateStarCount();
+
+    // Pre-allocate all star objects (object pool to avoid GC)
+    double maxLifespan = duration.getValue();
+    for (int i = 0; i < MAX_STARS; i++) {
+      starPool[i] = new Star(maxLifespan, allPoints);
+    }
   }
   
-  private void updateStarCount() {
-    int targetCount = (int)density.getValue();
+  private void spawnStars(double deltaMs, int axis, float direction) {
+    double spawnRate = density.getValue(); // stars per second
     double maxLifespan = duration.getValue();
-    int axis = (int)motionAxis.getValue();
-    float direction = (float)motionDirection.getValue();
-    
-    while (stars.size() < targetCount) {
-      Star newStar = new Star(maxLifespan, allPoints);
-      // Spawn new stars behind the installation for natural flow
-      newStar.spawnBehind(axis, direction);
-      stars.add(newStar);
+
+    // Accumulate fractional spawns
+    spawnAccumulator += spawnRate * deltaMs / 1000.0;
+
+    // Spawn whole stars from the pool
+    while (spawnAccumulator >= 1.0 && activeStarCount < MAX_STARS) {
+      spawnAccumulator -= 1.0;
+      Star star = starPool[activeStarCount];
+      star.lifespan = Math.random() * maxLifespan + maxLifespan * 0.5;
+      star.spawnBehind(axis, direction);
+      activeStarCount++;
     }
-    while (stars.size() > targetCount) {
-      stars.remove(stars.size() - 1);
+
+    // Cap accumulator if pool is full
+    if (activeStarCount >= MAX_STARS) {
+      spawnAccumulator = 0;
     }
+  }
+
+  private void removeDeadStars() {
+    // Compact the array by swapping dead stars with active ones from the end
+    int writeIndex = 0;
+    for (int readIndex = 0; readIndex < activeStarCount; readIndex++) {
+      if (!starPool[readIndex].dead) {
+        if (writeIndex != readIndex) {
+          // Swap to keep active stars contiguous
+          Star temp = starPool[writeIndex];
+          starPool[writeIndex] = starPool[readIndex];
+          starPool[readIndex] = temp;
+        }
+        writeIndex++;
+      }
+    }
+    activeStarCount = writeIndex;
   }
   
   @Override
   public void onParameterChanged(heronarts.lx.parameter.LXParameter parameter) {
-    if (parameter == density) {
-      updateStarCount();
+    if (parameter == clearStars && clearStars.isOn()) {
+      // Clear all stars - just reset the active count, pool stays allocated
+      activeStarCount = 0;
+      spawnAccumulator = 0;
     }
     super.onParameterChanged(parameter);
   }
@@ -384,51 +393,56 @@ public class Hyperspace extends ApotheneumPattern implements UIDeviceControls<Hy
   @Override
   protected void render(double deltaMs) {
     long frameStartTime = System.nanoTime();
-    
+
+    int axis = (int)motionAxis.getValue();
+    float direction = (float)motionDirection.getValue();
+
+    // Spawn new stars based on density (spawn rate)
+    spawnStars(deltaMs, axis, direction);
+
     // Update pulse phase
     if (pulse.isOn()) {
       pulsePhase += deltaMs * 0.003;
     }
-    
-    
+
     // Calculate current speed with optional pulse
     float currentSpeed = (float)(speed.getValue() * deltaMs * 0.0001);
     if (pulse.isOn()) {
       currentSpeed *= 1.0f + (float)Math.sin(pulsePhase) * 0.5f;
     }
-    
-    // Update all stars
+
+    // Update all active stars
     long updateStartTime = System.nanoTime();
-    double maxLifespan = duration.getValue();
-    int axis = (int)motionAxis.getValue();
-    float direction = (float)motionDirection.getValue();
-    
-    for (Star star : stars) {
-      star.update(deltaMs, currentSpeed, maxLifespan, axis, direction);
+
+    for (int i = 0; i < activeStarCount; i++) {
+      starPool[i].update(deltaMs, currentSpeed, axis, direction);
     }
+
+    // Remove dead stars (exceeded lifespan or out of bounds)
+    removeDeadStars();
     long updateEndTime = System.nanoTime();
     totalUpdateTime += (updateEndTime - updateStartTime);
-    
+
     // Clear all points first
     for (LXPoint p : model.points) {
       colors[p.index] = 0;
     }
-    
+
     // Now render each star as a sharp point
     long renderStartTime = System.nanoTime();
     float brightnessMult = (float)brightness.getValue();
     int starsRendered = 0;
-    
-    for (Star star : stars) {
-      // Only render stars that are reasonably close to the visible cube
-      // This allows stars outside the cube to exist but not waste computation
-      if (star.x >= -0.2f && star.x <= 1.2f && 
-          star.y >= -0.2f && star.y <= 1.2f && 
-          star.z >= -0.2f && star.z <= 1.2f) {
-        
+
+    for (int i = 0; i < activeStarCount; i++) {
+      Star star = starPool[i];
+      // Only render stars that are inside the visible cube [0,1]
+      if (star.x >= 0f && star.x <= 1f &&
+          star.y >= 0f && star.y <= 1f &&
+          star.z >= 0f && star.z <= 1f) {
+
         // Render the star using closest LED algorithm
         float starBrightness = star.getBrightness() * brightnessMult;
-        renderStar(star.x, star.y, star.z, star.color, starBrightness);
+        renderStar(star.x, star.y, star.z, star.color, starBrightness, axis);
         starsRendered++;
       }
     }
@@ -454,7 +468,7 @@ public class Hyperspace extends ApotheneumPattern implements UIDeviceControls<Hy
       
       LX.log(String.format(
         "Hyperspace Performance - Stars: %d (rendered: %d) | Update: %.2fms | Render: %.2fms (LED search: %.2fms, avg %.0f LEDs/star) | Total: %.2fms | FPS potential: %.0f | Cube LEDs: %d, Cylinder LEDs: %d",
-        stars.size(), starsRendered, avgUpdateMs, avgRenderMs, avgFindLEDMs, avgLEDsPerStar, totalFrameMs, 1000.0 / totalFrameMs, cubeCount, cylinderCount
+        activeStarCount, starsRendered, avgUpdateMs, avgRenderMs, avgFindLEDMs, avgLEDsPerStar, totalFrameMs, 1000.0 / totalFrameMs, cubeCount, cylinderCount
       ));
       
       // Reset counters
@@ -476,10 +490,6 @@ public class Hyperspace extends ApotheneumPattern implements UIDeviceControls<Hy
     };
   }
   
-  // Helper method for bounds checking
-  private boolean isInBounds(float x, float y, float z) {
-    return x >= 0 && x <= 1 && y >= 0 && y <= 1 && z >= 0 && z <= 1;
-  }
   
   // Helper method to track LED search performance
   private void trackLEDSearchPerformance(long startTime, int ledCount) {
@@ -490,45 +500,51 @@ public class Hyperspace extends ApotheneumPattern implements UIDeviceControls<Hy
   }
   
   // Render star using closest LED algorithm
-  private void renderStar(float x, float y, float z, int color, float brightness) {
-    if (!isInBounds(x, y, z)) return;
-    
+  private void renderStar(float x, float y, float z, int color, float brightness, int motionAxis) {
     float[] modelCoords = convertToModelSpace(x, y, z);
     float starX = modelCoords[0], starY = modelCoords[1], starZ = modelCoords[2];
-    
+
     long ledSearchStart = System.nanoTime();
     float minDistanceSquared = Float.MAX_VALUE;
     int closestIndex = -1;
-    
+
     // Use spatial grid to find nearby LEDs only
     // Search radius of 30 units should be enough to find closest LED
     List<LXPoint> nearbyLEDs = ledGrid.getNearbyLEDs(starX, starY, starZ, 30.0f);
-    
+
     // Find closest LED among nearby candidates (filtered by surface toggles)
     for (LXPoint p : nearbyLEDs) {
       boolean isCubeLED = isPointOnCube(p);
-      
+
       // Skip this LED if its surface is disabled
       if (isCubeLED && !renderToCube.isOn()) continue;
       if (!isCubeLED && !renderToCylinder.isOn()) continue;
-      
+
+      // For cube LEDs, skip faces perpendicular to motion axis
+      if (isCubeLED) {
+        Integer faceIndex = cubeFaceMap.get(p.index);
+        if (faceIndex != null && shouldSkipCubeFace(faceIndex, motionAxis)) {
+          continue;
+        }
+      }
+
       float dx = p.x - starX;
       float dy = p.y - starY;
       float dz = p.z - starZ;
       float distanceSquared = dx*dx + dy*dy + dz*dz;
-      
+
       if (distanceSquared < minDistanceSquared) {
         minDistanceSquared = distanceSquared;
         closestIndex = p.index;
       }
     }
     trackLEDSearchPerformance(ledSearchStart, nearbyLEDs.size());
-    
+
     // Always render to the closest LED (both exterior and interior for cube only)
     if (closestIndex >= 0) {
       int finalColor = LXColor.scaleBrightness(color, brightness);
       colors[closestIndex] = LXColor.blend(colors[closestIndex], finalColor, LXColor.Blend.ADD);
-      
+
       // Also render to corresponding exterior/interior LED (cube only)
       boolean isCubeLED = isPointOnCube(allPoints[closestIndex]);
       if (isCubeLED) {
@@ -556,6 +572,12 @@ public class Hyperspace extends ApotheneumPattern implements UIDeviceControls<Hy
     if (Apotheneum.cube.interior() != null) {
       markCubeLEDs(Apotheneum.cube.interior());
     }
+
+    // Mark which face each cube LED belongs to
+    markCubeFaces(Apotheneum.cube.exterior);
+    if (Apotheneum.cube.interior != null) {
+      markCubeFaces(Apotheneum.cube.interior);
+    }
     
     // Build exterior <-> interior mapping
     if (Apotheneum.cube.interior() != null) {
@@ -573,6 +595,33 @@ public class Hyperspace extends ApotheneumPattern implements UIDeviceControls<Hy
         cubeLedsMap.put(ledIndex, true);
       }
     }
+  }
+
+  private void markCubeFaces(Apotheneum.Cube.Orientation orientation) {
+    // Mark each face's LEDs with their face index (0=front, 1=right, 2=back, 3=left)
+    markFaceLEDs(orientation.front, 0);
+    markFaceLEDs(orientation.right, 1);
+    markFaceLEDs(orientation.back, 2);
+    markFaceLEDs(orientation.left, 3);
+  }
+
+  private void markFaceLEDs(Apotheneum.Cube.Face face, int faceIndex) {
+    for (LXPoint p : face.model.points) {
+      cubeFaceMap.put(p.index, faceIndex);
+    }
+  }
+
+  // Check if a cube face should be skipped based on motion axis
+  // X axis (0): skip left (3) and right (1) faces
+  // Z axis (2): skip front (0) and back (2) faces
+  // Y axis (1): render all faces
+  private boolean shouldSkipCubeFace(int faceIndex, int motionAxis) {
+    if (motionAxis == 0) { // X axis - skip left and right
+      return faceIndex == 1 || faceIndex == 3;
+    } else if (motionAxis == 2) { // Z axis - skip front and back
+      return faceIndex == 0 || faceIndex == 2;
+    }
+    return false; // Y axis - render all faces
   }
   
   private void buildExteriorInteriorMapping() {
@@ -634,6 +683,7 @@ public class Hyperspace extends ApotheneumPattern implements UIDeviceControls<Hy
     
     // Additional controls
     addColumn(uiDevice, "Effects",
-      newButton(pattern.pulse).setTriggerable(true)).setChildSpacing(6);
+      newButton(pattern.pulse).setTriggerable(true),
+      newButton(pattern.clearStars).setTriggerable(true)).setChildSpacing(6);
   }
 }
