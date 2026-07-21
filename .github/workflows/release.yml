@@ -1,0 +1,70 @@
+name: release
+
+# Cut a release the way this project already does: push a calendar tag.
+#
+#   git tag 2026.07.21 && git push origin 2026.07.21
+#
+# CI builds the jar and creates the GitHub Release, so nobody has to build
+# locally and hand-upload the jar. The tag is the release identity; the pom
+# version is not involved.
+
+on:
+  push:
+    # Calendar tags: 2026.03.02, 2025.08.21, 2025.07.21-2.
+    # Actions filter patterns support only * ** + ? ! — no character classes —
+    # so this can't be pinned to digits. Anything matching cuts a real release.
+    tags: ["20*.*.*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: "21"
+          distribution: temurin
+          cache: maven
+
+      # Build before publishing anything. Plain `package` — NOT -Pinstall,
+      # which copies the jar into ~/Chromatik/Packages (pointless on a runner).
+      - name: mvn package
+        run: mvn -B package
+
+      # The built jar is named from the pom version (apotheneum-2.0.0-SNAPSHOT.jar),
+      # which is not the release identity and shouldn't be a public download name.
+      # Publish two assets instead:
+      #   apotheneum.jar          — stable name, so releases/latest/download/apotheneum.jar
+      #                             is a permanent link that always serves the newest release
+      #   apotheneum-<tag>.jar    — pinnable, e.g. apotheneum-2026.07.21.jar
+      # Globbed so a future pom version change doesn't break this.
+      - name: Stage release assets
+        run: |
+          # Assert exactly one match rather than taking the first: a sources or
+          # javadoc jar would sort BEFORE the real one ("-" < "."), so `head -1`
+          # would silently publish the wrong artifact if such a plugin is added.
+          shopt -s nullglob
+          jars=(target/apotheneum-*.jar)
+          if [ ${#jars[@]} -ne 1 ]; then
+            echo "expected exactly 1 jar in target/, got ${#jars[@]}: ${jars[*]}" >&2
+            exit 1
+          fi
+          JAR="${jars[0]}"
+          echo "built: $JAR"
+          mkdir -p dist
+          cp "$JAR" "dist/apotheneum.jar"
+          cp "$JAR" "dist/apotheneum-${GITHUB_REF_NAME}.jar"
+
+      - name: Create release
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            --title "Apotheneum ${GITHUB_REF_NAME}" --generate-notes \
+            "dist/apotheneum.jar" "dist/apotheneum-${GITHUB_REF_NAME}.jar"
