@@ -30,3 +30,6 @@ target
 hs_err_pid*
 /bin/
 
+# Claude Code local tool settings (personal, not shared project config)
+.claude/
+
