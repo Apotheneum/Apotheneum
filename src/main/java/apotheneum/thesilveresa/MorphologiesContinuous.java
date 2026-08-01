@@ -77,32 +77,39 @@ public class MorphologiesContinuous extends ApotheneumPattern {
     // installation-wide jump. Using unwrapped time removes that reset entirely.
     double time = lx.engine.nowMillis / 1000.0;
 
+    // The flowing offset only depends on time/flow, not on pixel position -
+    // it was previously recomputed (two trig calls) inside calculateMorphColor
+    // for every single pixel, ~26k times per frame across cube+cylinder.
+    // Compute it once here instead.
+    float flow = flowRate.getValuef();
+    float flowOffsetU = (float)(Math.sin(time * flow * 0.3) * 0.2);
+    float flowOffsetV = (float)(Math.cos(time * flow * 0.4) * 0.15);
+
     // Render geometries
     Cube cube = Apotheneum.cube;
     if (cube != null) {
       for (Face face : cube.exterior.faces) {
-        processFace(face, time);
+        processFace(face, flowOffsetU, flowOffsetV);
       }
       if (cube.interior != null) {
         for (Face face : cube.interior.faces) {
-          processFace(face, time);
+          processFace(face, flowOffsetU, flowOffsetV);
         }
       }
     }
 
     Cylinder cylinder = Apotheneum.cylinder;
     if (cylinder != null) {
-      processCylinder(cylinder, time);
+      processCylinder(cylinder, flowOffsetU, flowOffsetV);
     }
   }
 
-  private void processFace(Face face, double time) {
+  private void processFace(Face face, float flowOffsetU, float flowOffsetV) {
     int cols = face.columns.length;
     int rows = face.rows.length;
     float invCols = 1.0f / Math.max(1, cols - 1);
     float invRows = 1.0f / Math.max(1, rows - 1);
     float scl = scale.getValuef();
-    float flow = flowRate.getValuef();
 
     for (Row row : face.rows) {
       for (int cx = 0; cx < cols; cx++) {
@@ -110,47 +117,50 @@ public class MorphologiesContinuous extends ApotheneumPattern {
         float u = cx * invCols - 0.5f;
         float v = row.index * invRows - 0.5f;
 
-        int color = calculateMorphColor(u, v, scl, time, flow);
+        int color = calculateMorphColor(u, v, scl, flowOffsetU, flowOffsetV);
         colors[p.index] = color;
       }
     }
   }
 
-  private void processCylinder(Cylinder cylinder, double time) {
-    Cylinder.Orientation[] faces = (cylinder.interior != null)
-      ? new Cylinder.Orientation[]{ cylinder.exterior, cylinder.interior }
-      : new Cylinder.Orientation[]{ cylinder.exterior };
+  private void processCylinder(Cylinder cylinder, float flowOffsetU, float flowOffsetV) {
+    // Process exterior directly and conditionally handle interior, instead
+    // of allocating a fresh Cylinder.Orientation[] wrapper array every frame
+    // just to iterate over one or two elements.
+    processCylinderOrientation(cylinder.exterior, flowOffsetU, flowOffsetV);
+    if (cylinder.interior != null) {
+      processCylinderOrientation(cylinder.interior, flowOffsetU, flowOffsetV);
+    }
+  }
 
+  private void processCylinderOrientation(Cylinder.Orientation face, float flowOffsetU, float flowOffsetV) {
     float scl = scale.getValuef();
-    float flow = flowRate.getValuef();
 
-    for (Cylinder.Orientation face : faces) {
-      Ring[] rings = face.rings;
-      int numRings = rings.length;
-      final float stretchFactor = 0.4f;
+    Ring[] rings = face.rings;
+    int numRings = rings.length;
+    final float stretchFactor = 0.4f;
 
-      for (int ringIndex = 0; ringIndex < numRings; ringIndex++) {
-        Ring ring = rings[ringIndex];
-        int pointsPerRing = ring.points.length;
+    for (int ringIndex = 0; ringIndex < numRings; ringIndex++) {
+      Ring ring = rings[ringIndex];
+      int pointsPerRing = ring.points.length;
 
-        for (int pointIndex = 0; pointIndex < pointsPerRing; pointIndex++) {
-          LXPoint p = ring.points[pointIndex];
+      for (int pointIndex = 0; pointIndex < pointsPerRing; pointIndex++) {
+        LXPoint p = ring.points[pointIndex];
 
-          float theta = (float)(2 * Math.PI * pointIndex / pointsPerRing);
-          float u = theta / (2 * (float)Math.PI) - 0.5f;
-          float v = Math.min((float)ringIndex / (numRings - 1) * stretchFactor, 1.0f) - 0.5f;
+        float theta = (float)(2 * Math.PI * pointIndex / pointsPerRing);
+        float u = theta / (2 * (float)Math.PI) - 0.5f;
+        float v = Math.min((float)ringIndex / (numRings - 1) * stretchFactor, 1.0f) - 0.5f;
 
-          int color = calculateMorphColor(u, v, scl, time, flow);
-          colors[p.index] = color;
-        }
+        int color = calculateMorphColor(u, v, scl, flowOffsetU, flowOffsetV);
+        colors[p.index] = color;
       }
     }
   }
 
-  private int calculateMorphColor(float u, float v, float scl, double time, float flow) {
-    // Apply flowing offset
-    float flowU = u + (float)(Math.sin(time * flow * 0.3) * 0.2);
-    float flowV = v + (float)(Math.cos(time * flow * 0.4) * 0.15);
+  private int calculateMorphColor(float u, float v, float scl, float flowOffsetU, float flowOffsetV) {
+    // Apply flowing offset (precomputed once per frame in render())
+    float flowU = u + flowOffsetU;
+    float flowV = v + flowOffsetV;
 
     // Calculate tiling values for different systems
     float rhombic = evaluateRhombicTiling(flowU, flowV, scl);

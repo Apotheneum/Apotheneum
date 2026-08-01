@@ -83,6 +83,16 @@ public class ExMachina extends ApotheneumPattern {
   // rather than a freeze-in-place or a hard cut.
   private float shimmerEnvelope = 1f;
 
+  // Frame-invariant Newton-fractal state, computed once per render() instead
+  // of once per pixel (previously up to 18 trig calls were being repeated
+  // for every rendered pixel, even though none of these depend on pixel
+  // position - only on rootPhase/Roots, which are the same for the whole
+  // frame).
+  private float targetR = 1f;
+  private float targetI = 0f;
+  private float[] rootCosCache = new float[0];
+  private float[] rootSinCache = new float[0];
+
   private int[] exteriorCache;
 
   private static final float TWO_PI = (float) (2.0 * Math.PI);
@@ -117,6 +127,23 @@ public class ExMachina extends ApotheneumPattern {
 
     float shimmerTarget = (shimmer.getValuef() > 0f) ? 1f : 0f;
     shimmerEnvelope += (shimmerTarget - shimmerEnvelope) * Math.min(1f, SHIMMER_ENVELOPE_RATE * dt);
+
+    // Target c(t) = e^{i*N*rootPhase} and the N root coordinates themselves
+    // only depend on Roots/rootPhase, not on pixel position - compute once
+    // here rather than inside calculateNewtonColor.
+    int numRootsForFrame = roots.getValuei();
+    float cAngle = numRootsForFrame * rootPhase;
+    targetR = (float) Math.cos(cAngle);
+    targetI = (float) Math.sin(cAngle);
+    if (rootCosCache.length != numRootsForFrame) {
+      rootCosCache = new float[numRootsForFrame];
+      rootSinCache = new float[numRootsForFrame];
+    }
+    for (int k = 0; k < numRootsForFrame; k++) {
+      float ra = rootPhase + TWO_PI * k / numRootsForFrame;
+      rootCosCache[k] = (float) Math.cos(ra);
+      rootSinCache[k] = (float) Math.sin(ra);
+    }
 
     Cube cube = Apotheneum.cube;
     if (cube != null) {
@@ -234,10 +261,10 @@ public class ExMachina extends ApotheneumPattern {
     // Target c(t) = e^{i * N * rootPhase}, whose N-th roots (the fractal's
     // attractors) sit at angle rootPhase + 2*pi*k/N for k = 0..N-1 - so as
     // rootPhase drifts, every root sweeps around the unit circle together
-    // and the whole basin structure continuously redraws itself.
-    float cAngle = numRoots * rootPhase;
-    float cr = (float) Math.cos(cAngle);
-    float ci = (float) Math.sin(cAngle);
+    // and the whole basin structure continuously redraws itself. Precomputed
+    // once per frame in render() (targetR/targetI), not per pixel.
+    float cr = targetR;
+    float ci = targetI;
 
     float twistCos = (float) Math.cos(twistRad);
     float twistSin = (float) Math.sin(twistRad);
@@ -288,12 +315,13 @@ public class ExMachina extends ApotheneumPattern {
     }
 
     // Which of the N roots did we land nearest? Drives hue in color mode.
+    // Root coordinates are precomputed once per frame in render() (rootCosCache/
+    // rootSinCache), not recomputed here per pixel.
     int basin = 0;
     float bestDistSq = Float.MAX_VALUE;
     for (int k = 0; k < numRoots; k++) {
-      float ra = rootPhase + TWO_PI * k / numRoots;
-      float dr = zr - (float) Math.cos(ra);
-      float di = zi - (float) Math.sin(ra);
+      float dr = zr - rootCosCache[k];
+      float di = zi - rootSinCache[k];
       float d = dr * dr + di * di;
       if (d < bestDistSq) {
         bestDistSq = d;

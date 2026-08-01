@@ -52,6 +52,11 @@ public class FractalFlow extends ApotheneumPattern {
   private float time = 0f;
   private float hueTime = 0f;
   private float brtTime = 0f;
+
+  // Julia constant - frame-invariant (same for every pixel in a given
+  // frame), computed once per render() instead of once per pixel.
+  private float jx = 0f;
+  private float jy = 0f;
   private int[] exteriorCache;
   private int[] interiorCache;
   private boolean cacheValid = false;
@@ -106,6 +111,15 @@ public class FractalFlow extends ApotheneumPattern {
     // exactly 1.0 (one full cos() cycle), so the wrap can never introduce a jump.
     brtTime += dt * brtSpeed.getValuef();
     brtTime %= 1f;
+
+    // Julia constant depends only on time/J-Amp/J-Freq, not on pixel
+    // position - compute it once here rather than inside calculateFractalColor,
+    // which used to redo this (including two trig calls) for every one of the
+    // ~5,160 cylinder points (and every cube pixel) every frame.
+    float juliaAmpVal = juliaAmp.getValuef();
+    float juliaFreqVal = juliaFreq.getValuef();
+    jx = juliaAmpVal * (float) Math.cos(time * juliaFreqVal);
+    jy = juliaAmpVal * JULIA_Y_AMP_RATIO * (float) Math.sin(time * juliaFreqVal * JULIA_Y_FREQ_RATIO);
 
     cacheValid = false; // Invalidate cache each frame for animation
 
@@ -252,16 +266,9 @@ public class FractalFlow extends ApotheneumPattern {
   }
 
   private int calculateFractalColor(float x0, float y0, int maxIter) {
-    // Animated Julia set parameters. J-Amp is the scalar OUTSIDE sin/cos
-    // (how far the constant travels); J-Freq is the scalar INSIDE sin/cos
-    // (how fast it travels, i.e. how long one cycle takes). The Y component
-    // keeps the original's fixed ratio to X so the orbit stays an organic
-    // wobble instead of a plain circle.
-    float amp = juliaAmp.getValuef();
-    float freq = juliaFreq.getValuef();
-    float jx = amp * (float)Math.cos(time * freq);
-    float jy = amp * JULIA_Y_AMP_RATIO * (float)Math.sin(time * freq * JULIA_Y_FREQ_RATIO);
-
+    // jx/jy (the animated Julia constant) are precomputed once per frame in
+    // render() - they don't depend on x0/y0, so recomputing them here for
+    // every pixel would just repeat the same two trig calls needlessly.
     float x = x0;
     float y = y0;
     int iter = 0;
@@ -303,7 +310,11 @@ public class FractalFlow extends ApotheneumPattern {
     float hue2 = SURGE_HUES[(hueIdx + 1) % SURGE_HUES.length];
     float hue = hue1 * (1f - hueBlend) + hue2 * hueBlend;
 
-    float brightness = Math.min((1f - smoothIter / maxIter) * 100f * surgeFactor, 100f);
+    // surgeFactor = 1 + surge*sin(...) can go negative when Surge is above 1
+    // (sin down to -1 then outweighs the +1), which without a lower clamp
+    // produces negative brightness - LXColor.hsb() doesn't clamp that itself,
+    // so it wraps into a corrupted bright color instead of just going black.
+    float brightness = LXUtils.clampf((1f - smoothIter / maxIter) * 100f * surgeFactor, 0f, 100f);
 
     // Optional brightness gradient, layered on top of (not replacing) the
     // surge brightness above. Driven by the same escape-velocity value

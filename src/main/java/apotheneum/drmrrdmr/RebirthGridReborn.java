@@ -57,6 +57,16 @@ public class RebirthGridReborn extends ApotheneumPattern {
   // same evolving system - rather than a mirrored or inverted one.
   private static final float INTERIOR_TIME_OFFSET = 4.2f;
 
+  // t (time, or time+INTERIOR_TIME_OFFSET) grows without bound for the life
+  // of the pattern. Every other use of t is already naturally periodic (fed
+  // through linearSin(), or reduced mod hueArray.length), but the growth-mask
+  // radius below adds t directly with no such wrap - left alone, it would
+  // permanently exceed the maximum possible r (~0.707) after a few seconds,
+  // and the Symmetric mask would never be visible again for the rest of the
+  // run. Wrapping just this contribution into a repeating cycle keeps the
+  // "grow from center" animation actually recurring.
+  private static final float GROWTH_CYCLE_PERIOD = 6.0f;
+
   // Evolution color palette - from old forms to new hybrid
   private static final float[] OLD_FORM_HUES = { 20f, 40f, 60f };      // Warm dissolution
   private static final float[] HYBRID_HUES = { 180f, 200f, 220f, 240f, 260f }; // Cool emergence
@@ -249,7 +259,8 @@ public class RebirthGridReborn extends ApotheneumPattern {
 
     // Growth animation - patterns emerge from center if symmetric
     float r = (float)Math.sqrt(x*x + y*y);
-    float growthRadius = evol * (symmetric ? 0.8f : 1.2f) + t * 0.3f;
+    float growthPhase = t % GROWTH_CYCLE_PERIOD;
+    float growthRadius = evol * (symmetric ? 0.8f : 1.2f) + growthPhase * 0.3f;
     float growthMask = 1.0f;
 
     if (symmetric && r > growthRadius) {

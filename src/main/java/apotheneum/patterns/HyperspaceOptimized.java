@@ -6,6 +6,7 @@ import heronarts.lx.LX;
 import heronarts.lx.LXCategory;
 import heronarts.lx.LXComponent;
 import heronarts.lx.color.LXColor;
+import heronarts.lx.model.LXModel;
 import heronarts.lx.model.LXPoint;
 import heronarts.lx.parameter.CompoundParameter;
 import heronarts.lx.parameter.BooleanParameter;
@@ -337,22 +338,35 @@ public class HyperspaceOptimized extends ApotheneumPattern implements UIDeviceCo
     addParameter("renderToCylinder", this.renderToCylinder);
     addParameter("clearStars", this.clearStars);
 
-    // Cache all LED points for star targeting
-    allPoints = model.points;
-
-    // Initialize LED spatial grid for efficient nearest-neighbor search.
-    // Cell size matches LED_SEARCH_RADIUS so each query visits ~27 cells
-    // instead of ~343.
-    ledGrid = new LEDSpatialGrid(allPoints, LED_SEARCH_RADIUS);
-
-    // Pre-compute LED mappings for performance
-    precomputeLEDMappings();
+    // Cache all LED points for star targeting, build the spatial grid, and
+    // precompute LED mappings - also redone in onModelChanged() below, since
+    // all of this is derived from the model and goes stale if it changes.
+    rebuildModelCaches();
 
     // Pre-allocate all star objects (object pool to avoid GC)
     double maxLifespan = duration.getValue();
     for (int i = 0; i < MAX_STARS; i++) {
       starPool[i] = new Star(maxLifespan, allPoints);
     }
+  }
+
+  @Override
+  protected void onModelChanged(LXModel model) {
+    // allPoints, ledGrid, and the isCubeLed/cubeFace/exteriorToInterior
+    // mappings are all derived from the model and were previously only ever
+    // built in the constructor - loading a different model left them stale,
+    // risking wrong results or index-out-of-bounds if the point count changed.
+    rebuildModelCaches();
+  }
+
+  private void rebuildModelCaches() {
+    allPoints = model.points;
+
+    // Spatial grid for efficient nearest-neighbor search. Cell size matches
+    // LED_SEARCH_RADIUS so each query visits ~27 cells instead of ~343.
+    ledGrid = new LEDSpatialGrid(allPoints, LED_SEARCH_RADIUS);
+
+    precomputeLEDMappings();
   }
 
   private void spawnStars(double deltaMs, int axis, float direction) {

@@ -6,6 +6,7 @@ import heronarts.lx.LXComponent;
 import heronarts.lx.color.LXColor;
 import heronarts.lx.effect.LXEffect;
 import heronarts.lx.parameter.CompoundParameter;
+import heronarts.lx.utils.LXUtils;
 import heronarts.lx.studio.LXStudio.UI;
 import heronarts.lx.studio.ui.device.UIDevice;
 import heronarts.lx.studio.ui.device.UIDeviceControls;
@@ -29,7 +30,11 @@ public class AuxFader extends LXEffect implements UIDeviceControls<AuxFader> {
     if (enabledAmount <= 0) {
       return;
     }
-    float amount = (float) (this.level.getValue() * enabledAmount);
+    // Interpolate from neutral (1 = no dimming), not from black - otherwise
+    // enabling/disabling the effect fades to/from black regardless of the
+    // Level setting, instead of fading between "no effect" and "dimmed to
+    // Level".
+    float amount = (float) LXUtils.lerp(1.0, this.level.getValue(), enabledAmount);
     if (amount >= 1f) {
       return;
     }

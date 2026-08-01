@@ -19,7 +19,6 @@
 package apotheneum.mcslee;
 
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
 
 import org.joml.Matrix2f;
@@ -53,8 +52,9 @@ import heronarts.lx.utils.LXUtils;
  *    pass to collect finished bursts, then List.removeAll() - which calls
  *    finished.contains() for every element of the live list, i.e. O(n*m).
  *    That gets quadratic once a lot of bursts are alive at once (Per Trigger
- *    maxed out plus rapid re-triggering). It's now a single pass with
- *    Iterator.remove(), which is O(n).
+ *    maxed out plus rapid re-triggering). It's now a single removeIf() pass,
+ *    which does a true linear-time compaction rather than shifting the tail
+ *    of the list on every individual removal.
  */
 public abstract class BurstsOptimized extends ApotheneumPattern implements ApotheneumPattern.Midi {
 
@@ -170,6 +170,26 @@ public abstract class BurstsOptimized extends ApotheneumPattern implements Apoth
   @Override
   protected void onModelChanged(LXModel model) {
     this.bursts.clear();
+  }
+
+  // LXPattern.enabled controls playlist/compositing ELIGIBILITY, not whether
+  // this pattern is actually the one currently rendering - an inactive but
+  // still-enabled pattern would keep queuing bursts from MIDI under the old
+  // check, and an active pattern that's temporarily not "enabled" (e.g.
+  // excluded from auto-cycling) would have its real triggers dropped. Track
+  // actual activation via onActive()/onInactive() instead.
+  private boolean isActive = false;
+
+  @Override
+  protected void onActive() {
+    super.onActive();
+    this.isActive = true;
+  }
+
+  @Override
+  protected void onInactive() {
+    super.onInactive();
+    this.isActive = false;
   }
 
   private final List<Burst> bursts = new ArrayList<>();
@@ -316,13 +336,13 @@ public abstract class BurstsOptimized extends ApotheneumPattern implements Apoth
   protected abstract void generateBursts(int num);
 
   private void onBurst() {
-    // While disabled, MIDI/manual triggers still arrive but nothing is
+    // While inactive, MIDI/manual triggers still arrive but nothing is
     // rendering to age them - discard them here instead of queuing them up,
     // otherwise they all dump onto the surface at once, still at basis 0,
-    // the moment the pattern is re-enabled. Bursts already in flight when
-    // the pattern gets disabled are untouched by this and keep aging/fading
-    // normally whenever render() next runs.
-    if (!this.enabled.isOn()) {
+    // the moment the pattern becomes active again. Bursts already in flight
+    // when the pattern goes inactive are untouched by this and keep
+    // aging/fading normally whenever render() next runs.
+    if (!this.isActive) {
       return;
     }
     if (Apotheneum.exists) {
@@ -338,16 +358,14 @@ public abstract class BurstsOptimized extends ApotheneumPattern implements Apoth
     setApotheneumColor(LXColor.BLACK);
     spinMatrix.rotation((float) Math.toRadians(spin.getValuef()));
 
-    // Single pass: render each burst and remove it immediately if finished,
-    // instead of a separate collect-then-List.removeAll() pass.
-    Iterator<Burst> it = this.bursts.iterator();
-    while (it.hasNext()) {
-      Burst burst = it.next();
+    // removeIf() does a single-pass linear compaction. Iterator.remove() on
+    // an ArrayList looks like a single pass too, but each call still shifts
+    // every following element down by one internally - removing k of n
+    // bursts in one pass is still O(k*n) that way, not O(n).
+    this.bursts.removeIf(burst -> {
       burst.render(deltaMs);
-      if (burst.basis >= 1) {
-        it.remove();
-      }
-    }
+      return burst.basis >= 1;
+    });
 
     afterRender();
   }

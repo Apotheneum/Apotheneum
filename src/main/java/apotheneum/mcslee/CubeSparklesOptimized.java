@@ -19,7 +19,6 @@
 package apotheneum.mcslee;
 
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
 
 import apotheneum.Apotheneum;
@@ -51,7 +50,9 @@ import heronarts.lx.utils.LXUtils;
  *    which calls finished.contains() for every element of the live list -
  *    O(n*m), quadratic once a lot of sparkles are alive at once (Per Trigger
  *    maxed at 64, times 4 faces, times rapid re-triggering adds up fast).
- *    Replaced with a single Iterator.remove() pass, O(n).
+ *    Replaced with a single removeIf() pass - true linear-time compaction,
+ *    rather than shifting the list's tail on every individual removal the
+ *    way Iterator.remove() would.
  */
 @LXCategory("Apotheneum/mcslee")
 @LXComponent.Name("Cube Sparkles-Optimized")
@@ -139,6 +140,24 @@ public class CubeSparklesOptimized extends ApotheneumPattern implements Apothene
     this.sparkles.clear();
   }
 
+  // LXPattern.enabled controls playlist/compositing ELIGIBILITY, not whether
+  // this pattern is actually the one currently rendering - track actual
+  // activation via onActive()/onInactive() instead (see BurstsOptimized for
+  // the same fix and full rationale).
+  private boolean isActive = false;
+
+  @Override
+  protected void onActive() {
+    super.onActive();
+    this.isActive = true;
+  }
+
+  @Override
+  protected void onInactive() {
+    super.onInactive();
+    this.isActive = false;
+  }
+
   private final List<Sparkle> sparkles = new ArrayList<>();
 
   private class Sparkle {
@@ -173,13 +192,13 @@ public class CubeSparklesOptimized extends ApotheneumPattern implements Apothene
   }
 
   private void onSparkle() {
-    // While disabled, MIDI/manual triggers still arrive but nothing is
+    // While inactive, MIDI/manual triggers still arrive but nothing is
     // rendering to age them - discard them here instead of queuing them up,
     // otherwise they all dump onto the surface at once, still at basis 0,
-    // the moment the pattern is re-enabled. Sparkles already in flight when
-    // the pattern gets disabled are untouched by this and keep aging/fading
-    // normally whenever render() next runs.
-    if (!this.enabled.isOn()) {
+    // the moment the pattern becomes active again. Sparkles already in
+    // flight when the pattern goes inactive are untouched by this and keep
+    // aging/fading normally whenever render() next runs.
+    if (!this.isActive) {
       return;
     }
     if (Apotheneum.exists) {
@@ -203,14 +222,10 @@ public class CubeSparklesOptimized extends ApotheneumPattern implements Apothene
   protected void render(double deltaMs) {
     setColors(LXColor.BLACK);
 
-    Iterator<Sparkle> it = this.sparkles.iterator();
-    while (it.hasNext()) {
-      Sparkle sparkle = it.next();
+    this.sparkles.removeIf(sparkle -> {
       sparkle.render(deltaMs);
-      if (sparkle.basis >= 1) {
-        it.remove();
-      }
-    }
+      return sparkle.basis >= 1;
+    });
 
     copyExterior();
   }
