@@ -89,27 +89,43 @@ public class RebirthGridReborn extends ApotheneumPattern {
   protected void render(double deltaMs) {
     time += (float)(deltaMs / 1000.0) * growthRate.getValuef();
 
+    // At brightness 0 a surface renders as solid black regardless of the
+    // (expensive) tile math, so skip that math entirely and just fill black
+    // directly - same visual result, without paying for hex/organic/square
+    // tiling and the growth/color-evolution math on every one of its pixels.
+    // Not exposed as a separate toggle - purely derived from Ext/Int Bright.
+    boolean drawExterior = exteriorBrightness.getValuef() > 0f;
+    boolean drawInterior = interiorBrightness.getValuef() > 0f;
+
     // Render cube with dual-cache optimization
     Cube cube = Apotheneum.cube;
     if (cube != null) {
-      Face referenceFace = cube.exterior.faces[0];
-      computeExteriorPattern(referenceFace);
+      if (drawExterior) {
+        Face referenceFace = cube.exterior.faces[0];
+        computeExteriorPattern(referenceFace);
 
-      for (Face face : cube.exterior.faces) {
-        copyFromExteriorCache(face);
+        for (Face face : cube.exterior.faces) {
+          copyFromExteriorCache(face);
+        }
+      } else {
+        setColor(cube.exterior, LXColor.BLACK);
       }
 
       if (cube.interior != null) {
-        computeInteriorPattern(cube.interior.faces[0]);
-        for (Face face : cube.interior.faces) {
-          copyFromInteriorCache(face);
+        if (drawInterior) {
+          computeInteriorPattern(cube.interior.faces[0]);
+          for (Face face : cube.interior.faces) {
+            copyFromInteriorCache(face);
+          }
+        } else {
+          setColor(cube.interior, LXColor.BLACK);
         }
       }
     }
 
     Cylinder cylinder = Apotheneum.cylinder;
     if (cylinder != null) {
-      processCylinder(cylinder);
+      processCylinder(cylinder, drawExterior, drawInterior);
     }
   }
 
@@ -185,11 +201,19 @@ public class RebirthGridReborn extends ApotheneumPattern {
     }
   }
 
-  private void processCylinder(Cylinder cylinder) {
-    processCylinderOrientation(cylinder.exterior, false);
+  private void processCylinder(Cylinder cylinder, boolean drawExterior, boolean drawInterior) {
+    if (drawExterior) {
+      processCylinderOrientation(cylinder.exterior, false);
+    } else {
+      setColor(cylinder.exterior, LXColor.BLACK);
+    }
 
     if (cylinder.interior != null) {
-      processCylinderOrientation(cylinder.interior, true);
+      if (drawInterior) {
+        processCylinderOrientation(cylinder.interior, true);
+      } else {
+        setColor(cylinder.interior, LXColor.BLACK);
+      }
     }
   }
 
