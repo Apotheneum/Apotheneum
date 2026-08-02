@@ -29,10 +29,10 @@ public class RebirthGridReborn extends ApotheneumPattern {
     .setDescription("Growth animation speed");
   private final CompoundParameter organicness = new CompoundParameter("Organic", 0.6, 0.0, 1.0)
     .setDescription("Organic distortion amount");
-  private final CompoundParameter exteriorBrightness = new CompoundParameter("Ext Bright", 85.0, 30.0, 100.0)
-    .setDescription("Exterior brightness");
-  private final CompoundParameter interiorBrightness = new CompoundParameter("Int Bright", 85.0, 30.0, 100.0)
-    .setDescription("Interior brightness");
+  private final CompoundParameter exteriorBrightness = new CompoundParameter("Ext Bright", 85.0, 0.0, 100.0)
+    .setDescription("Exterior brightness - at 0, skips this surface's tile computation entirely");
+  private final CompoundParameter interiorBrightness = new CompoundParameter("Int Bright", 85.0, 0.0, 100.0)
+    .setDescription("Interior brightness - at 0, skips this surface's tile computation entirely");
   private final CompoundParameter saturation = new CompoundParameter("Sat", 70.0, 0.0, 100.0)
     .setDescription("Color saturation");
   private final BooleanParameter symmetricGrowth = new BooleanParameter("Symmetric", true)
@@ -63,8 +63,12 @@ public class RebirthGridReborn extends ApotheneumPattern {
   // radius below adds t directly with no such wrap - left alone, it would
   // permanently exceed the maximum possible r (~0.707) after a few seconds,
   // and the Symmetric mask would never be visible again for the rest of the
-  // run. Wrapping just this contribution into a repeating cycle keeps the
-  // "grow from center" animation actually recurring.
+  // run. This needs to keep recurring, but a plain `t % GROWTH_CYCLE_PERIOD`
+  // (a sawtooth) fed linearly into growthRadius pops discontinuously at every
+  // wrap - the value ramps up smoothly, then instantly snaps back to 0. A
+  // ping-pong/triangle wave (ramp up, then back down, continuously) has no
+  // such jump: growthRadius reaches the same value approaching the turnaround
+  // from either side, so the mask breathes in and out instead of popping.
   private static final float GROWTH_CYCLE_PERIOD = 6.0f;
 
   // Evolution color palette - from old forms to new hybrid
@@ -283,7 +287,7 @@ public class RebirthGridReborn extends ApotheneumPattern {
 
     // Growth animation - patterns emerge from center if symmetric
     float r = (float)Math.sqrt(x*x + y*y);
-    float growthPhase = t % GROWTH_CYCLE_PERIOD;
+    float growthPhase = triangleWave(t, GROWTH_CYCLE_PERIOD);
     float growthRadius = evol * (symmetric ? 0.8f : 1.2f) + growthPhase * 0.3f;
     float growthMask = 1.0f;
 
@@ -380,6 +384,17 @@ public class RebirthGridReborn extends ApotheneumPattern {
       return 1.0f - (cellDist / cellSize);
     }
     return 0f;
+  }
+
+  // Continuous 0 -> period -> 0 ping-pong wave, period 2*period. Unlike a
+  // plain `x % period` sawtooth, this never jumps: at the turnaround the
+  // value approaches the same peak from both directions.
+  private static float triangleWave(float x, float period) {
+    float m = x % (2f * period);
+    if (m < 0) {
+      m += 2f * period;
+    }
+    return (m <= period) ? m : (2f * period - m);
   }
 
   // Linear approximation of sine for performance - good enough for organic
