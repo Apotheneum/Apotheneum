@@ -33,9 +33,18 @@ import heronarts.lx.studio.ui.device.UIDevice;
 import heronarts.lx.studio.ui.device.UIDeviceControls;
 import apotheneum.doved.patterns.DeformableImagePattern;
 import apotheneum.doved.components.DeformableImage;
-import apotheneum.doved.utils.AssetPaths;
 
 public class UIDeformableImagePattern implements UIDeviceControls<DeformableImagePattern> {
+
+  /**
+   * Last path element of a file path, for display and labelling. Media-relative
+   * paths always use '/' (they come from URI relativization), while absolute
+   * paths use the platform separator, so both are checked.
+   */
+  static String baseName(String path) {
+    final int separator = Math.max(path.lastIndexOf('/'), path.lastIndexOf(File.separatorChar));
+    return (separator >= 0) ? path.substring(separator + 1) : path;
+  }
 
   static class Command {
 
@@ -45,11 +54,11 @@ public class UIDeformableImagePattern implements UIDeviceControls<DeformableImag
       private final String oldPath, newPath;
       private final String oldLabel;
 
-      ReplaceImage(DeformableImage image, String relativePath) {
+      ReplaceImage(DeformableImage image, String path) {
         this.image = new ComponentReference<DeformableImage>(image);
         this.oldPath = image.fileName.getString();
         this.oldLabel = image.label.getString();
-        this.newPath = relativePath;
+        this.newPath = path;
       }
 
       @Override
@@ -68,16 +77,13 @@ public class UIDeformableImagePattern implements UIDeviceControls<DeformableImag
         this.image.get().label.setValue(this.oldLabel);
       }
 
-      static void setImagePath(DeformableImage image, String relativePath) {
-        int separator = relativePath.lastIndexOf(File.separatorChar);
-        String name;
-        if (separator > 0) {
-          name = relativePath.substring(separator + 1);
-        } else {
-          name = relativePath;
-        }
-        image.label.setValue(name);
-        image.fileRelativePath.setValue(relativePath);
+      static void setImagePath(DeformableImage image, String path) {
+        image.label.setValue(baseName(path));
+        // On LX 1.2.2+ this is a MediaPathParameter, which stores the path
+        // relative to the Chromatik media root when the file lives inside it,
+        // and keeps it absolute otherwise so project media consolidation can
+        // gather it.
+        image.fileName.setValue(path);
       }
 
     }
@@ -181,28 +187,18 @@ public class UIDeformableImagePattern implements UIDeviceControls<DeformableImag
                   new String[] { "jpg", "jpeg", "png", "gif" },
                   new File("Assets/").toString(),
                   (path) -> {
-                    // Check if the given path is within the "Assets" directory
-                    if (AssetPaths.isInAssetsFolder(path)) {
-                      String relativePath = AssetPaths.toRelativePathFromAssets(path);
-                      ui.lx.command.perform(new Command.ReplaceImage(image, relativePath));
-                    } else {
-                      LX.error(null, "Image file must be within the Assets directory");
-                    }
+                    // Any location is accepted. Files inside the Chromatik media
+                    // root are stored relative to it; files outside stay absolute
+                    // and are picked up by project media consolidation.
+                    ui.lx.command.perform(new Command.ReplaceImage(image, path));
                   });
             }
           }.setDescription("Use this button to load a new image file into this slot"),
           new UIButton.Action(COL_WIDTH, 16, "Reload").setParameter(image.reload)).setChildSpacing(4);
 
-      addListener(image.fileRelativePath, p -> {
-        final String name = image.fileRelativePath.getString();
-
-        if (name == null) {
-          fileName.setValue("-");
-        } else {
-          final int slash = name.lastIndexOf(File.separator);
-          String displayName = slash >= 0 ? name.substring(slash + 1) : name;
-          fileName.setValue(displayName);
-        }
+      addListener(image.fileName, p -> {
+        final String name = image.fileName.getString();
+        fileName.setValue((name == null || name.isEmpty()) ? "-" : baseName(name));
       }, true);
 
       addGifColumn(ui);

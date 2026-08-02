@@ -22,9 +22,20 @@ This package currently requires macOS on an Apple Silicon machine. Windows instr
 
 #### Installing Chromatik
 
+**Chromatik 1.2.2 or later is required.** Earlier releases cannot load this
+package: Chromatik 1.2.2 changed the type of the image path parameter used by
+the `DeformableImage` pattern, and a build targeting 1.2.2 will fail to link
+against 1.2.1 with a `NoSuchFieldError` when a project is opened. See
+[issue #41](https://github.com/Apotheneum/Apotheneum/issues/41).
+
 * Download the latest [Chromatik release](https://chromatik.co/download/)
 * Register a [Chromatik account](https://chromatik.co/login)
 * Coordinate with the Apotheneum team to receive a developer license
+
+Only one Apotheneum package may be installed at a time. If `~/Chromatik/Packages`
+contains more than one `apotheneum-*.jar`, Chromatik logs `Ignoring duplicate
+class` and may load classes from the stale jar, which reintroduces the error
+above. Remove the older jar.
 
 #### Apotheneum Assets
 
@@ -58,6 +69,20 @@ Install the following tools:
 
 * [Java 21 Temurin](https://adoptium.net/)
 * [Maven](https://maven.apache.org/)
+
+The build targets Chromatik `1.2.2` (`<lx.version>` in `pom.xml`) and requires
+that version to be resolvable from Maven Central. Until it is published there,
+build against a locally installed Chromatik by installing its bundled jar under
+the three `com.heronarts` coordinates and overriding the version:
+
+```bash
+$ JAR="/Applications/Chromatik.app/Contents/app/glxstudio-1.2.2-SNAPSHOT-jar-with-dependencies.jar"
+$ for a in lx glx glxstudio; do
+    mvn install:install-file -Dfile="$JAR" -DgroupId=com.heronarts \
+      -DartifactId=$a -Dversion=1.2.2-SNAPSHOT -Dpackaging=jar
+  done
+$ mvn -Dlx.version=1.2.2-SNAPSHOT -Pinstall install
+```
 
 Maven can be installed using [Homebrew](https://brew.sh/) via the following command:
 

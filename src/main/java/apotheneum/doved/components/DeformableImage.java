@@ -3,7 +3,6 @@ package apotheneum.doved.components;
 import heronarts.lx.LXComponent;
 import heronarts.lx.osc.LXOscComponent;
 import heronarts.lx.LX;
-import heronarts.lx.parameter.LXParameter;
 import heronarts.lx.parameter.BooleanParameter;
 import heronarts.lx.pattern.image.ImagePattern.Image;
 import heronarts.lx.model.LXModel;
@@ -13,9 +12,7 @@ import heronarts.lx.transform.LXMatrix;
 import heronarts.lx.utils.LXUtils;
 import heronarts.glx.GLXUtils;
 
-import apotheneum.doved.utils.AssetPaths;
 import apotheneum.doved.utils.Kaleidoscope;
-import heronarts.lx.parameter.StringParameter;
 import heronarts.lx.pattern.image.ImagePattern;
 
 public class DeformableImage extends Image implements LXComponent.Renamable, LXOscComponent {
@@ -26,8 +23,6 @@ public class DeformableImage extends Image implements LXComponent.Renamable, LXO
 
   // Kaleidoscope parameters - this is the main additional functionality we need
   public final Kaleidoscope kaleidoscope = new Kaleidoscope();
-
-  public final StringParameter fileRelativePath = new StringParameter("FileRelativePath", (String) null);
 
   private int index;
 
@@ -46,21 +41,6 @@ public class DeformableImage extends Image implements LXComponent.Renamable, LXO
     addParameter("kx", this.kaleidoscope.params.x);
     addParameter("ky", this.kaleidoscope.params.y);
     addParameter("kz", this.kaleidoscope.params.z);
-    addParameter("fileRelativePath", this.fileRelativePath);
-  }
-
-  @Override
-  public void onParameterChanged(LXParameter p) {
-    super.onParameterChanged(p);
-    if (p == this.fileRelativePath) {
-      // Convert relative path to absolute path for loading, following the original
-      // pattern
-      String relativePath = this.fileRelativePath.getString();
-
-      String absolutePath = AssetPaths.toAbsolutePathFromAssets(relativePath);
-
-      this.fileName.setValue(absolutePath);
-    }
   }
 
   public void advance(double ms) {
