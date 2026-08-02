@@ -67,8 +67,17 @@ Learn more by reading the [Chromatik Developer Guide &rarr;](https://chromatik.c
 
 Install the following tools:
 
-* [Java 21 Temurin](https://adoptium.net/)
+* [Java 25 Temurin](https://adoptium.net/) — `brew install --cask temurin@25`
 * [Maven](https://maven.apache.org/)
+
+JDK 25 is required to *build*. Chromatik 1.2.2 is compiled at release 25, so its
+class files are major version 69 and JDK 21's `javac` cannot read them off the
+classpath. If you build on 21 you get a class-file-version error naming a
+`heronarts` class — that means "upgrade your JDK", not "your code is wrong".
+
+This does not change how patterns are written: the pom stays at
+`maven.compiler.release 21`, so the language level and the bytecode produced are
+unchanged. Running Chromatik needs no JDK at all — it bundles its own runtime.
 
 The build targets Chromatik `1.2.2` (`<lx.version>` in `pom.xml`) and requires
 that version to be resolvable from Maven Central. Until it is published there,
