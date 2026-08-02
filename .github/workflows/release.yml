@@ -27,10 +27,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up JDK 21
+      # JDK 25 — see the note in build.yml. Chromatik 1.2.2 class files are
+      # major version 69 and javac 21 cannot read them.
+      - name: Set up JDK 25
         uses: actions/setup-java@v4
         with:
-          java-version: "21"
+          java-version: "25"
           distribution: temurin
           cache: maven
 

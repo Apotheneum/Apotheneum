@@ -25,10 +25,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up JDK 21
+      # JDK 25, not 21. Chromatik 1.2.2 (lx/glx/glxstudio) is compiled at release
+      # 25, so its class files are major version 69 and javac 21 refuses to read
+      # them off the classpath. The pom still sets maven.compiler.release 21, so
+      # this does not change the language level or the bytecode we emit.
+      - name: Set up JDK 25
         uses: actions/setup-java@v4
         with:
-          java-version: "21"
+          java-version: "25"
           distribution: temurin
           cache: maven
 
