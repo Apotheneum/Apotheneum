@@ -28,8 +28,8 @@ This package currently requires macOS on an Apple Silicon machine. Windows instr
 
 #### Apotheneum Assets
 
-* Download the latest [Apotheneum package](https://github.com/Apotheneum/Apotheneum/releases/download/2026.03.02/apotheneum-0.0.1-SNAPSHOT.jar)
-* Open Chromatik, drag-and-drop the Apotheneum file `apotheneum-0.0.1-SNAPSHOT.jar` onto the application window
+* Download the latest [Apotheneum package](https://github.com/Apotheneum/Apotheneum/releases/latest) — grab the `.jar` file from the release's Assets
+* Open Chromatik, drag-and-drop the downloaded `.jar` file onto the application window
 * From Chromatik, open the example project file `~/Chromatik/Projects/Apotheneum/Apotheneum.lxp`
 
 Need more help?<br />
@@ -74,6 +74,24 @@ $ mvn -Pinstall install
 ```
 
 This builds the JAR file and copies it to `~/Chromatik/Packages` for automatic loading in Chromatik.
+
+#### Releasing
+
+Releases are cut by pushing a calendar tag. CI builds the JAR and creates the GitHub
+Release — no local build or manual upload needed:
+
+```bash
+$ git tag 2026.07.21 && git push origin 2026.07.21
+```
+
+Each release publishes two assets:
+
+| asset | use |
+|---|---|
+| `apotheneum.jar` | stable name — `releases/latest/download/apotheneum.jar` serves the newest CI-cut release (live once the first tag is pushed after this lands) |
+| `apotheneum-<tag>.jar` | pin a specific release |
+
+Every pull request also gets a build check, so compile breakage surfaces before it lands.
 
 #### Pattern Development
 

@@ -1,0 +1,42 @@
+name: build
+
+# Compile check on every PR and every push to main, so breakage is caught here
+# rather than the next time someone builds locally.
+#
+# This is a compile check only — the project has no src/test yet. If tests are
+# added later, `mvn package` runs them with no change to this file.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read # `mvn package` runs plugin code from the PR branch; give it nothing
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      # JDK 25, not 21. Chromatik 1.2.2 (lx/glx/glxstudio) is compiled at release
+      # 25, so its class files are major version 69 and javac 21 refuses to read
+      # them off the classpath. The pom still sets maven.compiler.release 21, so
+      # this does not change the language level or the bytecode we emit.
+      - name: Set up JDK 25
+        uses: actions/setup-java@v4
+        with:
+          java-version: "25"
+          distribution: temurin
+          cache: maven
+
+      # Plain `package` — NOT -Pinstall, which copies the jar into
+      # ~/Chromatik/Packages (pointless on a runner).
+      - name: mvn package
+        run: mvn -B package

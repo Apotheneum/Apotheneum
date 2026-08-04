@@ -20,6 +20,16 @@ Apotheneum is a visual, sonic and haptic instrument for immersive LED art instal
 
 **IMPORTANT**: Always use `mvn -Pinstall install` instead of `mvn compile` when working on patterns, as this updates the Chromatik code and makes changes available in the lighting system.
 
+### Releasing
+
+Releases are cut by pushing a calendar tag — CI (`.github/workflows/release.yml`) builds the JAR and creates the GitHub Release. Never build and upload a release JAR by hand.
+
+```bash
+git tag 2026.07.21 && git push origin 2026.07.21
+```
+
+The pom version is not part of release identity — it stays a SNAPSHOT and is not bumped per release. Each release publishes `apotheneum.jar` (stable name, served by `releases/latest/download/apotheneum.jar`) and `apotheneum-<tag>.jar` (pinnable).
+
 ### Key Constants
 
 - `GRID_WIDTH = 50`, `GRID_HEIGHT = 45` - Cube face dimensions
