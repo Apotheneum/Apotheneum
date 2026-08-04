@@ -22,9 +22,20 @@ This package currently requires macOS on an Apple Silicon machine. Windows instr
 
 #### Installing Chromatik
 
+**Chromatik 1.2.2 or later is required.** Chromatik 1.2.2 added a new
+`MediaPathParameter filePath` to the image pattern, which the `DeformableImage`
+pattern now uses. That field does not exist in 1.2.1, so running this package on
+1.2.1 fails with a `NoSuchFieldError` when a project is opened. See
+[issue #41](https://github.com/Apotheneum/Apotheneum/issues/41).
+
 * Download the latest [Chromatik release](https://chromatik.co/download/)
 * Register a [Chromatik account](https://chromatik.co/login)
 * Coordinate with the Apotheneum team to receive a developer license
+
+Only one Apotheneum package may be installed at a time. If `~/Chromatik/Packages`
+contains more than one `apotheneum-*.jar`, Chromatik logs `Ignoring duplicate
+class` and may load classes from the stale jar, which reintroduces the error
+above. Remove the older jar.
 
 #### Apotheneum Assets
 
@@ -56,8 +67,22 @@ Learn more by reading the [Chromatik Developer Guide &rarr;](https://chromatik.c
 
 Install the following tools:
 
-* [Java 21 Temurin](https://adoptium.net/)
+* [Java 25 Temurin](https://adoptium.net/) — `brew install --cask temurin@25`
 * [Maven](https://maven.apache.org/)
+
+JDK 25 is required to *build*. The `glx` and `glxstudio` artifacts of Chromatik
+1.2.2 are compiled at release 25, so their class files are major version 69 and
+JDK 21's `javac` cannot read them off the classpath. (`lx` is still release 21,
+but that doesn't help — all three are on the compile classpath.) If you build on
+21 you get a class-file-version error naming a `heronarts` class — that means
+"upgrade your JDK", not "your code is wrong".
+
+This does not change how patterns are written: the pom stays at
+`maven.compiler.release 21`, so the language level and the bytecode produced are
+unchanged. Running Chromatik needs no JDK at all — it bundles its own runtime.
+
+The build targets Chromatik `1.2.2` (`<lx.version>` in `pom.xml`), which Maven
+resolves from Maven Central — no manual setup needed.
 
 Maven can be installed using [Homebrew](https://brew.sh/) via the following command:
 
