@@ -54,6 +54,17 @@ interval.
 Cable types, addresses, and signal detail live in the subsystem pages below —
 this diagram is only the shape of the system.
 
+## Physical layout
+
+Where it all actually sits. Cube outside, cylinder inside, stage at centre;
+speakers at the four corners; four switches chained from the control position
+out to the cube top and the stage.
+
+![Plan view](images/plan-view.svg)
+
+Positions are a draft — see [physical installation](physical.md) for the detail
+and the open questions.
+
 ## Three things that will catch you out
 
 > **Only one Chromatik may output at a time.** Both MacBooks run Chromatik and
