@@ -8,10 +8,12 @@ flowchart TB
         APPS["Ableton Live<br>Bitwig Studio<br>Vezér"]
     end
 
-    subgraph RESIDENT["Resident MacBook"]
+    subgraph RESIDENT["Resident MacBook — one USB-C cable to the case"]
         LB["Loopback Audio 1/2<br>virtual device"]
         CHR["Chromatik (LX)"]
     end
+
+    HUB["USB hub/dock<br>in MOTU case"]
 
     MOTU["MOTU M4"]
     AQM["Ashly AQM408<br>matrix + crossover"]
@@ -31,7 +33,9 @@ flowchart TB
 
     APPS -->|audio| LB
     APPS -->|"OSC :3030"| CHR
-    LB -->|USB-C| MOTU
+    LB -->|USB-C| HUB
+    CHR -->|USB-C| HUB
+    HUB --> MOTU
     MOTU -->|"2x TRS to Euroblock"| AQM
     AQM -->|"4 out"| HI
     AQM -->|"4 out"| SUB
@@ -43,7 +47,7 @@ flowchart TB
     GI2 -->|"2x XLR"| MOTU
     CDJ -.->|"Cat5/6 Pro DJ Link"| LIVECHR
     LIVECHR -->|"Ethernet"| SW["Switch"]
-    CHR -->|"Ethernet"| SW
+    HUB -->|"Ethernet"| SW
     SW -->|"Art-Net"| CTRL
 ```
 

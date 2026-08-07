@@ -20,6 +20,7 @@ yet acquired · **Planned** = future work.
 | Item | Qty | Status | Notes |
 |---|---|---|---|
 | MOTU M4 | 1 | In service | 4-in/4-out USB-C interface, bus-powered. In its own Pelican case, MacBook on top |
+| USB hub/dock, MOTU case | 1 | In service | Fans the single USB-C cable out to the M4 and the case's Ethernet port. **Inferred** — **TBD** make/model, powered or not |
 | Ashly AQM408 | 1 | In service | 1RU, 4x8 DSP matrix + crossover. In its own Pelican case. **TBD** MAC, IP, rack position |
 | QSC highs | 8 | In service | Powered, with loop-thru. 4 driven from the Ashly, 4 daisy-chained. **TBD** model |
 | QSC lows | 8 | In service | Powered, with loop-thru. 4 driven from the Ashly, 4 daisy-chained. **TBD** model |
@@ -58,7 +59,7 @@ yet acquired · **Planned** = future work.
 | Pelican panel connector + mating field cable | 1 | In service | Carries all 8 Ashly outputs. Single point of failure; also the dust seal. **TBD** make/series/pins, and whether a spare exists |
 | Ashly → QSC | 8 | In service | One per corner per driver type, downstream of the panel connector. **TBD** connector type and lengths |
 | QSC daisy-chain (loop-thru) | 8 | In service | Second box in each chain. **TBD** connector type and lengths |
-| USB-C, MacBook → MOTU | 1 | In service | |
+| USB-C, MacBook → MOTU case | 1 | In service | **Carries audio and network both.** Single point of failure for the resident machine. **TBD** spec, and whether a spare exists |
 
 ## Planned
 

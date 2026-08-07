@@ -38,6 +38,42 @@ stack is a casual thing to open during a show day.
 **TBD:** is the MOTU case's rear panelled like the Ashly's, or are the M4's
 jacks reachable directly?
 
+### One USB-C cable to the MacBook
+
+**A single USB-C cable runs from the case to the resident MacBook.** That one
+cable is the machine's entire physical connection to the installation.
+
+There is an **Ethernet port on the back of the MOTU case**, which the MacBook has
+no way to reach directly — so the case must contain a **USB hub or dock** that
+the M4 and the Ethernet port both hang off.
+
+```text
+     Resident MacBook
+           │
+           │  ONE USB-C cable
+           ▼
+    ┌──────────────────────────┐
+    │  MOTU case               │
+    │   hub/dock ──▶ MOTU M4   │  audio
+    │        └────▶ Ethernet ──┼──▶ switch
+    └──────────────────────────┘
+```
+
+**Inferred, not confirmed:** the internal hub. It follows from a USB-C-only
+MacBook connection plus a panel Ethernet port, but nobody has opened the case to
+look.
+
+Why this is worth writing down: **audio and network share one cable and one
+hub.** A failure there takes out the PA feed and Art-Net output together, which
+looks like two unrelated faults at once and invites troubleshooting in the wrong
+place. It also means a spare USB-C cable is worth more than its price suggests.
+
+**TBD:** what the hub/dock actually is — make, model, whether it's powered.
+**TBD:** is the MacBook also charged over this cable, or separately?
+**TBD:** the USB-C cable's spec. Not all USB-C cables carry data at the same
+rate, and a charge-only cable would fail in a confusing way.
+**TBD:** is there a spare?
+
 ### The rear panel hides the Ashly's own connectors
 
 **The AQM408's rear panel is not accessible from outside the case.** A panel on
@@ -88,6 +124,8 @@ ventilation, and whether they run closed.
 | Speaker outputs | Pelican panel connector | 4 corners | 8 circuits through one multipin. **TBD** breakout location |
 | LED network | Switch | 32 controllers | **TBD** switch location, model, port count |
 | Live MacBook uplink | Live MacBook Ethernet | Switch | Its only connection to the system |
+| Resident MacBook | MacBook | MOTU case | **One USB-C cable** — carries audio and network both |
+| Resident MacBook uplink | MOTU case Ethernet port | Switch | Fed by the internal hub |
 
 ### The switch
 
@@ -112,7 +150,9 @@ two cases are fed from, and whether the speakers are locally powered.
 ## Photos needed
 
 - Ashly case rear panel, and the panel connector
-- MOTU case with the MacBook in position
+- MOTU case with the MacBook in position, and the single USB-C cable
+- MOTU case rear panel — the Ethernet port
+- Inside the MOTU case: the hub/dock and how the M4 and Ethernet hang off it
 - Internal loom from the connector to the AQM408
 - AQM408 rear as wired
 - Inside both cases, lids open
