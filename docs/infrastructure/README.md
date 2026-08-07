@@ -4,80 +4,68 @@
 
 ```mermaid
 flowchart TB
-    subgraph RESIDENT["🖥️ Resident MacBook — prerecorded shows"]
-        APPS["Ableton Live · Bitwig Studio · Vezér"]
-        LB["Loopback Audio 1/2"]
-        CHR["Chromatik (LX)"]
-        APPS -->|audio| LB
-        APPS -->|"OSC :3030"| CHR
-    end
-
     subgraph DJ["🎧 Live DJ input — live shows only"]
         DECKS["Decks / mixer"]
-        GI1["GEARit box<br>under stage"]
-        CDJ["CDJs<br>(beat sync planned)"]
-        DECKS -->|"2x XLR"| GI1
+        CDJ["CDJs"]
     end
 
     subgraph LIVEMAC["💻 Live MacBook — live shows only"]
-        MIDI["USB MIDI controllers"]
-        LCHR["Chromatik (LX)"]
-        MIDI --> LCHR
+        LCHR["Chromatik"]
+    end
+
+    subgraph RESIDENT["🖥️ Resident MacBook — prerecorded shows"]
+        APPS["Ableton · Bitwig · Vezér"]
+        CHR["Chromatik"]
+        APPS --> CHR
     end
 
     subgraph SOUND["🔊 Sound"]
-        GI2["GEARit box<br>at MOTU"]
         MOTU["MOTU M4"]
-        GI2 -->|"2x XLR"| MOTU
-        AQM["Ashly AQM408<br>matrix + crossover"]
-        IPAD["iPad<br>AQM408 web UI"]
-        HI["8x QSC highs"]
-        SUB["8x QSC lows"]
-        MOTU -->|"2x TRS to Euroblock"| AQM
-        AQM -->|"4 out"| HI
-        AQM -->|"4 out"| SUB
-        IPAD -.-> AQM
+        AQM["Ashly AQM408"]
+        SPK["16x QSC<br>8 highs · 8 lows"]
+        MOTU --> AQM --> SPK
     end
 
     subgraph OUTPUT["💡 Output hardware"]
         SW["Network switch"]
-        CTRL["32 LED controllers<br>10.0.1.101-.132"]
-        LEDS["13,280 LEDs<br>cube + cylinder"]
-        HBOX["Haptic driver box<br>standalone, on an interval"]
-        FLOOR["Haptic floor<br>96 motors + 96 lights"]
-        SW -->|"Art-Net"| CTRL
-        CTRL --> LEDS
+        CTRL["32 LED controllers"]
+        LEDS["13,280 LEDs"]
+        HBOX["Haptic driver box"]
+        FLOOR["Haptic floor"]
+        SW --> CTRL --> LEDS
         HBOX --> FLOOR
     end
 
-    LB ==>|"one USB-C cable<br>audio + network"| MOTU
-    CHR ==>|"same cable"| SW
-    LCHR -->|Ethernet| SW
-    GI1 ==>|"Cat5/6 — analog audio, not network"| GI2
-    CDJ -.->|"Ethernet — Pro DJ Link"| LIVEMAC
-    CHR -.->|"Art-Net, built but off"| FLOOR
+    DECKS --> MOTU
+    CDJ --> LIVEMAC
+    APPS --> MOTU
+    CHR --> SW
+    LCHR --> SW
 ```
 
-**Reading it:** the two MacBooks are alternatives, never both driving at once.
-Everything in **Sound** and **Output hardware** is permanent; the **Live MacBook**
-and **Live DJ input** boxes only exist during live shows.
+**Reading it:** the two MacBooks are alternatives — never both driving at once.
+**Sound** and **Output hardware** are permanent; the **Live MacBook** and **Live
+DJ input** boxes only exist during live shows. The haptic floor runs from its own
+box on an interval, connected to nothing else.
 
-**Heavy lines are cables carrying something their connector doesn't suggest**,
-and both are traps:
+Cable types, addresses, and signal detail live in the subsystem pages below —
+this diagram is only the shape of the system.
 
-- The **USB-C cable** to the resident MacBook carries audio *and* network, so
-  losing it takes out sound and lights together.
-- The **Cat5/6 between the GEARit boxes** carries analog audio, not network. No
-  switch goes on either end. The live rig needs a *second, separate* Cat5/6 run
-  for Pro DJ Link — same cable type, entirely different job. Label both ends of
-  both.
-
-Dashed lines are control paths or not-yet-built.
+## Three things that will catch you out
 
 > **Only one Chromatik may output at a time.** Both MacBooks run Chromatik and
 > both can reach the LED controllers over Art-Net. When bringing the live
 > MacBook up, **turn off output on the resident MacBook first** — otherwise two
 > instances drive the same controllers and the result is undefined.
+
+> **One USB-C cable carries the resident MacBook's audio *and* network.** A
+> failure there kills sound and lights together, which reads as two unrelated
+> faults. [Details](physical.md#one-usb-c-cable-to-the-macbook)
+
+> **The Cat5/6 from the stage to the MOTU carries analog audio, not network.**
+> No switch goes on either end. A live rig needs a second, separate Cat5/6 run
+> for Pro DJ Link — same cable, entirely different job. Label both ends of both.
+> [Details](audio-system.md#live-dj)
 
 ## Docs
 
