@@ -114,7 +114,7 @@ ducking, signal generator.
 space, less directional). Both are matrix config, not a re-patch.
 
 > The Euroblock outputs are **not** the service point. The AQM408's rear panel
-> is enclosed in the Pelican case; everything reaches the outside through a
+> is enclosed in its Pelican case; everything reaches the outside through a
 > panel-mount multipin connector. See [physical
 > installation](physical.md#the-rear-panel-hides-the-ashlys-own-connectors).
 
@@ -163,7 +163,7 @@ recommended. RJ-45 to the same network as the iPad.
 
 **TBD:** static IP or DHCP reservation, and the address. An automatic address can
 change after a reboot and silently break the iPad's bookmark. **TBD:** record the
-MAC. **TBD:** rack position; is it near the Pelican case?
+MAC. The AQM408 lives in its own Pelican case — see [physical installation](physical.md#pelican-cases).
 
 ## Open
 

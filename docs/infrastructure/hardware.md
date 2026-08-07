@@ -9,7 +9,7 @@ yet acquired · **Planned** = future work.
 
 | Item | Qty | Status | Notes |
 |---|---|---|---|
-| Resident MacBook | 1 | In service | Lives in the Pelican case. Runs prerecorded sets. **TBD** model, macOS version |
+| Resident MacBook | 1 | In service | Sits on top of the MOTU Pelican case. Runs prerecorded sets. **TBD** model, macOS version |
 | Live MacBook | 1 | In service | Brought out for live sets. USB MIDI connects here. **TBD** model, macOS version |
 | USB Ethernet adapter | 1 | Needed | Second NIC for the live MacBook — CDJ network on one, LEDs on the other |
 | iPad | 1 | In service | AQM408 web UI. **TBD** model, iPadOS version |
@@ -18,8 +18,8 @@ yet acquired · **Planned** = future work.
 
 | Item | Qty | Status | Notes |
 |---|---|---|---|
-| MOTU M4 | 1 | In service | 4-in/4-out USB-C interface, bus-powered |
-| Ashly AQM408 | 1 | In service | 1RU, 4x8 DSP matrix + crossover. **TBD** MAC, IP, rack position |
+| MOTU M4 | 1 | In service | 4-in/4-out USB-C interface, bus-powered. In its own Pelican case, MacBook on top |
+| Ashly AQM408 | 1 | In service | 1RU, 4x8 DSP matrix + crossover. In its own Pelican case. **TBD** MAC, IP, rack position |
 | QSC highs | 8 | In service | Powered, with loop-thru. 4 driven from the Ashly, 4 daisy-chained. **TBD** model |
 | QSC lows | 8 | In service | Powered, with loop-thru. 4 driven from the Ashly, 4 daisy-chained. **TBD** model |
 | GEARit XLR-over-Cat5 box | 2 (1 pair) | In service | 4-channel passive snake. One under stage, one at MOTU. We use 2 of 4 channels |

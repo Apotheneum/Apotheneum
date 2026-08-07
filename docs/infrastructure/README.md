@@ -8,7 +8,7 @@ flowchart TB
         APPS["Ableton Live<br>Bitwig Studio<br>Vezér"]
     end
 
-    subgraph RESIDENT["Resident MacBook (Pelican case)"]
+    subgraph RESIDENT["Resident MacBook"]
         LB["Loopback Audio 1/2<br>virtual device"]
         CHR["Chromatik (LX)"]
     end
@@ -67,7 +67,7 @@ not network**.
 
 | | Resident MacBook | Live MacBook |
 |---|---|---|
-| Presence | Always, in Pelican case | Live sets only |
+| Presence | Always — sits on top of the MOTU Pelican case | Live sets only |
 | Chromatik | Yes | Yes |
 | Loopback | Yes | **No** |
 | Art-Net to LEDs | Yes — **off during live sets** | Yes — live sets only |
