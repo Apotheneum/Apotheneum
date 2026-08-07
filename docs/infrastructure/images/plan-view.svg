@@ -104,13 +104,14 @@
   <text class="lblb" x="-380" y="591" text-anchor="middle">Local switch</text>
 
   <!-- ==== top switch, on top of the cube ==== -->
-  <rect class="box" x="60" y="608" width="170" height="46"/>
-  <text class="lblb" x="145" y="626" text-anchor="middle">Top switch</text>
-  <text class="small" x="145" y="642" text-anchor="middle">on top of the cube</text>
+  <rect class="box" x="-70" y="600" width="180" height="60"/>
+  <text class="lblb" x="20" y="620" text-anchor="middle">Top switch</text>
+  <text class="small" x="20" y="636" text-anchor="middle">on top of the cube</text>
+  <text class="small" x="20" y="650" text-anchor="middle">→ all 32 LED controllers</text>
 
   <!-- ==== switch, at the cube corner ==== -->
-  <rect class="box" x="60" y="700" width="170" height="40"/>
-  <text class="lblb" x="145" y="725" text-anchor="middle">Corner switch</text>
+  <rect class="box" x="-70" y="700" width="180" height="40"/>
+  <text class="lblb" x="20" y="725" text-anchor="middle">Corner switch</text>
 
   <!-- ================= connections ================= -->
 
@@ -155,17 +156,15 @@
   <text class="small" x="-374" y="548" fill="#1d6fb8">Ethernet</text>
 
   <!-- local switch -> corner switch, one cable -->
-  <path class="net" d="M -290 596 C -160 700, -60 736, 58 724" marker-end="url(#arrowNet)"/>
+  <path class="net" d="M -290 600 C -220 690, -160 730, -72 724" marker-end="url(#arrowNet)"/>
   <text class="small" x="-176" y="690" fill="#1d6fb8">single cable to the corner</text>
 
   <!-- switch -> LEDs -->
-  <path class="net" d="M 145 700 L 145 654" marker-end="url(#arrowNet)"/>
-  <path class="net" d="M 145 608 C 145 420, 250 230, 320 186" marker-end="url(#arrowNet)"/>
-  <text class="small" x="152" y="420" fill="#1d6fb8">Art-Net to all 32</text>
-  <text class="small" x="152" y="434" fill="#1d6fb8">LED controllers</text>
+  <path class="net" d="M 20 700 L 20 660" marker-end="url(#arrowNet)"/>
+  <text class="small" x="28" y="684" fill="#1d6fb8">Art-Net</text>
 
   <!-- switch -> floor -->
-  <path class="net" d="M 230 712 C 320 660, 348 566, 378 518" marker-end="url(#arrowNet)"/>
+  <path class="net" d="M 110 716 C 280 700, 350 600, 380 518" marker-end="url(#arrowNet)"/>
   <text class="small" x="300" y="612" fill="#1d6fb8">uplink to stage switch</text>
 
   <!-- CDJs -> live macbook -->
