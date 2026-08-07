@@ -75,9 +75,14 @@ See [haptics](haptics.md).
 | Host | `10.0.1.201` |
 | Universe | 0 |
 | Byte order | `w` — one channel per motor |
-| Structure | 6 × `Apotheneum-Haptic-Triangle`, 16 motors each, rolled −60° per instance |
+| Structure | 6 × `Apotheneum-Haptic-Triangle`, rolled −60° per instance |
+| Per triangle | 16 positions, each with **a motor and a light** |
 
-| Triangle | Bank A channels | Bank B channels |
+Each triangle contributes two component groups — `hapticMotors` and
+`hapticLights` — sharing the same 16 positions. Motors occupy channels 0–95;
+lights are the same layout offset by 96.
+
+| Triangle | Motor channels | Light channels |
 |---|---|---|
 | 0 | 0–15 | 96–111 |
 | 1 | 16–31 | 112–127 |
@@ -86,11 +91,11 @@ See [haptics](haptics.md).
 | 4 | 64–79 | 160–175 |
 | 5 | 80–95 | 176–191 |
 
-96 motors across two banks, 192 channels total — all within universe 0.
+96 motors and 96 lights, 192 channels total — all within universe 0.
 
-**TBD:** what the two banks are physically. The fixture emits both from the same
-16 points per triangle at a 96-channel offset, which suggests two motors per
-position or a second physical layer.
+One channel per element (`byteOrder: "w"`), so a motor channel is drive level and
+a light channel is intensity. `ApotheneumMotors` writes greyscale precisely for
+this reason: the pattern's `Level` becomes the value on the wire.
 
 ## Regenerating
 

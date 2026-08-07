@@ -10,7 +10,7 @@ documentation. It is not synchronised to audio, lighting, or show state.
 
 ```mermaid
 flowchart LR
-    BOX["Fixed box<br>(standalone, interval-driven)"] --> FLOOR["Haptic floor"]
+    BOX["Fixed box<br>(standalone, interval-driven)"] --> FLOOR["Haptic floor<br>96 motors + 96 lights"]
     CHR["Chromatik"] -.->|"Art-Net to 10.0.1.201<br>(built, currently off)"| FLOOR
 ```
 
@@ -29,8 +29,15 @@ repository — it is simply not enabled.
 | Fixture | `src/main/resources/fixtures/Apotheneum-Haptics.lxf` |
 | Host | `10.0.1.201` (default) |
 | Protocol | Art-Net, `byteOrder: "w"` (single channel per motor) |
-| Structure | 6 × `Apotheneum-Haptic-Triangle`, rolled `-60° × instance`, 16 channels apart |
+| Structure | 6 × `Apotheneum-Haptic-Triangle`, rolled `-60° × instance` |
+| Per triangle | 16 positions, each with a **motor** and a **light** |
+| Channels | Motors 0–95, lights 96–191 (same layout, offset 96) |
 | Output enabled | **`false` by default** |
+
+The floor is not motors alone — each position pairs a motor with a light, as
+separate `hapticMotors` and `hapticLights` component groups. Full channel map in
+[Art-Net destinations](artnet.md). There is a UI for the lights:
+`src/main/java/apotheneum/ui/UIApotheneumFloorLights.java`.
 
 There is also a pattern for it: `ApotheneumMotors`
 (`src/main/java/apotheneum/core/ApotheneumMotors.java`) — "Generates haptic
