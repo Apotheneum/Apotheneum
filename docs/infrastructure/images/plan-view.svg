@@ -23,6 +23,8 @@
     .net   { stroke: #1d6fb8; stroke-width: 2.5; fill: none; }
     .power { stroke: #8b8b8b; stroke-width: 2.5; fill: none; stroke-dasharray: 7 5; }
     .spk   { fill: #c2410c; fill-opacity: .18; stroke: #c2410c; stroke-width: 1.5; }
+    .hi    { stroke: #c2410c; stroke-width: 2; fill: none; }
+    .lo    { stroke: #c2410c; stroke-width: 2; fill: none; stroke-dasharray: 6 4; }
     .title { font-size: 20px; font-weight: 700; fill: #4a4a4a; }
     .tbd   { font-size: 11px; font-style: italic; fill: #b45309; }
   </style>
@@ -59,11 +61,6 @@
     <text class="small" x="281" y="616" text-anchor="middle">2 hi · 2 lo</text>
   </g>
 
-  <!-- ==== generator — furthest out ==== -->
-  <rect class="box" x="-250" y="250" width="190" height="66"/>
-  <text class="lblb" x="-155" y="276" text-anchor="middle">Generator</text>
-  <text class="small" x="-155" y="296" text-anchor="middle">AC to control position</text>
-
   <!-- ==== control position ==== -->
   <rect class="box" x="-250" y="370" width="190" height="132"/>
   <text class="lblb" x="-155" y="394" text-anchor="middle">Control position</text>
@@ -83,15 +80,11 @@
   <text class="small" x="40" y="730" text-anchor="middle">10.0.1.0/24</text>
 
   <!-- ==== live macbook ==== -->
-  <rect class="box" x="620" y="720" width="190" height="58"/>
-  <text class="lblb" x="715" y="743" text-anchor="middle">Live MacBook</text>
-  <text class="small" x="715" y="762" text-anchor="middle">live shows only</text>
+  <rect class="box" x="566" y="478" width="158" height="52"/>
+  <text class="lblb" x="645" y="500" text-anchor="middle">Live MacBook</text>
+  <text class="small" x="645" y="518" text-anchor="middle">stage edge, live only</text>
 
   <!-- ==== connections ==== -->
-  <!-- generator -> control -->
-  <path class="power" d="M -155 316 L -155 370" marker-end="url(#arrow)"/>
-  <text class="small" x="-146" y="346">AC</text>
-
   <!-- control -> switch -->
   <path class="net" d="M -60 470 C 10 540, -20 640, -25 690" marker-end="url(#arrowNet)"/>
   <text class="small" x="-16" y="600" fill="#1d6fb8">Ethernet</text>
@@ -104,10 +97,21 @@
   <path class="audio" d="M -155 530 L -155 502" marker-end="url(#arrowAudio)"/>
   <text class="small" x="-146" y="522" fill="#c2410c">2x XLR</text>
 
-  <!-- Ashly -> speakers, two representative runs -->
-  <path class="audio" d="M -70 480 C 60 540, 180 600, 252 610" marker-end="url(#arrowAudio)"/>
-  <path class="audio" d="M -70 390 C 40 280, 170 200, 252 188" marker-end="url(#arrowAudio)"/>
-  <text class="small" x="30" y="246" fill="#c2410c">speaker runs to 4 corners</text>
+  <!-- Ashly -> 4 corners, one cable per driver type (8 total) -->
+  <!-- NW -->
+  <path class="hi" d="M -60 390 C 40 302, 158 212, 248 190" marker-end="url(#arrowAudio)"/>
+  <path class="lo" d="M -60 400 C 48 320, 168 228, 252 202" marker-end="url(#arrowAudio)"/>
+  <!-- SW -->
+  <path class="hi" d="M -60 476 C 40 546, 160 596, 248 606" marker-end="url(#arrowAudio)"/>
+  <path class="lo" d="M -60 486 C 48 562, 170 612, 252 620" marker-end="url(#arrowAudio)"/>
+  <!-- NE, routed over the top -->
+  <path class="hi" d="M -60 380 C 0 128, 330 98, 668 170" marker-end="url(#arrowAudio)"/>
+  <path class="lo" d="M -60 370 C 10 108, 340 78, 686 168" marker-end="url(#arrowAudio)"/>
+  <!-- SE, routed along the bottom -->
+  <path class="hi" d="M -60 494 C 70 668, 400 664, 668 628" marker-end="url(#arrowAudio)"/>
+  <path class="lo" d="M -60 504 C 78 686, 410 682, 686 630" marker-end="url(#arrowAudio)"/>
+  <text class="small" x="-46" y="330" fill="#c2410c">8 runs: high + low</text>
+  <text class="small" x="-46" y="345" fill="#c2410c">to each of 4 corners</text>
 
   <!-- switch -> LEDs -->
   <path class="net" d="M 60 690 C 90 520, 150 260, 236 176" marker-end="url(#arrowNet)"/>
@@ -119,21 +123,23 @@
   <text class="small" x="250" y="708" fill="#1d6fb8">to haptic floor switch</text>
 
   <!-- stage CDJ ethernet -> live macbook -->
-  <path class="net" d="M 545 440 C 650 500, 700 660, 712 720" marker-end="url(#arrowNet)"/>
-  <text class="small" x="660" y="590" fill="#1d6fb8">Cat5/6 — Pro DJ Link</text>
+  <path class="net" d="M 552 452 L 594 478" marker-end="url(#arrowNet)"/>
+  <text class="small" x="556" y="474" fill="#1d6fb8">Pro DJ Link</text>
 
   <!-- live macbook -> switch -->
-  <path class="net" d="M 620 756 C 420 812, 200 790, 118 742" marker-end="url(#arrowNet)"/>
-  <text class="small" x="380" y="806" text-anchor="middle" fill="#1d6fb8">Ethernet</text>
+  <path class="net" d="M 600 530 C 470 700, 260 760, 122 730" marker-end="url(#arrowNet)"/>
+  <text class="small" x="376" y="754" text-anchor="middle" fill="#1d6fb8">Ethernet to switch</text>
 
   <!-- ==== legend ==== -->
-  <g transform="translate(640, 90)">
-    <rect class="box" x="0" y="-22" width="240" height="98"/>
+  <g transform="translate(640, 240)">
+    <rect class="box" x="0" y="-22" width="240" height="122"/>
     <line class="audio" x1="14" y1="0" x2="46" y2="0"/>
     <text class="small" x="56" y="4">audio</text>
-    <line class="net" x1="14" y1="24" x2="46" y2="24"/>
-    <text class="small" x="56" y="28">network / Art-Net</text>
-    <line class="power" x1="14" y1="48" x2="46" y2="48"/>
-    <text class="small" x="56" y="52">AC power</text>
+    <line class="hi" x1="14" y1="24" x2="46" y2="24"/>
+    <text class="small" x="56" y="28">speaker run — high</text>
+    <line class="lo" x1="14" y1="48" x2="46" y2="48"/>
+    <text class="small" x="56" y="52">speaker run — low</text>
+    <line class="net" x1="14" y1="72" x2="46" y2="72"/>
+    <text class="small" x="56" y="76">network / Art-Net</text>
   </g>
 </svg>

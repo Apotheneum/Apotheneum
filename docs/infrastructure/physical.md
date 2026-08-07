@@ -14,12 +14,13 @@ things actually sit is not yet confirmed. Corrections welcome, and the file is
 plain SVG so it can be edited directly.
 
 Plan view: cube outside, cylinder inside, stage at centre. Speakers at the four
-corners, two highs and two lows each. Control position and generator to one side,
-network switch at the near corner.
+corners, two highs and two lows each — eight runs from the Ashly, one per driver
+type. Control position to one side with the receiving GEARit box, network switch
+offset from the near corner, live MacBook at the stage edge next to the DJ.
 
 **TBD:** which corner the switch is actually in.
-**TBD:** where the generator sits relative to the control position, and how far
-the AC run is.
+**TBD:** power — where it comes from and how far the run is. Left off the
+diagram for now.
 **TBD:** actual cable routes — the lines here show what connects to what, not the
 path a cable takes.
 **TBD:** where the 32 LED controllers physically sit around the structure.
