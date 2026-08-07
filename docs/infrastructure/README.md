@@ -12,17 +12,17 @@ flowchart TB
         APPS -->|"OSC :3030"| CHR
     end
 
-    subgraph LIVEMAC["💻 Live MacBook — live shows only"]
-        MIDI["USB MIDI controllers"]
-        LCHR["Chromatik (LX)"]
-        MIDI --> LCHR
-    end
-
     subgraph DJ["🎧 Live DJ input — live shows only"]
         DECKS["Decks / mixer"]
         GEAR["GEARit snake<br>analog audio over Cat5/6"]
         CDJ["CDJs<br>(beat sync planned)"]
         DECKS -->|"2x XLR"| GEAR
+    end
+
+    subgraph LIVEMAC["💻 Live MacBook — live shows only"]
+        MIDI["USB MIDI controllers"]
+        LCHR["Chromatik (LX)"]
+        MIDI --> LCHR
     end
 
     subgraph SOUND["🔊 Sound"]
