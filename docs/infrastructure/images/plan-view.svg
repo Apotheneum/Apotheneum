@@ -18,8 +18,8 @@
     .box   { fill: #808080; fill-opacity: .10; stroke: #7a7a7a; stroke-width: 1.5; rx: 4; }
     .audio { stroke: #c2410c; stroke-width: 2.5; fill: none; }
     .net   { stroke: #1d6fb8; stroke-width: 2.5; fill: none; }
-    .hi    { stroke: #c2410c; stroke-width: 2; fill: none; }
-    .lo    { stroke: #c2410c; stroke-width: 2; fill: none; stroke-dasharray: 6 4; }
+    .hi    { stroke: #c2410c; stroke-width: 2; fill: none; stroke-linejoin: round; stroke-linecap: round; }
+    .lo    { stroke: #c2410c; stroke-width: 2; fill: none; stroke-dasharray: 6 4; stroke-linejoin: round; stroke-linecap: round; }
     .spk   { fill: #c2410c; fill-opacity: .18; stroke: #c2410c; stroke-width: 1.5; }
     .title { font-size: 20px; font-weight: 700; fill: #4a4a4a; }
     .tbd   { font-size: 11px; font-style: italic; fill: #b45309; }
@@ -126,16 +126,21 @@
   <path class="net" d="M -60 410 C 40 470, 20 610, -12 690" marker-end="url(#arrowNet)"/>
   <text class="small" x="16" y="566" fill="#1d6fb8">Ethernet</text>
 
-  <!-- Ashly -> 4 corners, high + low each -->
-  <path class="hi" d="M -60 482 C 40 400, 158 240, 248 190" marker-end="url(#arrowAudio)"/>
-  <path class="lo" d="M -60 492 C 48 414, 168 256, 252 202" marker-end="url(#arrowAudio)"/>
-  <path class="hi" d="M -60 500 C 40 556, 160 596, 248 606" marker-end="url(#arrowAudio)"/>
-  <path class="lo" d="M -60 510 C 48 572, 170 612, 252 620" marker-end="url(#arrowAudio)"/>
-  <path class="hi" d="M -60 476 C 20 140, 340 104, 668 170" marker-end="url(#arrowAudio)"/>
-  <path class="lo" d="M -60 470 C 30 120, 350 84, 686 168" marker-end="url(#arrowAudio)"/>
-  <path class="hi" d="M -60 516 C 70 672, 400 664, 668 628" marker-end="url(#arrowAudio)"/>
-  <path class="lo" d="M -60 522 C 78 690, 410 682, 686 630" marker-end="url(#arrowAudio)"/>
-  <text class="small" x="-56" y="546" fill="#c2410c">8 runs: high + low to each corner</text>
+  <!-- Ashly -> corners: out to the near corner, then along the cube edges -->
+  <!-- NW -->
+  <path class="hi" d="M -60 484 L 206 484 L 206 188 L 248 188" marker-end="url(#arrowAudio)"/>
+  <path class="lo" d="M -60 494 L 196 494 L 196 200 L 248 200" marker-end="url(#arrowAudio)"/>
+  <!-- SW -->
+  <path class="hi" d="M -60 484 L 206 484 L 206 606 L 248 606" marker-end="url(#arrowAudio)"/>
+  <path class="lo" d="M -60 494 L 196 494 L 196 618 L 248 618" marker-end="url(#arrowAudio)"/>
+  <!-- NE, up the left edge and across the top -->
+  <path class="hi" d="M -60 484 L 206 484 L 206 128 L 756 128 L 756 186 L 712 186" marker-end="url(#arrowAudio)"/>
+  <path class="lo" d="M -60 494 L 196 494 L 196 116 L 768 116 L 768 198 L 712 198" marker-end="url(#arrowAudio)"/>
+  <!-- SE, along the bottom and up the right edge -->
+  <path class="hi" d="M -60 484 L 206 484 L 206 674 L 756 674 L 756 610 L 712 610" marker-end="url(#arrowAudio)"/>
+  <path class="lo" d="M -60 494 L 196 494 L 196 686 L 768 686 L 768 622 L 712 622" marker-end="url(#arrowAudio)"/>
+  <text class="small" x="-56" y="546" fill="#c2410c">8 runs: high + low to each corner,</text>
+  <text class="small" x="-56" y="560" fill="#c2410c">routed along the cube edges</text>
 
   <!-- floor controller -> floor ethernet box -->
   <path class="net" d="M -290 586 C -60 620, 200 560, 340 502" marker-end="url(#arrowNet)"/>
