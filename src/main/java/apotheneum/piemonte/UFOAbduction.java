@@ -209,6 +209,9 @@ public class UFOAbduction extends StrandPattern {
         this.collapseT = -1;
         this.cube.reset();
         this.cylinder.reset();
+        // drop queued staggered spawns too, so a wave launched just before
+        // the collapse can't fire into the clean relaunch
+        java.util.Arrays.fill(this.pendAlive, false);
         this.relaunchQueued = true;
       }
     } else if (this.beat && this.beatLevel > 0.80 - wow * 0.15) {
@@ -226,8 +229,15 @@ public class UFOAbduction extends StrandPattern {
       final double strength = this.relaunchQueued ? 1.0
         : LXUtils.clamp(this.levelEnv * 1.6 + this.beatLevel * 0.4 + wow * 0.3, 0.15, 1);
       final int n = this.lanes.getValuei();
-      launchWave(this.cube, true, n, strength, this.relaunchQueued);
-      launchWave(this.cylinder, false, n, strength, this.relaunchQueued);
+      // only feed the surfaces actually being rendered — a hidden target
+      // would otherwise pile up frozen heads at their spawn points
+      final Target t = getTarget();
+      if (t != Target.CYLINDER) {
+        launchWave(this.cube, true, n, strength, this.relaunchQueued);
+      }
+      if (t != Target.CUBE) {
+        launchWave(this.cylinder, false, n, strength, this.relaunchQueued);
+      }
       this.relaunchQueued = false;
     }
     this.launchFlash *= Math.exp(-deltaMs / 160.0);
