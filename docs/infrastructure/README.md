@@ -51,8 +51,10 @@ not network**.
 
 ## Docs
 
+- [Hardware inventory](hardware.md) — master gear list
 - [Audio system](audio-system.md) — Loopback → MOTU → Ashly → QSC
 - [Lighting control](lighting-control.md) — OSC → Chromatik → Art-Net → LEDs
+- [Haptic floor](haptics.md) — standalone, not driven by Chromatik today
 
 ## Machines
 
@@ -77,6 +79,5 @@ not network**.
 - Is the MOTU re-patched between machines?
 - How project files stay in sync between the two
 - Network topology, power distribution, cold-start runbook
-- Haptics (`Apotheneum-Haptics.lxf` exists — what drives it?)
 
 Binaries (PDFs, CAD, photos, BOMs) live in the shared drive, linked from here.

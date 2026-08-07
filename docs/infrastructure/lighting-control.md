@@ -26,9 +26,31 @@ no audio** — there are no audio-reactive patterns.
 > enabled by hand at showtime, or the live show runs a project that isn't in
 > this repo. Worth resolving.
 
-**TBD:** the OSC address space — which addresses each app sends and what they
-map to. Unmatched addresses fail silently. **TBD:** do senders address
-`localhost` or a network address? **TBD:** shared clock — MIDI, Link, or OSC?
+### Address table
+
+**Mostly unfilled — this is the most valuable thing to capture.** An OSC address
+nothing listens for fails silently, so without this table a broken mapping looks
+identical to a working one.
+
+| Address | Sent by | Maps to | Range | Status |
+|---|---|---|---|---|
+| `/lx/tempo/beat` | Beat Link Trigger | Metronome beat, beat-within-bar | 1–4 | Planned |
+| `/lx/tempo/setBPM` | Beat Link Trigger | Tempo | BPM | Planned |
+| | Ableton Live | | | **TBD** |
+| | Bitwig Studio | | | **TBD** |
+| | Vezér | | | **TBD** |
+
+Chromatik derives addresses from the component hierarchy, so they generally look
+like `/lx/mixer/channel/<n>/...` for channel and pattern parameters. The
+authoritative list for any given parameter is what Chromatik itself reports —
+worth capturing from the running system rather than reconstructed by hand.
+
+Quickest way to fill this in: enable OSC receive, run each app in turn, and log
+what actually arrives on `:3030`. Empirically observed beats a list someone
+believes is true.
+
+**TBD:** do senders address `localhost` or a network address? **TBD:** shared
+clock — MIDI, Link, or OSC?
 
 ## Art-Net out
 
