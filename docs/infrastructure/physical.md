@@ -16,16 +16,20 @@ plain SVG so it can be edited directly.
 Plan view: cube outside, cylinder inside, stage at centre. The control position
 is broken out as the chain it actually is — stage snake into the GEARit box, XLR
 into the MOTU, TRS-to-Euroblock into the Ashly, then eight speaker runs out to
-the four corners, one per driver type. The MacBook sits alongside on USB-C. Live
-MacBook at the stage edge beside the DJ; floor controller and switch each reach
-the floor ethernet box.
+the four corners, one per driver type, routed along the cube edges. The MacBook
+and floor controller sit alongside, both on the network switch at the control
+position. That switch uplinks to a second switch at the stage, which the floor's
+motors and lights hang off.
 
-**TBD:** which corner the switch is actually in.
 **TBD:** power — where it comes from and how far the run is. Left off the
 diagram for now.
 **TBD:** actual cable routes — the lines here show what connects to what, not the
 path a cable takes.
 **TBD:** where the 32 LED controllers physically sit around the structure.
+**TBD:** where the control position and its switch actually stand relative to
+the cube.
+**TBD:** does the live MacBook plug into the stage switch, as drawn, or run back
+to the control position?
 
 ## Pelican cases
 

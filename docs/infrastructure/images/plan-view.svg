@@ -53,7 +53,7 @@
 
   <!-- ==== floor ethernet box, corner of the floor ==== -->
   <rect class="box" x="342" y="478" width="132" height="36"/>
-  <text class="small" x="408" y="494" text-anchor="middle">Floor ethernet box</text>
+  <text class="lblb" x="408" y="494" text-anchor="middle">Stage switch</text>
   <text class="small" x="408" y="508" text-anchor="middle">motors + lights</text>
 
   <!-- ==== live macbook ==== -->
@@ -95,14 +95,14 @@
   <text class="small" x="-380" y="426" text-anchor="middle">prerecorded shows</text>
 
   <!-- ==== floor controller ==== -->
-  <rect class="box" x="-470" y="560" width="180" height="56"/>
-  <text class="lblb" x="-380" y="583" text-anchor="middle">Floor controller</text>
-  <text class="small" x="-380" y="601" text-anchor="middle">haptics, on an interval</text>
+  <rect class="box" x="-470" y="466" width="180" height="56"/>
+  <text class="lblb" x="-380" y="489" text-anchor="middle">Floor controller</text>
+  <text class="small" x="-380" y="507" text-anchor="middle">haptics, on an interval</text>
 
-  <!-- ==== switch ==== -->
-  <rect class="box" x="-40" y="690" width="160" height="52"/>
-  <text class="lblb" x="40" y="712" text-anchor="middle">Network switch</text>
-  <text class="small" x="40" y="730" text-anchor="middle">10.0.1.0/24</text>
+  <!-- ==== switch, at the control position ==== -->
+  <rect class="box" x="-470" y="566" width="180" height="52"/>
+  <text class="lblb" x="-380" y="588" text-anchor="middle">Network switch</text>
+  <text class="small" x="-380" y="606" text-anchor="middle">10.0.1.0/24</text>
 
   <!-- ================= connections ================= -->
 
@@ -123,8 +123,8 @@
   <text class="small" x="-148" y="450">2x TRS → Euroblock</text>
 
   <!-- MOTU case hub -> switch -->
-  <path class="net" d="M -60 410 C 40 470, 20 610, -12 690" marker-end="url(#arrowNet)"/>
-  <text class="small" x="16" y="566" fill="#1d6fb8">Ethernet</text>
+  <path class="net" d="M -250 420 C -180 520, -200 610, -290 604" marker-end="url(#arrowNet)"/>
+  <text class="small" x="-232" y="556" fill="#1d6fb8">Ethernet</text>
 
   <!-- Ashly -> corners: out to the near corner, then along the cube edges -->
   <!-- NW -->
@@ -142,25 +142,25 @@
   <text class="small" x="-56" y="546" fill="#c2410c">8 runs: high + low to each corner,</text>
   <text class="small" x="-56" y="560" fill="#c2410c">routed along the cube edges</text>
 
-  <!-- floor controller -> floor ethernet box -->
-  <path class="net" d="M -290 586 C -60 620, 200 560, 340 502" marker-end="url(#arrowNet)"/>
-  <text class="small" x="-40" y="620" fill="#1d6fb8">to floor ethernet box</text>
+  <!-- floor controller -> corner switch -->
+  <path class="net" d="M -380 522 L -380 566" marker-end="url(#arrowNet)"/>
+  <text class="small" x="-374" y="546" fill="#1d6fb8">Ethernet</text>
 
   <!-- switch -> LEDs -->
-  <path class="net" d="M 60 690 C 90 520, 150 260, 236 176" marker-end="url(#arrowNet)"/>
-  <text class="small" x="82" y="600" fill="#1d6fb8">Art-Net — 32 controllers</text>
+  <path class="net" d="M -290 612 C -120 720, 60 726, 224 660" marker-end="url(#arrowNet)"/>
+  <text class="small" x="-40" y="736" fill="#1d6fb8">Art-Net — 32 LED controllers</text>
 
   <!-- switch -> floor -->
-  <path class="net" d="M 120 704 C 250 664, 340 570, 380 516" marker-end="url(#arrowNet)"/>
-  <text class="small" x="196" y="668" fill="#1d6fb8">Art-Net to floor</text>
+  <path class="net" d="M -290 578 C 0 560, 200 540, 340 502" marker-end="url(#arrowNet)"/>
+  <text class="small" x="26" y="548" fill="#1d6fb8">uplink to stage switch</text>
 
   <!-- CDJs -> live macbook -->
   <path class="net" d="M 546 384 C 600 400, 630 440, 640 478" marker-end="url(#arrowNet)"/>
   <text class="small" x="596" y="424" fill="#1d6fb8">Pro DJ Link</text>
 
   <!-- live macbook -> switch -->
-  <path class="net" d="M 600 530 C 470 700, 260 762, 122 730" marker-end="url(#arrowNet)"/>
-  <text class="small" x="368" y="742" text-anchor="middle" fill="#1d6fb8">Ethernet to switch</text>
+  <path class="net" d="M 600 530 C 480 620, 460 528, 474 502" marker-end="url(#arrowNet)"/>
+  <text class="small" x="520" y="568" fill="#1d6fb8">Ethernet to stage switch</text>
 
   <!-- ==== legend ==== -->
   <g transform="translate(640, 250)">
