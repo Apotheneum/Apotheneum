@@ -1,12 +1,8 @@
 # Art-Net Destinations
 
-**Generated from the fixture files** — `src/main/resources/fixtures/`. If these
-disagree with the running system, the fixtures are the source of truth for
-defaults, but a project can override any host.
-
-Protocol is Art-Net throughout. Every address below is a *default*: the hosts
-are fixture variables (`$cub01` … `$cyl12`, `$host`), so a project may point
-them elsewhere.
+Generated from `src/main/resources/fixtures/`. Protocol is Art-Net throughout.
+Every address is a fixture-variable *default* (`$cub01` … `$cyl12`, `$host`), so
+a project can point any of them elsewhere — the running project wins.
 
 ## LEDs
 
@@ -56,8 +52,6 @@ Universe allocation is contiguous and regular: controller *n* starts at
 `6 × (n − 1)`, cube first (`cub01` at 0), then cylinder (`cyl01` at 120).
 Total span is universes **0–191**.
 
-Point counts per output vary — door cutouts shorten some columns, so cube
-controllers carry either ~450 or ~340 points and cylinder ones ~430 or ~320.
 
 Each controller also has `Flip` (and on the cylinder, `B2F` — back to front)
 boolean parameters that select between alternate output blocks. These encode
@@ -66,21 +60,14 @@ these being wrong rather than a wiring fault.
 
 ## Haptic floor
 
-Currently **not driven by Chromatik** — a standalone box drives the floor on an
-interval. The path below exists in the fixtures with output disabled by default.
-See [haptics](haptics.md).
+Address map only — see [haptics](haptics.md) for how the floor is actually
+driven.
 
 | | |
 |---|---|
 | Host | `10.0.1.201` |
 | Universe | 0 |
-| Byte order | `w` — one channel per motor |
-| Structure | 6 × `Apotheneum-Haptic-Triangle`, rolled −60° per instance |
-| Per triangle | 16 positions, each with **a motor and a light** |
-
-Each triangle contributes two component groups — `hapticMotors` and
-`hapticLights` — sharing the same 16 positions. Motors occupy channels 0–95;
-lights are the same layout offset by 96.
+| Byte order | `w` — one channel per element |
 
 | Triangle | Motor channels | Light channels |
 |---|---|---|
@@ -91,14 +78,9 @@ lights are the same layout offset by 96.
 | 4 | 64–79 | 160–175 |
 | 5 | 80–95 | 176–191 |
 
-96 motors and 96 lights, 192 channels total — all within universe 0.
-
-One channel per element (`byteOrder: "w"`), so a motor channel is drive level and
-a light channel is intensity. `ApotheneumMotors` writes greyscale precisely for
-this reason: the pattern's `Level` becomes the value on the wire.
+96 motors and 96 lights, 192 channels, all in universe 0.
 
 ## Regenerating
 
-These tables are derived, not hand-maintained. If the fixtures change, re-extract
-rather than editing by hand — the `.lxf` files are JSON with comments, trailing
-commas, and leading-dot numbers, so they need a tolerant parser.
+These tables are derived, not hand-maintained. If the fixtures change,
+re-extract rather than editing by hand.

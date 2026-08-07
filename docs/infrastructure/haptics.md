@@ -1,79 +1,53 @@
 # Haptic Floor
 
-**Draft.** **TBD** = unverified.
+96 motors and 96 lights, paired one-to-one across 6 triangles of 16 positions.
+Channel map in [Art-Net destinations](artnet.md#haptic-floor).
 
-## Current state
+## How it is driven today
 
-**The MacBook does not drive the haptic floor.** A driver box runs it on a fixed
-interval, not synchronised to audio, lighting, or show state.
-
-The floor has **its own network switch**, which the motors and lights both hang
-off. The main system switch reaches it directly — not via the driver box — so
-the dormant Chromatik path isn't a wiring project: the route already exists and
-is simply switched off. Two things can address the floor.
-
-**Inferred:** that the driver box also attaches to the haptic floor switch
-rather than wiring to the motors directly. **TBD** — confirm.
+**Not by Chromatik.** A floor controller at the control position drives the floor
+on a fixed interval, unsynchronised to audio, lighting, or show state.
 
 ```mermaid
 flowchart LR
-    SW["Network switch"] --> HSW["Haptic floor switch"]
-    BOX["Haptic driver box<br>runs on an interval"] --> HSW
-    HSW --> MOT["96 motors<br>channels 0-95"]
-    HSW --> LGT["96 lights<br>channels 96-191"]
-    CHR["Chromatik"] -.->|"Art-Net, built but off"| SW
+    BOX["Floor controller<br>control position"] --> LSW["Local switch"]
+    LSW --> CSW["Corner switch"]
+    CSW --> SSW["Stage switch"]
+    SSW --> MOT["96 motors"]
+    SSW --> LGT["96 lights"]
+    CHR["Chromatik"] -.->|"Art-Net, output disabled"| LSW
 ```
 
-**TBD:** what the box is — make, model, or whether it's custom.
-**TBD:** what interval it runs, and how that's configured or changed.
-**TBD:** where it is physically, and how it's powered.
-**TBD:** who built it and who can service it.
+Everything reaches the floor over the network, via the stage switch — see
+[four switches](physical.md#four-switches-chained). The floor controller and
+Chromatik sit on the same network and address the same hardware.
 
 ## The dormant Chromatik path
 
-A full Art-Net path from Chromatik to the haptics already exists in this
-repository — it is simply not enabled.
+A complete Art-Net path already exists in the repository, switched off.
 
 | | |
 |---|---|
-| Fixture | `src/main/resources/fixtures/Apotheneum-Haptics.lxf` |
-| Host | `10.0.1.201` (default) |
-| Protocol | Art-Net, `byteOrder: "w"` (single channel per motor) |
-| Structure | 6 × `Apotheneum-Haptic-Triangle`, rolled `-60° × instance` |
-| Per triangle | 16 positions, each with a **motor** and a **light** |
-| Channels | Motors 0–95, lights 96–191 (same layout, offset 96) |
+| Fixture | `Apotheneum-Haptics.lxf` |
+| Host | `10.0.1.201` |
 | Output enabled | **`false` by default** |
+| Pattern | `ApotheneumMotors` — `Level` 1–255, momentary `Brake` |
 
-The floor is not motors alone — each position pairs a motor with a light, as
-separate `hapticMotors` and `hapticLights` component groups. Full channel map in
-[Art-Net destinations](artnet.md). There is a UI for the lights:
-`src/main/java/apotheneum/ui/UIApotheneumFloorLights.java`.
+> **Do not enable Chromatik's haptic output until the interaction with the floor
+> controller is understood.** Both would be addressing the same hardware over the
+> same network at the same time. Whether one wins, they alternate, or they fight
+> is unknown, and the obvious way to find out is also the way to find out the
+> hard way. The floor controller may need to be physically disconnected first.
 
-There is also a pattern for it: `ApotheneumMotors`
-(`src/main/java/apotheneum/core/ApotheneumMotors.java`) — "Generates haptic
-motor movement with braking function", with a `Level` parameter (1–255) and a
-momentary `Brake` that actively brakes the motors.
+## Choosing
 
-So switching the floor from interval-driven to show-driven is, on the software
-side, mostly a matter of enabling output and running the pattern.
+Two options, and the choice should be recorded once made:
 
-**TBD:** why it isn't used today — was it tried and reverted, never commissioned,
-or is the fixed box a deliberate fallback?
-**TBD:** confirm `10.0.1.201` is the floor's own address on the switch, and that
-it matches the fixture.
-**TBD:** what happens if the driver box and Chromatik drive the floor at the
-same time — does one win, or do they fight? This is the same class of problem as
-two Chromatiks on the LEDs, and needs an answer before enabling output.
-**TBD:** can both drivers coexist, or does enabling Chromatik output require
-physically disconnecting the box?
+1. **Keep the floor controller.** Independent of Chromatik, survives a crash, no
+   synchronisation with the show.
+2. **Drive from Chromatik.** Haptics become part of the composition, with
+   per-motor control and braking, and the lights sync with the rest of the show.
+   Adds the floor to what breaks when the Mac does.
 
-## Decision to make
-
-Two options, and this should be recorded once chosen:
-
-1. **Keep the standalone box.** Simple, independent, survives a Chromatik crash.
-   No synchronisation with the show.
-2. **Drive from Chromatik.** Haptics become part of the composition, with per-
-   motor control and braking. Adds the floor to what breaks when the Mac does.
-
-**TBD:** which, and why.
+Option 2 is more attractive than it first looks, because the floor is not motors
+alone — the 96 lights are exactly the kind of thing Chromatik is already good at.

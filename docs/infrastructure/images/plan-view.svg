@@ -18,6 +18,7 @@
     .box   { fill: #808080; fill-opacity: .10; stroke: #7a7a7a; stroke-width: 1.5; rx: 4; }
     .audio { stroke: #c2410c; stroke-width: 2.5; fill: none; }
     .net   { stroke: #1d6fb8; stroke-width: 2.5; fill: none; }
+    .snake { stroke: #1d6fb8; stroke-width: 2.5; fill: none; stroke-dasharray: 10 5; }
     .hi    { stroke: #c2410c; stroke-width: 2; fill: none; stroke-linejoin: round; stroke-linecap: round; }
     .lo    { stroke: #c2410c; stroke-width: 2; fill: none; stroke-dasharray: 6 4; stroke-linejoin: round; stroke-linecap: round; }
     .spk   { fill: #c2410c; fill-opacity: .18; stroke: #c2410c; stroke-width: 1.5; }
@@ -26,7 +27,7 @@
   </style>
 
   <text class="title" x="-490" y="38">Apotheneum — plan view</text>
-  <text class="tbd" x="-490" y="58">DRAFT — positions are placeholders. Correct on site.</text>
+  <text class="tbd" x="-490" y="58">Master record of connections. Positions are approximate.</text>
 
   <!-- ==== cube ==== -->
   <rect class="struct" x="230" y="150" width="500" height="500"/>
@@ -116,7 +117,7 @@
   <!-- ================= connections ================= -->
 
   <!-- stage snake -> GEARit at control position (Cat5 cable, analog inside) -->
-  <path class="net" d="M 414 436 C 240 380, 40 322, -60 310" marker-end="url(#arrowNet)"/>
+  <path class="snake" d="M 414 436 C 240 380, 40 322, -60 310" marker-end="url(#arrowNet)"/>
   <text class="small" x="182" y="344" text-anchor="middle" fill="#c2410c">Cat5/6 cable — ANALOG AUDIO inside</text>
 
   <!-- GEARit -> MOTU -->
@@ -133,7 +134,8 @@
 
   <!-- MacBook -> local switch -->
   <path class="net" d="M -290 424 C -244 470, -244 546, -290 580" marker-end="url(#arrowNet)"/>
-  <text class="small" x="-238" y="508" fill="#1d6fb8">Ethernet</text>
+  <text class="small" x="-238" y="502" fill="#1d6fb8">Ethernet</text>
+  <text class="small" x="-238" y="514" fill="#8b8b8b">(via case panel)</text>
 
   <!-- Ashly -> corners: out to the near corner, then along the cube edges -->
   <!-- NW -->
@@ -177,7 +179,7 @@
 
   <!-- ==== legend ==== -->
   <g transform="translate(-490, 100)">
-    <rect class="box" x="0" y="-22" width="240" height="122"/>
+    <rect class="box" x="0" y="-22" width="240" height="146"/>
     <line class="audio" x1="14" y1="0" x2="46" y2="0"/>
     <text class="small" x="56" y="4">audio</text>
     <line class="hi" x1="14" y1="24" x2="46" y2="24"/>
@@ -186,5 +188,7 @@
     <text class="small" x="56" y="52">speaker run — low</text>
     <line class="net" x1="14" y1="72" x2="46" y2="72"/>
     <text class="small" x="56" y="76">network / Art-Net</text>
+    <line class="snake" x1="14" y1="96" x2="46" y2="96"/>
+    <text class="small" x="56" y="100">Cat5/6 carrying analog audio</text>
   </g>
 </svg>

@@ -1,164 +1,74 @@
 # Physical Installation
 
-**Draft.** Where things are and what plugs into what. **TBD** = unverified.
+Where things are and what plugs into what. The [plan view](README.md#physical-layout)
+is the master record; this page is its notes. Open questions live in
+[commissioning](commissioning.md).
 
-For how a subsystem works, see [audio](audio-system.md) and
-[lighting](lighting-control.md). This page is only *where it is*.
+## The stack
 
-## Layout
-
-![Plan view](images/plan-view.svg)
-
-**This is a draft — positions are placeholders.** The topology is right; where
-things actually sit is not yet confirmed. Corrections welcome, and the file is
-plain SVG so it can be edited directly.
-
-Plan view: cube outside, cylinder inside, stage at centre. The control position
-is broken out as the chain it actually is — stage snake into the GEARit box, XLR
-into the MOTU, TRS-to-Euroblock into the Ashly, then eight speaker runs out to
-the four corners, one per driver type, routed along the cube edges. The MacBook
-and floor controller sit alongside, both on the network switch at the control
-position. That switch uplinks to a second switch at the stage, which the floor's
-motors and lights hang off.
-
-**TBD:** power — where it comes from and how far the run is. Left off the
-diagram for now.
-**TBD:** actual cable routes — the lines here show what connects to what, not the
-path a cable takes.
-**TBD:** where the 32 LED controllers physically sit around the structure.
-**TBD:** where the control position and its switch actually stand relative to
-the cube.
-**TBD:** does the live MacBook plug into the stage switch, as drawn, or run back
-to the control position?
-
-## Pelican cases
-
-**There are two**, and it's worth being precise about which is which.
-
-They are **stacked, and stay stacked** — the MOTU case is always in place on top
-of the Ashly case, with the resident MacBook on top of that.
+Two Pelican cases, stacked and kept stacked, with the resident MacBook on top.
 
 ```text
-        ┌──────────────────────┐
-        │  Resident MacBook    │   sits on the lid
-        ├──────────────────────┤
-        │  MOTU case (M4)      │   always in place
-        ├──────────────────────┤
-        │  Ashly case (AQM408) │   rear panel + multipin, see below
-        └──────────────────────┘
+┌──────────────────────┐
+│  Resident MacBook    │  sits on the lid
+├──────────────────────┤
+│  MOTU case (M4)      │  always in place
+├──────────────────────┤
+│  Ashly case (AQM408) │  rear panel + multipin connector
+└──────────────────────┘
 ```
 
-Consequences worth noting: the MacBook is the exposed element of the rig; the
-MOTU case must stay closed for it to sit on; and reaching the Ashly means moving
-both the machine running the show and the interface above it. Nothing in this
-stack is a casual thing to open during a show day.
+- Do not open or move the stack while a show is running.
+- Reaching the Ashly means moving the MacBook and the MOTU case above it.
 
-**TBD:** how the MacBook is secured, if at all.
-**TBD:** where the stack sits relative to the stage.
-**TBD:** is the MOTU case's rear panelled like the Ashly's, or are the M4's
-jacks reachable directly?
+## One USB-C cable to the MacBook
 
-### One USB-C cable to the MacBook
-
-**A single USB-C cable runs from the case to the resident MacBook.** That one
-cable is the machine's entire physical connection to the installation.
-
-There is an **Ethernet port on the back of the MOTU case**, which the MacBook has
-no way to reach directly — so the case must contain a **USB hub or dock** that
-the M4 and the Ethernet port both hang off.
-
-That Ethernet link belongs to the **MacBook**, not to the MOTU. The M4 is not on
-the network at all; it just shares the case and the hub. The port on the panel is
-simply where the MacBook's network connection emerges.
+A single USB-C cable runs from the MOTU case to the resident MacBook and carries
+**both audio and network**.
 
 ```text
      Resident MacBook
-           │
            │  ONE USB-C cable
            ▼
-    ┌──────────────────────────┐
-    │  MOTU case               │
-    │   hub/dock ──▶ MOTU M4   │  audio
-    │        └────▶ Ethernet ──┼──▶ switch
-    └──────────────────────────┘
+    ┌───────────────────────────┐
+    │  MOTU case                │
+    │   powered hub ──▶ MOTU M4 │  audio
+    │        └────────▶ Ethernet ──▶ local switch
+    └───────────────────────────┘
 ```
 
-**Inferred, not confirmed:** the internal hub. It follows from a USB-C-only
-MacBook connection plus a panel Ethernet port, but nobody has opened the case to
-look.
+The Ethernet link belongs to the MacBook, not the MOTU — the M4 is not on the
+network at all. The panel port is where the MacBook's connection emerges.
 
-Why this is worth writing down: **audio and network share one cable and one
-hub.** A failure there takes out the PA feed and Art-Net output together, which
-looks like two unrelated faults at once and invites troubleshooting in the wrong
-place. It also means a spare USB-C cable is worth more than its price suggests.
+**Failure symptom: sound and lights die together.** That reads as two unrelated
+faults; it is one cable.
 
-**The hub is powered** — it runs from AC, not from the MacBook's bus. That
-removes the usual suspect for intermittent dropouts on a chain like this, and it
-means the hub keeps its downstream devices alive independently of the laptop.
+The hub runs from AC, so bus-power starvation is not a suspect. That the hub
+exists is inferred from a USB-C-only MacBook plus a panel Ethernet port — nobody
+has opened the case to confirm.
 
-**TBD:** what the hub/dock actually is — make and model.
-**TBD:** does the MacBook charge over this same USB-C cable? A powered hub
-usually delivers power back over USB-C PD, which would make the one cable
-data + audio + charging. Worth confirming, because it changes what unplugging
-the laptop actually does.
-**TBD:** the USB-C cable's spec. Not all USB-C cables carry data at the same
-rate, and a charge-only cable would fail in a confusing way.
-**TBD:** is there a spare?
+## The Ashly's connectors are not reachable
 
-### The rear panel hides the Ashly's own connectors
-
-**The AQM408's rear panel is not accessible from outside the case.** A panel on
-the back of the Pelican covers it. Connection to the outside world is through a
-**panel-mount connector** that plugs in and also seals the opening against dust.
+The AQM408's rear panel is enclosed. Everything reaches the outside through one
+**panel-mount connector**, which also seals the opening against dust.
 
 ```text
 outside            case rear panel              inside
-  │                      │                        │
-  ├── field cable ──▶ [panel connector] ──▶ internal loom ──▶ AQM408 Euroblock outputs
+  ├── field cable ──▶ [panel connector] ──▶ internal loom ──▶ AQM408 outputs
                      (also the dust seal)
 ```
 
-**Believed, not confirmed:** that the panel connector lands internally on a
-single multipin plug which then breaks out to the Ashly's Euroblock outputs.
+- The Euroblock outputs are **not** the service point. What
+  [audio-system.md](audio-system.md) says about eight balanced outputs describes
+  the device, not what is reachable with the case closed.
+- That one connector carries **all eight outputs** — a single point of failure
+  for the whole PA, and the item most worth a spare.
+- Removing the panel opens the case to dust.
 
-This matters more than it looks:
+*Believed, not confirmed:* that the panel connector lands internally on a single
+multipin plug which breaks out to the Euroblocks.
 
-- The **Euroblock outputs are not the service point.** Anything about
-  "8 balanced Euroblock outputs" in the [audio doc](audio-system.md) describes
-  the device, not what you can reach with the case closed.
-- The panel connector and its mating field cable are **single points of failure
-  for all eight outputs at once**. A spare matters more here than for any
-  individual speaker cable.
-- Removing the panel to work on the Ashly **opens the case to dust**, so it isn't
-  a casual operation on site.
-
-**TBD:** what the connector actually is — make, series, pin count. Candidates in
-this role are typically multipin types (Socapex, Harting, EDAC, or a DB25-style
-breakout), but this needs to be read off the part rather than guessed.
-**TBD:** the internal pinout — which pin carries which AQM408 output.
-**TBD:** is there a spare mating cable? Where is it kept?
-**TBD:** how the MOTU → Ashly cable travels between the two cases — through the
-panel connector, or its own route?
-**TBD:** photograph the case rear panel, the connector, and the internal loom.
-
-### Also in the cases
-
-**TBD:** what else lives in either case — power distribution, a network switch,
-ventilation, and whether they run closed.
-
-## Cable runs
-
-| Run | From | To | Notes |
-|---|---|---|---|
-| Analog audio snake | GEARit box under stage | GEARit box at MOTU | Cat5/6 carrying **analog audio, not network**. **TBD** length and route |
-| Pro DJ Link | Stage | Live MacBook | Separate Cat5/6, real network. **TBD** route |
-| Speaker outputs | Pelican panel connector | 4 corners | 8 circuits through one multipin. **TBD** breakout location |
-| LED network | Switch | 32 controllers | **TBD** switch location, model, port count |
-| Live MacBook uplink | Live MacBook Ethernet | Switch | Its only connection to the system |
-| Resident MacBook | MacBook | MOTU case | **One USB-C cable** — carries audio and network both |
-| Resident MacBook uplink | MOTU case Ethernet port | Switch | Fed by the internal hub |
-
-### Four switches, chained
+## Four switches, chained
 
 ```text
   MacBook ─┐                              ┌─▶ Top switch ──▶ 32 LED controllers
@@ -167,96 +77,42 @@ ventilation, and whether they run closed.
   controller                                                 └─▶ Live MacBook
 ```
 
-| Switch | Where | Serves |
-|---|---|---|
-| Local | Control position | MacBook, floor controller |
-| Corner | Corner of the cube | Uplinks to top and stage |
-| Top | On top of the cube | All 32 LED controllers |
-| Stage | Corner of the stage | Floor motors and lights, live MacBook |
+| Switch | Where | Serves | If it fails |
+|---|---|---|---|
+| Local | Control position | MacBook, floor controller | Resident machine and floor controller offline |
+| Corner | Corner of the cube | Uplinks to top and stage | Everything downstream |
+| Top | On top of the cube | All 32 LED controllers | All lights, nothing else |
+| Stage | Corner of the stage | Floor, live MacBook | Floor and live MacBook |
 
-The MacBook and floor controller plug into a **local switch** at the control
-position, which reaches the **corner switch** over a single cable. From the
-corner, one run goes up to the **top switch** — which every LED controller hangs
-off — and another to the **stage switch**.
+The symptom tells you which switch to look at.
 
-**Is it a problem that the live MacBook's Art-Net goes stage → corner → LEDs?**
-No. Switched Ethernet forwards frames wherever they're addressed; two hops costs
-microseconds and nothing else. The things that actually matter are below.
+> **Never add a second cable between any two switches.** These are unmanaged, so
+> a second path is a loop with nothing to break it. The broadcast storm takes
+> down lights, floor, and control at once.
 
-### Sharing one switch between lights and floor
+### Sharing the network between lights and floor
 
-Low risk as built, for one specific reason: **Art-Net here is unicast, not
-broadcast.** Every controller has its own host address in the fixture files
-(`10.0.1.101`–`.132`, floor at `.201`), so the switch forwards each stream only
-to its destination. The floor never sees LED traffic and vice versa. Had this
-been broadcast Art-Net, every device would receive all 192 universes and the
-cheapest hardware on the network would be the first to fall over.
+Safe as built, because **Art-Net here is unicast** — every controller has its own
+host address in the fixture files, so each stream is forwarded only to its
+destination. The floor never sees LED traffic.
 
-Rough load: 192 universes at ~44 fps is on the order of **40 Mbps**. Comfortable
-on gigabit, marginal on a 100 Mbit switch. The floor adds one universe — noise
-by comparison.
+- **All four switches must be gigabit.** LED traffic alone is roughly 40 Mbps.
+- **Nothing may broadcast Art-Net onto this network**, which would undo the above.
+- **Keep Pro DJ Link off it** — separate NIC on the live MacBook.
 
-What to watch:
+## Cable runs
 
-- **Use gigabit switches.** At 100 Mbit the LED traffic alone is a third of the
-  link.
-- **Shared failure domain.** One switch now takes out lights *and* floor
-  together. That's the real cost of consolidating, and it's a reasonable trade
-  for one less cable run — but worth knowing when something goes dark.
-- **Don't let anything broadcast onto this network.** That includes tools that
-  default to broadcast Art-Net.
-- **Keep Pro DJ Link off it** — separate NIC on the live MacBook, as planned.
-- **Never patch a second cable between any two switches.** With four switches
-  chained, one extra cable creates a loop, and unmanaged switches have no
-  spanning tree to break it. The result is a broadcast storm that takes down
-  every network in the rig at once — the single most destructive mistake
-  available here, and it looks like helpfully adding a spare cable.
-- **The uplinks carry everything downstream of them.** All Art-Net from the live
-  MacBook crosses stage → corner. Fine on gigabit, tight on 100 Mbit.
-- **Each switch is a failure domain for what hangs off it.** Corner switch down
-  = everything downstream: lights, floor, live MacBook. Top switch down = all 32
-  LED controllers, nothing else. Stage switch down = floor and live MacBook.
-  Local switch down = the resident machine and floor controller. Which symptom
-  appears tells you which switch to look at.
+| Run | From | To | Notes |
+|---|---|---|---|
+| Analog audio snake | GEARit box under stage | GEARit box at control position | Cat5/6 carrying **analog audio, not network** |
+| Pro DJ Link | Stage | Live MacBook | Separate Cat5/6, real network traffic |
+| Speaker outputs | Ashly panel connector | 4 corners | 8 circuits through one multipin |
+| Local uplink | Local switch | Corner switch | Single cable |
+| Corner uplinks | Corner switch | Top switch, stage switch | |
 
-**TBD:** confirm all four switches are gigabit, and record make/model and
-location for each.
-
-### The switch
-
-A network switch ties the whole system together. The **live MacBook connects to
-it over Ethernet and nothing else** — it has no audio path, no connection to the
-MOTU, and no connection to the Ashly. Its entire participation in the show is
-Art-Net over that one link.
-
-**TBD:** switch make, model, port count, and where it physically sits.
-**TBD:** what else is on it — the AQM408's control port, the resident MacBook,
-the 32 LED controllers, and the haptics box are all candidates.
-**TBD:** what serves DHCP on `10.0.1.0/24`, if anything.
-
-**Labelling:** the two Cat5/6 runs from stage look identical and carry entirely
-different things. Both ends of both should be labelled.
+The two Cat5/6 runs from the stage look identical and do entirely different
+things. **Label both ends of both.**
 
 ## Power
 
-Everything in the case runs from AC — the powered USB hub included. There is an
-AC adapter that the case's contents plug into.
-
-**TBD:** what the AC adapter / distribution actually is, and its capacity.
-**TBD:** how many AC feeds the rig needs in total, and from where.
-**TBD:** what's on which circuit, and total draw.
-**TBD:** are the QSC boxes locally powered at each corner?
-**TBD:** anything on UPS? A power blip currently takes down the whole show.
-
-## Photos needed
-
-- Ashly case rear panel, and the panel connector
-- MOTU case with the MacBook in position, and the single USB-C cable
-- MOTU case rear panel — the Ethernet port
-- Inside the MOTU case: the hub/dock and how the M4 and Ethernet hang off it
-- Internal loom from the connector to the AQM408
-- AQM408 rear as wired
-- Inside both cases, lids open
-- Stage-end GEARit box with both Cat5 runs
-- MOTU front panel in prerecorded and live-DJ states
-- Both ends of the MOTU → Ashly cable
+Everything in the case runs from AC, the powered hub included.
