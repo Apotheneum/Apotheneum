@@ -22,17 +22,10 @@ import heronarts.lx.LXCategory;
 import heronarts.lx.color.LXColor;
 import heronarts.lx.parameter.CompoundParameter;
 import heronarts.lx.parameter.DiscreteParameter;
-import heronarts.lx.parameter.EnumParameter;
 import heronarts.lx.utils.LXUtils;
 
 @LXCategory("Apotheneum/piemonte")
 public class Afterglow extends ParameterPattern {
-
-  public enum Target {
-    BOTH,
-    CUBE,
-    CYLINDER
-  }
 
   private static final int MAX_STARS = 48;
   private static final double CYCLE_MS = 3000; // one pulse cycle at speed 1
@@ -52,10 +45,6 @@ public class Afterglow extends ParameterPattern {
   public final CompoundParameter sensitivity =
     new CompoundParameter("Sens", 0.5, 0, 1)
     .setDescription("How strongly the stars follow the music");
-
-  public final EnumParameter<Target> target =
-    new EnumParameter<Target>("Target", Target.BOTH)
-    .setDescription("Which structures to render to");
 
   private double phase = 0;
 
@@ -95,19 +84,17 @@ public class Afterglow extends ParameterPattern {
     addParameter("reach", this.reach);
     addParameter("pulses", this.pulses);
     addParameter("sensitivity", this.sensitivity);
-    addParameter("target", this.target);
+    addTargetParameter();
   }
 
   /** Returns 0 = nothing, 1 = beat, 2 = drop. */
   private int detect(double deltaMs) {
-    heronarts.lx.audio.GraphicMeter m = this.lx.engine.audio.meter;
-    int nb = Math.max(1, m.numBands);
-    double bass = m.getAveragef(0, Math.max(1, nb / 4));
+    double bass = this.level.getValue();
     this.bassAvg += (bass - this.bassAvg) * (1 - Math.exp(-deltaMs / 400.0));
     this.sinceBeatMs += deltaMs;
     double sens = this.sensitivity.getValue();
     double threshold = 1.05 + (1 - sens) * 0.7;
-    boolean beat = (bass > this.bassAvg * threshold)
+    boolean beat = pulseHit() || (bass > this.bassAvg * threshold)
       && (bass > this.prevBass)
       && (this.sinceBeatMs >= 140)
       && (bass > 0.01);
@@ -116,7 +103,7 @@ public class Afterglow extends ParameterPattern {
     if (beat) {
       this.sinceBeatMs = 0;
     }
-    double level = m.getAveragef(0, nb);
+    double level = this.level.getValue();
     double alpha = (level > this.levelEnv)
       ? 1 - Math.exp(-deltaMs / 25.0)
       : 1 - Math.exp(-deltaMs / 220.0);
@@ -155,7 +142,7 @@ public class Afterglow extends ParameterPattern {
       : 0.5 + (speed - 0.5) * 5.0;
     this.phase += deltaMs * rate * (1.0 + this.levelEnv * 0.4) / CYCLE_MS;
 
-    final Target t = this.target.getEnum();
+    final Target t = getTarget();
     if (t != Target.CYLINDER) {
       step(Apotheneum.cube.exterior, 0);
     }

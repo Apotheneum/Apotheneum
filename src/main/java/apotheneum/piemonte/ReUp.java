@@ -19,17 +19,10 @@ import heronarts.lx.LXCategory;
 import heronarts.lx.color.LXColor;
 import heronarts.lx.model.LXPoint;
 import heronarts.lx.parameter.CompoundParameter;
-import heronarts.lx.parameter.EnumParameter;
 import heronarts.lx.utils.LXUtils;
 
 @LXCategory("Apotheneum/piemonte")
 public class ReUp extends ParameterPattern {
-
-  public enum Target {
-    BOTH,
-    CUBE,
-    CYLINDER
-  }
 
   private static final double REUP_PER_MS = 0.0016; // fade-back rate at speed 1
   private static final double MIN_BEAT_MS = 110;    // debounce between hits
@@ -37,10 +30,6 @@ public class ReUp extends ParameterPattern {
   public final CompoundParameter sensitivity =
     new CompoundParameter("Sens", 0.5, 0, 1)
     .setDescription("Beat sensitivity (higher = triggers more easily)");
-
-  public final EnumParameter<Target> target =
-    new EnumParameter<Target>("Target", Target.BOTH)
-    .setDescription("Which structures to render to");
 
   /** Per-surface column brightness (0=dark .. 1=lit), fading back toward 1. */
   private final class Surface {
@@ -73,19 +62,17 @@ public class ReUp extends ParameterPattern {
     // Base registers color, speed, size; speed = re-up rate, size = knockout group size.
     super(lx, 0.5, 0, 1, 0.5, 0, 1);
     addParameter("sensitivity", this.sensitivity);
-    addParameter("target", this.target);
+    addTargetParameter();
   }
 
   private boolean detectBeat(double deltaMs) {
-    heronarts.lx.audio.GraphicMeter m = this.lx.engine.audio.meter;
-    int nb = Math.max(1, m.numBands);
-    double bass = m.getAveragef(0, Math.max(1, nb / 4)); // low quarter of the spectrum
+    double bass = this.level.getValue();
     this.bassAvg += (bass - this.bassAvg) * (1 - Math.exp(-deltaMs / 400.0)); // slow moving average
     this.sinceBeatMs += deltaMs;
 
     double sens = this.sensitivity.getValue();
     double threshold = 1.05 + (1 - sens) * 0.7;          // sens up -> easier
-    boolean beat = (bass > this.bassAvg * threshold)
+    boolean beat = pulseHit() || (bass > this.bassAvg * threshold)
       && (bass > this.prevBass)
       && (this.sinceBeatMs >= MIN_BEAT_MS)
       && (bass > 0.01);
@@ -108,7 +95,7 @@ public class ReUp extends ParameterPattern {
     final double wow = getWow();
     final double reup = REUP_PER_MS * Math.max(0.02, getSpeed()) * deltaMs * (1 + wow * 1.2);
     final int base = getColor();
-    final Target t = this.target.getEnum();
+    final Target t = getTarget();
 
     if (t != Target.CYLINDER) {
       step(this.cube, Apotheneum.cube.exterior, reup, beat, this.beatLevel, base);

@@ -77,6 +77,7 @@ public class Replies extends ParameterPattern {
     double[] pos;       // numSeq * dotsPer, in [0,1)
     double[] vel;       // numSeq * dotsPer, signed unit-ish factor
     double[] cooldown;  // per sequence (ms)
+    boolean[] wasHit;   // per sequence: overlapped last frame (edge trigger)
     double[] flashEnv;  // per sequence (0..1)
     double[] flashPos;  // per sequence, in [0,1)
     double energy;      // exterior reply energy (0..1)
@@ -97,6 +98,7 @@ public class Replies extends ParameterPattern {
       this.pos = new double[numSeq * dotsPer];
       this.vel = new double[numSeq * dotsPer];
       this.cooldown = new double[numSeq];
+      this.wasHit = new boolean[numSeq];
       this.flashEnv = new double[numSeq];
       this.flashPos = new double[numSeq];
       this.energy = 0;
@@ -192,7 +194,11 @@ public class Replies extends ParameterPattern {
           }
         }
       }
-      if (hit && s.cooldown[q] <= 0) {
+      // fire on the transition into overlap only — sustained proximity
+      // (e.g. two dots parked together at Speed 0) must not refire forever
+      final boolean entered = hit && !s.wasHit[q];
+      s.wasHit[q] = hit;
+      if (entered && s.cooldown[q] <= 0) {
         s.cooldown[q] = COOLDOWN_MS;
         s.flashEnv[q] = 1.0;
         s.flashPos[q] = hitPos;
@@ -218,6 +224,9 @@ public class Replies extends ParameterPattern {
       }
     }
 
+    // actual travel direction carries speed's sign too, not just vel's
+    final double dir = (step < 0) ? -1 : 1;
+
     // --- draw cylinder dots + burst flashes ---
     if (drawDots)
     for (int q = 0; q < numSeq; ++q) {
@@ -232,7 +241,7 @@ public class Replies extends ParameterPattern {
         for (int k = 0; k < dotsPer; ++k) {
           final double rel = wrapDelta(pj - s.pos[o + k]);
           // tail trails behind the dot's direction of travel
-          final double g = (s.vel[o + k] >= 0) ? -rel : rel;
+          final double g = (s.vel[o + k] * dir >= 0) ? -rel : rel;
           if (g >= 0 && g < tailLen) {
             final double bk = Math.pow(1.0 - g / tailLen, gamma);
             if (bk > dotBright) {

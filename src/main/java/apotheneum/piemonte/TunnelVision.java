@@ -23,17 +23,10 @@ import heronarts.lx.LXCategory;
 import heronarts.lx.color.LXColor;
 import heronarts.lx.parameter.CompoundParameter;
 import heronarts.lx.parameter.DiscreteParameter;
-import heronarts.lx.parameter.EnumParameter;
 import heronarts.lx.utils.LXUtils;
 
 @LXCategory("Apotheneum/piemonte")
 public class TunnelVision extends ParameterPattern {
-
-  public enum Target {
-    BOTH,
-    CUBE,
-    CYLINDER
-  }
 
   private static final int MAX_CHAINS = 64;
   private static final int MAX_RINGS = 18;
@@ -56,10 +49,6 @@ public class TunnelVision extends ParameterPattern {
   public final CompoundParameter sensitivity =
     new CompoundParameter("Sens", 0.5, 0, 1)
     .setDescription("How readily the music opens new tunnels");
-
-  public final EnumParameter<Target> target =
-    new EnumParameter<Target>("Target", Target.BOTH)
-    .setDescription("Which structures to render to");
 
   private static final class Panel {
     final int[][] idx;
@@ -93,14 +82,12 @@ public class TunnelVision extends ParameterPattern {
 
   /** Returns onset strength 0..1, or -1 if no beat this frame. */
   private double detect(double deltaMs) {
-    heronarts.lx.audio.GraphicMeter m = this.lx.engine.audio.meter;
-    int nb = Math.max(1, m.numBands);
-    double bass = m.getAveragef(0, Math.max(1, nb / 4));
+    double bass = this.level.getValue();
     this.bassAvg += (bass - this.bassAvg) * (1 - Math.exp(-deltaMs / 400.0));
     this.sinceBeatMs += deltaMs;
     double sens = this.sensitivity.getValue();
     double threshold = 1.05 + (1 - sens) * 0.7;
-    boolean beat = (bass > this.bassAvg * threshold)
+    boolean beat = pulseHit() || (bass > this.bassAvg * threshold)
       && (bass > this.prevBass)
       && (this.sinceBeatMs >= 140)
       && (bass > 0.01);
@@ -115,7 +102,7 @@ public class TunnelVision extends ParameterPattern {
       // no music: relax back to the reference cadence
       this.beatPeriodMs += (REF_BEAT_MS - this.beatPeriodMs) * (1 - Math.exp(-deltaMs / 2000.0));
     }
-    double level = m.getAveragef(0, nb);
+    double level = this.level.getValue();
     double alpha = (level > this.levelEnv)
       ? 1 - Math.exp(-deltaMs / 25.0)
       : 1 - Math.exp(-deltaMs / 220.0);
@@ -129,7 +116,7 @@ public class TunnelVision extends ParameterPattern {
     addParameter("chains", this.chains);
     addParameter("rings", this.rings);
     addParameter("sensitivity", this.sensitivity);
-    addParameter("target", this.target);
+    addTargetParameter();
   }
 
   private void buildPanels(Target t) {
@@ -212,7 +199,7 @@ public class TunnelVision extends ParameterPattern {
   protected void render(double deltaMs) {
     setColors(LXColor.BLACK);
 
-    final Target t = this.target.getEnum();
+    final Target t = getTarget();
     if (this.panels == null || this.builtTarget != t) {
       buildPanels(t);
       this.inited = false;
