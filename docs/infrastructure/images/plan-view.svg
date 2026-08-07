@@ -170,7 +170,7 @@
   <text class="small" x="520" y="568" fill="#1d6fb8">Ethernet to stage switch</text>
 
   <!-- ==== legend ==== -->
-  <g transform="translate(640, 250)">
+  <g transform="translate(-490, 100)">
     <rect class="box" x="0" y="-22" width="240" height="122"/>
     <line class="audio" x1="14" y1="0" x2="46" y2="0"/>
     <text class="small" x="56" y="4">audio</text>
