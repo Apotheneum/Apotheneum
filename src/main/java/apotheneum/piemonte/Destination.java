@@ -22,17 +22,10 @@ import heronarts.lx.color.LXColor;
 import heronarts.lx.parameter.BooleanParameter;
 import heronarts.lx.parameter.CompoundParameter;
 import heronarts.lx.parameter.DiscreteParameter;
-import heronarts.lx.parameter.EnumParameter;
 import heronarts.lx.utils.LXUtils;
 
 @LXCategory("Apotheneum/piemonte")
 public class Destination extends ParameterPattern {
-
-  public enum Target {
-    BOTH,
-    CUBE,
-    CYLINDER
-  }
 
   private static final double TAU = Math.PI * 2;
   private static final int MAX_RAYS = 16;
@@ -49,10 +42,6 @@ public class Destination extends ParameterPattern {
   public final CompoundParameter flicker =
     new CompoundParameter("Flicker", 0.5, 0, 1)
     .setDescription("How much the light flickers");
-
-  public final EnumParameter<Target> target =
-    new EnumParameter<Target>("Target", Target.BOTH)
-    .setDescription("Which structures to render to");
 
   private static final class Panel {
     final int[][] idx;
@@ -82,7 +71,7 @@ public class Destination extends ParameterPattern {
     addParameter("rays", this.rays);
     addParameter("flicker", this.flicker);
     addParameter("strobe", this.strobe);
-    addParameter("target", this.target);
+    addTargetParameter();
   }
 
   private void buildPanels(Target t) {
@@ -132,7 +121,7 @@ public class Destination extends ParameterPattern {
   @Override
   protected void render(double deltaMs) {
     setColors(LXColor.BLACK);
-    final Target t = this.target.getEnum();
+    final Target t = getTarget();
     if (this.panels == null || this.builtTarget != t) {
       buildPanels(t);
     }

@@ -22,17 +22,10 @@ import heronarts.lx.LXCategory;
 import heronarts.lx.color.LXColor;
 import heronarts.lx.model.LXPoint;
 import heronarts.lx.parameter.CompoundParameter;
-import heronarts.lx.parameter.EnumParameter;
 import heronarts.lx.utils.LXUtils;
 
 @LXCategory("Apotheneum/piemonte")
 public class Liftoff extends ParameterPattern {
-
-  public enum Target {
-    BOTH,
-    CUBE,
-    CYLINDER
-  }
 
   private static final double RISE_PER_MS = 0.0016; // normalized rise / ms at speed 1
   private static final double FLASH_MS = 260;       // burst flash decay
@@ -44,10 +37,6 @@ public class Liftoff extends ParameterPattern {
   public final CompoundParameter sensitivity =
     new CompoundParameter("Sens", 0.5, 0, 1)
     .setDescription("How easily the music fires bursts and volleys");
-
-  public final EnumParameter<Target> target =
-    new EnumParameter<Target>("Target", Target.BOTH)
-    .setDescription("Which structures to render to");
 
   /** Per-column launch state. */
   private final class Surface {
@@ -98,19 +87,17 @@ public class Liftoff extends ParameterPattern {
     super(lx, 0.5, 0, 1, 0.5, 0, 1);
     addParameter("fade", this.fade);
     addParameter("sensitivity", this.sensitivity);
-    addParameter("target", this.target);
+    addTargetParameter();
   }
 
   /** Returns 0 = no beat, 1 = beat, 2 = drop (volley). */
   private int detect(double deltaMs) {
-    heronarts.lx.audio.GraphicMeter m = this.lx.engine.audio.meter;
-    int nb = Math.max(1, m.numBands);
-    double bass = m.getAveragef(0, Math.max(1, nb / 4));
+    double bass = this.level.getValue();
     this.bassAvg += (bass - this.bassAvg) * (1 - Math.exp(-deltaMs / 400.0));
     this.sinceBeatMs += deltaMs;
     double sens = this.sensitivity.getValue();
     double threshold = 1.05 + (1 - sens) * 0.7;
-    boolean beat = (bass > this.bassAvg * threshold)
+    boolean beat = pulseHit() || (bass > this.bassAvg * threshold)
       && (bass > this.prevBass)
       && (this.sinceBeatMs >= 140)
       && (bass > 0.01);
@@ -119,7 +106,7 @@ public class Liftoff extends ParameterPattern {
     if (beat) {
       this.sinceBeatMs = 0;
     }
-    double level = m.getAveragef(0, nb);
+    double level = this.level.getValue();
     double alpha = (level > this.levelEnv)
       ? 1 - Math.exp(-deltaMs / 25.0)
       : 1 - Math.exp(-deltaMs / 220.0);
@@ -138,7 +125,7 @@ public class Liftoff extends ParameterPattern {
     final double rise = RISE_PER_MS * speed * deltaMs * (1.0 + this.levelEnv * 1.2);
     final double fadeMs = LXUtils.lerp(600, 4500, this.fade.getValue());
     final double flashBand = 0.03 + getSize() * 0.12;
-    final Target t = this.target.getEnum();
+    final Target t = getTarget();
 
     if (t != Target.CYLINDER) {
       step(this.cube, Apotheneum.cube.exterior, rise, deltaMs, fadeMs, flashBand, base, hit);

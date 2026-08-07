@@ -21,17 +21,10 @@ import heronarts.lx.LXCategory;
 import heronarts.lx.color.LXColor;
 import heronarts.lx.parameter.BooleanParameter;
 import heronarts.lx.parameter.CompoundParameter;
-import heronarts.lx.parameter.EnumParameter;
 import heronarts.lx.utils.LXUtils;
 
 @LXCategory("Apotheneum/piemonte")
 public class ParticleWave extends ParameterPattern {
-
-  public enum Target {
-    BOTH,
-    CUBE,
-    CYLINDER
-  }
 
   private static final int STAR_COLOR = LXColor.hsb(225, 35, 100);
   private static final int CLUSTER_COLOR = LXColor.lerp(STAR_COLOR, LXColor.WHITE, 0.45f);
@@ -48,10 +41,6 @@ public class ParticleWave extends ParameterPattern {
     new BooleanParameter("Strobe", false)
     .setMode(BooleanParameter.Mode.MOMENTARY)
     .setDescription("Light tiny dark-purple particles in the negative space while held");
-
-  public final EnumParameter<Target> target =
-    new EnumParameter<Target>("Target", Target.BOTH)
-    .setDescription("Which structures to render to");
 
   private final class Surface {
     // sparkle-cluster pool (storm surge bursts in the void)
@@ -92,7 +81,7 @@ public class ParticleWave extends ParameterPattern {
     super(lx, 0.5, 0, 1, 0.5, 0, 1);
     addParameter("density", this.density);
     addParameter("strobe", this.strobe);
-    addParameter("target", this.target);
+    addTargetParameter();
   }
 
   private static double hash(int x, int y, int t) {
@@ -113,9 +102,7 @@ public class ParticleWave extends ParameterPattern {
     this.phase += deltaMs * 0.00035 * speed * (1.0 + wow * 0.9);
 
     // audio envelopes for the dynamically scaling grains
-    heronarts.lx.audio.GraphicMeter m = this.lx.engine.audio.meter;
-    final int nb = Math.max(1, m.numBands);
-    final double bass = m.getAveragef(0, Math.max(1, nb / 4));
+    final double bass = this.level.getValue();
     this.bassAvg += (bass - this.bassAvg) * (1 - Math.exp(-deltaMs / 400.0));
     this.sinceBeatMs += deltaMs;
     if (bass > this.bassAvg * 1.35 && bass > this.prevBass
@@ -125,7 +112,7 @@ public class ParticleWave extends ParameterPattern {
     }
     this.prevBass = bass;
     this.beatPulse *= Math.exp(-deltaMs / 220.0);
-    final double level = m.getAveragef(0, nb);
+    final double level = this.level.getValue();
     final double alpha = (level > this.levelEnv)
       ? 1 - Math.exp(-deltaMs / 25.0) : 1 - Math.exp(-deltaMs / 220.0);
     this.levelEnv += (level - this.levelEnv) * alpha;
@@ -137,7 +124,7 @@ public class ParticleWave extends ParameterPattern {
       this.strobeEnv = Math.max(0, this.strobeEnv - deltaMs / 400.0);
     }
 
-    final Target t = this.target.getEnum();
+    final Target t = getTarget();
     if (t != Target.CYLINDER) {
       step(this.cube, Apotheneum.cube.exterior, deltaMs, speed, wow);
     }

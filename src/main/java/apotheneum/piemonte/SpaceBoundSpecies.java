@@ -22,17 +22,10 @@ import heronarts.lx.LXCategory;
 import heronarts.lx.color.LXColor;
 import heronarts.lx.parameter.CompoundParameter;
 import heronarts.lx.parameter.DiscreteParameter;
-import heronarts.lx.parameter.EnumParameter;
 import heronarts.lx.utils.Noise;
 
 @LXCategory("Apotheneum/piemonte")
 public class SpaceBoundSpecies extends ParameterPattern {
-
-  public enum Target {
-    BOTH,
-    CUBE,
-    CYLINDER
-  }
 
   private static final double TAU = Math.PI * 2;
   private static final int MAX_STARS = 256;
@@ -48,10 +41,6 @@ public class SpaceBoundSpecies extends ParameterPattern {
   public final CompoundParameter twinkle =
     new CompoundParameter("Twinkle", 0.5, 0, 1)
     .setDescription("How much the stars flicker (strongest at low speed)");
-
-  public final EnumParameter<Target> target =
-    new EnumParameter<Target>("Target", Target.BOTH)
-    .setDescription("Which structures to render to");
 
   private static final class Panel {
     final int[][] idx;
@@ -84,7 +73,7 @@ public class SpaceBoundSpecies extends ParameterPattern {
     super(lx, 0.5, 0, 1, 0.5, 0, 1);
     addParameter("density", this.density);
     addParameter("twinkle", this.twinkle);
-    addParameter("target", this.target);
+    addTargetParameter();
   }
 
   private void buildPanels(Target t) {
@@ -141,7 +130,7 @@ public class SpaceBoundSpecies extends ParameterPattern {
   protected void render(double deltaMs) {
     setColors(LXColor.BLACK);
 
-    final Target t = this.target.getEnum();
+    final Target t = getTarget();
     if (this.panels == null || this.builtTarget != t) {
       buildPanels(t);
     }
