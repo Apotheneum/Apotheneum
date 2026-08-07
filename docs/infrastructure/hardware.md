@@ -20,8 +20,8 @@ yet acquired · **Planned** = future work.
 |---|---|---|---|
 | MOTU M4 | 1 | In service | 4-in/4-out USB-C interface, bus-powered |
 | Ashly AQM408 | 1 | In service | 1RU, 4x8 DSP matrix + crossover. **TBD** MAC, IP, rack position |
-| QSC highs | 4 | In service | **TBD** model; powered boxes or separate amps? |
-| QSC subs | 4 | In service | **TBD** model; powered boxes or separate amps? |
+| QSC highs | 8 | In service | Powered, with loop-thru. 4 driven from the Ashly, 4 daisy-chained. **TBD** model |
+| QSC lows | 8 | In service | Powered, with loop-thru. 4 driven from the Ashly, 4 daisy-chained. **TBD** model |
 | GEARit XLR-over-Cat5 box | 2 (1 pair) | In service | 4-channel passive snake. One under stage, one at MOTU. We use 2 of 4 channels |
 
 ## Lighting
@@ -54,7 +54,8 @@ yet acquired · **Planned** = future work.
 | XLR, GEARit → MOTU | 2 | In service | **TBD** length |
 | Cat5/6, stage → MOTU (**analog audio**) | 1 | In service | Carries audio, not network. **TBD** length |
 | Cat5/6, stage → live laptop (Pro DJ Link) | 1 | Needed | Separate run from the above |
-| Ashly → QSC | 8 | In service | **TBD** connector type and lengths |
+| Ashly → QSC | 8 | In service | One per corner per driver type. **TBD** connector type and lengths |
+| QSC daisy-chain (loop-thru) | 8 | In service | Second box in each chain. **TBD** connector type and lengths |
 | USB-C, MacBook → MOTU | 1 | In service | |
 
 ## Planned

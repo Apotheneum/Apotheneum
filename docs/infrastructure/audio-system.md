@@ -9,8 +9,8 @@ flowchart LR
     DECKS["DJ decks<br>(live only)"] -->|"2x XLR"| GI["GEARit snake<br>over Cat5/6"]
     GI -->|"2x XLR"| MOTU
     MOTU -->|"2x TRS to Euroblock"| AQM["Ashly AQM408<br>matrix + crossover"]
-    AQM -->|"out 1-4"| HI["4x QSC highs"]
-    AQM -->|"out 5-8"| SUB["4x QSC subs"]
+    AQM -->|"4 outputs"| HI["8x QSC highs<br>4 driven + 4 daisy-chained"]
+    AQM -->|"4 outputs"| SUB["8x QSC lows<br>4 driven + 4 daisy-chained"]
     IPAD["iPad"] -.->|web UI| AQM
 ```
 
@@ -113,9 +113,35 @@ ducking, signal generator.
 **left/right** (conventional) or **criss-cross** (L and R alternate around the
 space, less directional). Both are matrix config, not a re-patch.
 
-**TBD:** output-to-position mapping for each layout; save both as presets.
-**TBD:** default layout and why. **TBD:** crossover point and slope, limiter
-settings, delay/alignment.
+### Speaker topology
+
+**8 lows + 8 highs across 4 corners**, driven from 8 Ashly outputs. Each corner
+gets two Ashly outputs — one to a low, one to a high. The second low and high in
+that corner **daisy-chain off the first** using the QSC loop-thru.
+
+```text
+Per corner:
+  AQM408 out ──▶ high 1 ──thru──▶ high 2
+  AQM408 out ──▶ low 1  ──thru──▶ low 2
+```
+
+| | Count | Fed by |
+|---|---|---|
+| Ashly outputs | 8 | 4 to highs (one per corner), 4 to lows |
+| Highs | 8 | 4 driven directly, 4 daisy-chained |
+| Lows | 8 | 4 driven directly, 4 daisy-chained |
+
+The daisy chain is **line-level thru on the QSC boxes**, so it costs no
+amplifier headroom and doesn't change impedance — the second box in each chain
+gets the same signal, not a split one.
+
+Crossover stays in the AQM408 and is still per-driver: each corner's high and
+low arrive on separate outputs, so they can be filtered independently.
+
+**TBD:** which Ashly output maps to which corner, for highs and lows.
+**TBD:** output-to-position mapping under criss-cross vs. left/right; save both
+as presets. **TBD:** default layout and why. **TBD:** crossover point and slope,
+limiter settings, delay/alignment.
 
 ### iPad control
 
@@ -136,7 +162,7 @@ MAC. **TBD:** rack position; is it near the Pelican case?
 
 ## Open
 
-1. QSC models — powered boxes or separate amps?
+1. QSC models for the highs and the lows
 2. Gain structure end to end, and where the system limit is set
 3. Known-good AQM408 preset, exported and backed up to the shared drive
 

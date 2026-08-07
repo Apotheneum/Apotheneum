@@ -15,8 +15,8 @@ flowchart TB
 
     MOTU["MOTU M4"]
     AQM["Ashly AQM408<br>matrix + crossover"]
-    HI["4x QSC highs"]
-    SUB["4x QSC subs"]
+    HI["8x QSC highs"]
+    SUB["8x QSC lows"]
     CTRL["32 LED controllers<br>10.0.1.101-.132"]
     LEDS["13,280 LEDs<br>cube + cylinder"]
     IPAD["iPad"]
@@ -33,8 +33,8 @@ flowchart TB
     APPS -->|"OSC :3030"| CHR
     LB -->|USB-C| MOTU
     MOTU -->|"2x TRS to Euroblock"| AQM
-    AQM -->|"out 1-4"| HI
-    AQM -->|"out 5-8"| SUB
+    AQM -->|"4 out"| HI
+    AQM -->|"4 out"| SUB
     CHR -->|"Art-Net (off during live)"| CTRL
     CTRL --> LEDS
     IPAD -.->|web UI| AQM
@@ -59,6 +59,7 @@ not network**.
 - [Hardware inventory](hardware.md) — master gear list
 - [Audio system](audio-system.md) — Loopback → MOTU → Ashly → QSC
 - [Lighting control](lighting-control.md) — OSC → Chromatik → Art-Net → LEDs
+- [Art-Net destinations](artnet.md) — every controller IP and universe
 - [Haptic floor](haptics.md) — standalone, not driven by Chromatik today
 
 ## Machines
