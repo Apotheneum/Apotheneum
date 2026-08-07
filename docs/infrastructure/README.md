@@ -48,6 +48,7 @@ flowchart TB
         HBOX --> FLOOR
     end
 
+    DJ ~~~ LIVEMAC
     LB ==>|"one USB-C cable<br>audio + network"| MOTU
     CHR ==>|"same cable"| SW
     LCHR -->|Ethernet| SW
