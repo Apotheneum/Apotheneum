@@ -22,17 +22,10 @@ import heronarts.lx.LXCategory;
 import heronarts.lx.color.LXColor;
 import heronarts.lx.parameter.BooleanParameter;
 import heronarts.lx.parameter.CompoundParameter;
-import heronarts.lx.parameter.EnumParameter;
 import heronarts.lx.utils.LXUtils;
 
 @LXCategory("Apotheneum/piemonte")
 public class Origami extends ParameterPattern {
-
-  public enum Target {
-    BOTH,
-    CUBE,
-    CYLINDER
-  }
 
   private static final double HUE_STEP = 47;      // per-layer hue advance
   private static final double MIN_REMAIN = 0.13;  // below this, the next fold finishes the layer
@@ -50,10 +43,6 @@ public class Origami extends ParameterPattern {
   public final CompoundParameter sensitivity =
     new CompoundParameter("Sens", 0.5, 0, 1)
     .setDescription("How dramatic the music shift must be to fold");
-
-  public final EnumParameter<Target> target =
-    new EnumParameter<Target>("Target", Target.BOTH)
-    .setDescription("Which structures to render to");
 
   private static final class Panel {
     final int[][] idx;
@@ -85,7 +74,7 @@ public class Origami extends ParameterPattern {
     addParameter("fold", this.fold);
     addParameter("audio", this.audio);
     addParameter("sensitivity", this.sensitivity);
-    addParameter("target", this.target);
+    addTargetParameter();
   }
 
   private void buildPanels(Target t) {
@@ -146,14 +135,12 @@ public class Origami extends ParameterPattern {
   }
 
   private boolean detectDrop(double deltaMs) {
-    heronarts.lx.audio.GraphicMeter m = this.lx.engine.audio.meter;
-    int nb = Math.max(1, m.numBands);
-    double bass = m.getAveragef(0, Math.max(1, nb / 4));
+    double bass = this.level.getValue();
     this.bassAvg += (bass - this.bassAvg) * (1 - Math.exp(-deltaMs / 400.0));
     this.sinceBeatMs += deltaMs;
     double sens = this.sensitivity.getValue();
     double threshold = 1.25 + (1 - sens) * 0.9; // demands a real shift, not every beat
-    boolean drop = (bass > this.bassAvg * threshold)
+    boolean drop = pulseHit() || (bass > this.bassAvg * threshold)
       && (bass > this.prevBass)
       && (this.sinceBeatMs >= FOLD_REFRACT_MS)
       && (bass > 0.01);
@@ -197,7 +184,7 @@ public class Origami extends ParameterPattern {
   protected void render(double deltaMs) {
     setColors(LXColor.BLACK);
 
-    final Target t = this.target.getEnum();
+    final Target t = getTarget();
     if (this.panels == null || this.builtTarget != t) {
       buildPanels(t);
     }

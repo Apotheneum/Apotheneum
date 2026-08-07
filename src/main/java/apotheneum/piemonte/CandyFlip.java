@@ -18,17 +18,10 @@ import heronarts.lx.LX;
 import heronarts.lx.LXCategory;
 import heronarts.lx.color.LXColor;
 import heronarts.lx.parameter.DiscreteParameter;
-import heronarts.lx.parameter.EnumParameter;
 import heronarts.lx.utils.LXUtils;
 
 @LXCategory("Apotheneum/piemonte")
 public class CandyFlip extends ParameterPattern {
-
-  public enum Target {
-    BOTH,
-    CUBE,
-    CYLINDER
-  }
 
   private static final int MAX_P = 256;
   private static final double BASE_VEL = 0.03;   // grid cells / ms at speed 1
@@ -46,10 +39,6 @@ public class CandyFlip extends ParameterPattern {
   public final DiscreteParameter generations =
     new DiscreteParameter("Gens", 4, 1, 6)
     .setDescription("How many generations the cascade goes");
-
-  public final EnumParameter<Target> target =
-    new EnumParameter<Target>("Target", Target.BOTH)
-    .setDescription("Which structures to render to");
 
   /** A 2D cascade field on one orientation (wraps in X, bounces in Y). */
   private final class Surface {
@@ -115,7 +104,7 @@ public class CandyFlip extends ParameterPattern {
     super(lx, 0.4, 0, 1, 0.5, 0, 1);
     addParameter("density", this.density);
     addParameter("generations", this.generations);
-    addParameter("target", this.target);
+    addTargetParameter();
   }
 
   @Override
@@ -123,7 +112,7 @@ public class CandyFlip extends ParameterPattern {
     setColors(LXColor.BLACK);
     this.timeMs += deltaMs;
 
-    final Target t = this.target.getEnum();
+    final Target t = getTarget();
     final double baseHue = LXColor.h(getColor());
     if (t != Target.CYLINDER) {
       step(this.cube, Apotheneum.cube.exterior, deltaMs, baseHue);

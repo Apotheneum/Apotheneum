@@ -21,17 +21,10 @@ import heronarts.lx.LX;
 import heronarts.lx.LXCategory;
 import heronarts.lx.color.LXColor;
 import heronarts.lx.parameter.DiscreteParameter;
-import heronarts.lx.parameter.EnumParameter;
 import heronarts.lx.utils.LXUtils;
 
 @LXCategory("Apotheneum/piemonte")
 public class Superbloom extends ParameterPattern {
-
-  public enum Target {
-    BOTH,
-    CUBE,
-    CYLINDER
-  }
 
   private static final int MAX_FLOWERS = 12;
   private static final double BUD_MS = 900;
@@ -53,10 +46,6 @@ public class Superbloom extends ParameterPattern {
   public final DiscreteParameter flowers =
     new DiscreteParameter("Flowers", 6, 1, MAX_FLOWERS)
     .setDescription("How many flowers live in the garden at once");
-
-  public final EnumParameter<Target> target =
-    new EnumParameter<Target>("Target", Target.BOTH)
-    .setDescription("Which structures to render to");
 
   private static final class Panel {
     final int[][] idx;
@@ -92,7 +81,7 @@ public class Superbloom extends ParameterPattern {
     // Base registers color (garden hue anchor), speed (tempo), size (bloom radius).
     super(lx, 0.5, 0, 1, 0.5, 0, 1);
     addParameter("flowers", this.flowers);
-    addParameter("target", this.target);
+    addTargetParameter();
   }
 
   private void buildPanels(Target t) {
@@ -177,12 +166,10 @@ public class Superbloom extends ParameterPattern {
   }
 
   private boolean detectBeat(double deltaMs) {
-    heronarts.lx.audio.GraphicMeter m = this.lx.engine.audio.meter;
-    int nb = Math.max(1, m.numBands);
-    double bass = m.getAveragef(0, Math.max(1, nb / 4));
+    double bass = this.level.getValue();
     this.bassAvg += (bass - this.bassAvg) * (1 - Math.exp(-deltaMs / 400.0));
     this.sinceBeatMs += deltaMs;
-    boolean beat = (bass > this.bassAvg * 1.3)
+    boolean beat = pulseHit() || (bass > this.bassAvg * 1.3)
       && (bass > this.prevBass)
       && (this.sinceBeatMs >= MIN_BEAT_MS)
       && (bass > 0.01);
@@ -191,7 +178,7 @@ public class Superbloom extends ParameterPattern {
       this.sinceBeatMs = 0;
     }
     // broadband level envelope: snappy attack, easy release
-    double level = m.getAveragef(0, nb);
+    double level = this.level.getValue();
     double alpha = (level > this.levelEnv)
       ? 1 - Math.exp(-deltaMs / 25.0)
       : 1 - Math.exp(-deltaMs / 220.0);
@@ -208,7 +195,7 @@ public class Superbloom extends ParameterPattern {
   protected void render(double deltaMs) {
     setColors(LXColor.BLACK);
 
-    final Target t = this.target.getEnum();
+    final Target t = getTarget();
     if (this.panels == null || this.builtTarget != t) {
       buildPanels(t);
       this.inited = false;
