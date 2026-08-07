@@ -20,17 +20,10 @@ import heronarts.lx.LXCategory;
 import heronarts.lx.color.LXColor;
 import heronarts.lx.parameter.CompoundParameter;
 import heronarts.lx.parameter.DiscreteParameter;
-import heronarts.lx.parameter.EnumParameter;
 import heronarts.lx.utils.LXUtils;
 
 @LXCategory("Apotheneum/piemonte")
 public class Cope extends ParameterPattern {
-
-  public enum Target {
-    BOTH,
-    CUBE,
-    CYLINDER
-  }
 
   private static final int MAX_PULSE = 8;
   private static final double MIN_BEAT_MS = 110;
@@ -48,10 +41,6 @@ public class Cope extends ParameterPattern {
   public final DiscreteParameter lines =
     new DiscreteParameter("Lines", 6, 1, 24)
     .setDescription("Number of vertical lines around the cylinder");
-
-  public final EnumParameter<Target> target =
-    new EnumParameter<Target>("Target", Target.BOTH)
-    .setDescription("Which structures to render to");
 
   /** A surface's edge columns + a pool of expanding glow pulses. */
   private final class Surface {
@@ -119,19 +108,17 @@ public class Cope extends ParameterPattern {
     addParameter("reactivity", this.reactivity);
     addParameter("sensitivity", this.sensitivity);
     addParameter("lines", this.lines);
-    addParameter("target", this.target);
+    addTargetParameter();
   }
 
   private boolean detectBeat(double deltaMs) {
-    heronarts.lx.audio.GraphicMeter m = this.lx.engine.audio.meter;
-    int nb = Math.max(1, m.numBands);
-    double bass = m.getAveragef(0, Math.max(1, nb / 4)); // low quarter of the spectrum
+    double bass = this.level.getValue();
     this.bassAvg += (bass - this.bassAvg) * (1 - Math.exp(-deltaMs / 400.0)); // slow moving average
     this.sinceBeatMs += deltaMs;
 
     double sens = this.sensitivity.getValue();
     double threshold = 1.05 + (1 - sens) * 0.7;          // sens up -> easier
-    boolean beat = (bass > this.bassAvg * threshold)
+    boolean beat = pulseHit() || (bass > this.bassAvg * threshold)
       && (bass > this.prevBass)
       && (this.sinceBeatMs >= MIN_BEAT_MS)
       && (bass > 0.01);
@@ -144,8 +131,7 @@ public class Cope extends ParameterPattern {
   }
 
   private double broadband() {
-    heronarts.lx.audio.GraphicMeter m = this.lx.engine.audio.meter;
-    return m.getAveragef(0, Math.max(1, m.numBands));
+    return this.level.getValue();
   }
 
   @Override
@@ -169,7 +155,7 @@ public class Cope extends ParameterPattern {
     this.beatKick *= Math.exp(-deltaMs / 250.0);
     final double norm = LXUtils.clamp((ratio - 0.55) * 1.6, 0, 1.2)
       + this.beatKick * 0.6;
-    final Target t = this.target.getEnum();
+    final Target t = getTarget();
     final int nLines = this.lines.getValuei();
 
     if (t != Target.CYLINDER) {

@@ -22,18 +22,11 @@ import heronarts.lx.color.LXColor;
 import heronarts.lx.model.LXPoint;
 import heronarts.lx.parameter.CompoundParameter;
 import heronarts.lx.parameter.DiscreteParameter;
-import heronarts.lx.parameter.EnumParameter;
 import heronarts.lx.utils.LXUtils;
 import heronarts.lx.utils.Noise;
 
 @LXCategory("Apotheneum/piemonte")
 public class ComeUp extends ParameterPattern {
-
-  public enum Target {
-    BOTH,
-    CUBE,
-    CYLINDER
-  }
 
   private static final double RISE_RATE_PER_MS = 1.0 / 6000.0; // full rise in ~6s at speed 1
   private static final double MAX_HOLD_MS = 2500.0;
@@ -142,10 +135,6 @@ public class ComeUp extends ParameterPattern {
     }
   }
 
-  public final EnumParameter<Target> target =
-    new EnumParameter<Target>("Target", Target.BOTH)
-    .setDescription("Which structures the glass fills");
-
   private final Tide exterior = new Tide(0.0, 0.0, 0.0);
   // Interior seeded out of lockstep (height + time) and in a different hue.
   private final Tide interior = new Tide(0.4, 4000.0, INTERIOR_HUE_OFFSET);
@@ -158,7 +147,7 @@ public class ComeUp extends ParameterPattern {
     addParameter("hold", this.hold);
     addParameter("bubbles", this.bubbles);
     addParameter("sparkle", this.sparkle);
-    addParameter("target", this.target);
+    addTargetParameter();
   }
 
   @Override
@@ -174,7 +163,7 @@ public class ComeUp extends ParameterPattern {
     final double wow = getWow();
     final int base = getColor();
 
-    final Target t = this.target.getEnum();
+    final Target t = getTarget();
     this.exterior.advance(deltaMs, speed, holdAmt);
     this.exterior.updateBubbles(deltaMs, speed, bubbleCount);
     if (Apotheneum.hasInterior) {

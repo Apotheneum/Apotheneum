@@ -20,18 +20,11 @@ import heronarts.lx.LXCategory;
 import heronarts.lx.color.LXColor;
 import heronarts.lx.parameter.CompoundParameter;
 import heronarts.lx.parameter.DiscreteParameter;
-import heronarts.lx.parameter.EnumParameter;
 import heronarts.lx.utils.LXUtils;
 import heronarts.lx.utils.Noise;
 
 @LXCategory("Apotheneum/piemonte")
 public class TheHumanRace extends ParameterPattern {
-
-  public enum Target {
-    BOTH,
-    CUBE,
-    CYLINDER
-  }
 
   private static final int NUM = 2600;         // figure pool
   private static final int CLUSTERS = 44;
@@ -60,10 +53,6 @@ public class TheHumanRace extends ParameterPattern {
   public final CompoundParameter horizon =
     new CompoundParameter("Horizon", 0.14, 0.02, 0.45)
     .setDescription("Where the horizon sits (lower = more landscape, less sky)");
-
-  public final EnumParameter<Target> target =
-    new EnumParameter<Target>("Target", Target.BOTH)
-    .setDescription("Which structures to render to");
 
   private static final class Panel {
     final int[][] idx;
@@ -96,7 +85,7 @@ public class TheHumanRace extends ParameterPattern {
     addParameter("terrain", this.terrain);
     addParameter("specks", this.specks);
     addParameter("horizon", this.horizon);
-    addParameter("target", this.target);
+    addTargetParameter();
   }
 
   private void buildCrowd() {
@@ -170,7 +159,7 @@ public class TheHumanRace extends ParameterPattern {
     if (!this.crowdBuilt) {
       buildCrowd();
     }
-    final Target t = this.target.getEnum();
+    final Target t = getTarget();
     if (this.panels == null || this.builtTarget != t) {
       buildPanels(t);
     }

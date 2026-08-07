@@ -19,17 +19,10 @@ import heronarts.lx.LXCategory;
 import heronarts.lx.color.LXColor;
 import heronarts.lx.parameter.CompoundParameter;
 import heronarts.lx.parameter.DiscreteParameter;
-import heronarts.lx.parameter.EnumParameter;
 import heronarts.lx.utils.LXUtils;
 
 @LXCategory("Apotheneum/piemonte")
 public class FeelSomething extends ParameterPattern {
-
-  public enum Target {
-    BOTH,
-    CUBE,
-    CYLINDER
-  }
 
   private static final int MAX_STICKS = 64;
   private static final int MAX_SPARKS = 1500;
@@ -46,10 +39,6 @@ public class FeelSomething extends ParameterPattern {
   public final CompoundParameter sparkle =
     new CompoundParameter("Sparkle", 0.5, 0, 1)
     .setDescription("How many sparkles fly off on each bounce");
-
-  public final EnumParameter<Target> target =
-    new EnumParameter<Target>("Target", Target.BOTH)
-    .setDescription("Which structures to render to");
 
   private final class Surface {
     int w, h;
@@ -126,7 +115,7 @@ public class FeelSomething extends ParameterPattern {
     super(lx, 0.5, 0, 1, 0.5, 0, 1);
     addParameter("sticks", this.sticks);
     addParameter("sparkle", this.sparkle);
-    addParameter("target", this.target);
+    addTargetParameter();
   }
 
   @Override
@@ -134,7 +123,7 @@ public class FeelSomething extends ParameterPattern {
     setColors(LXColor.BLACK);
     final double baseHue = LXColor.h(getColor());
     final double dtS = Math.max(0.02, getSpeed()) * deltaMs; // time step
-    final Target t = this.target.getEnum();
+    final Target t = getTarget();
     if (t != Target.CYLINDER) {
       step(this.cube, Apotheneum.cube.exterior, dtS, baseHue);
     }

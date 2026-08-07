@@ -54,6 +54,7 @@ public class Drip extends StrandPattern {
   private double pulse = 0;
   private double sceneClock = 0;
   private int scene = 0;
+  private int prevScene = 0; // the scene actually showing before the last change
 
   public Drip(LX lx) {
     // Base registers color (hue shift), speed (scene pace + shimmer), size (strand weight).
@@ -98,6 +99,7 @@ public class Drip extends StrandPattern {
         while (jump == this.scene) {
           jump = (int) (Math.random() * SCENES.length);
         }
+        this.prevScene = this.scene; // fade from what was actually showing
         this.scene = jump;
         return;
       } else if (this.beatLevel > 0.45 - sens * 0.15) {
@@ -106,6 +108,7 @@ public class Drip extends StrandPattern {
     }
     if (advanceScene) {
       this.sceneClock = 0;
+      this.prevScene = this.scene;
       this.scene = (this.scene + 1) % SCENES.length;
     }
   }
@@ -125,7 +128,7 @@ public class Drip extends StrandPattern {
     final double hueShift = LXColor.h(getColor());
 
     final double[] cur = SCENES[this.scene];
-    final double[] prev = SCENES[((this.scene - 1) % SCENES.length + SCENES.length) % SCENES.length];
+    final double[] prev = SCENES[this.prevScene];
     final double in = sceneIn();
     final double hue = LXUtils.lerp(prev[0], prev[0] + wrapDeg(cur[0] - prev[0]), in) + hueShift;
     final double sat = LXUtils.lerp(prev[1], cur[1], in);
