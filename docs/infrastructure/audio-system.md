@@ -285,11 +285,20 @@ ever used instead, wire hot to `+`, ground to `–`, and leave that channel's
 ground pin unconnected — this is the manual's specified unbalanced scheme, not
 a general convention.
 
-### Which cable
+### The cable
+
+**A cable for this already exists and is in service** — this connection is made,
+not pending. What follows is for identifying it, spare-ing it, or replacing it,
+not for building it from scratch.
+
+**TBD — record what the existing cable actually is.** Photograph both ends and
+note the type and length. Until that's written down, a failure at showtime means
+identifying an unfamiliar cable under pressure, and there is no way to order a
+spare in advance.
 
 There is no off-the-shelf "TRS to Euroblock" patch lead in the way there is for
-TRS-to-XLR. The standard solution is a **1/4" TRS male to bare-wire (pigtail)
-cable**, landed into the screw terminals:
+TRS-to-XLR, so a replacement is most likely a **1/4" TRS male to bare-wire
+(pigtail) cable** landed into the screw terminals:
 
 ```text
 [1/4" TRS male] ──────── cable ──────── [stripped ends] → screw into Euroblock plug
@@ -299,26 +308,12 @@ cable**, landed into the screw terminals:
 ```
 
 **The Euroblock plugs themselves ship with the AQM408** — the manual refers to
-"the provided Euroblock connectors" — so nothing exotic needs sourcing. What we
-need is two cables (one per channel) with a 1/4" TRS plug on one end and bare
-conductors on the other. Hosa and similar make these as stock items; a normal
+"the provided Euroblock connectors" — so nothing exotic needs sourcing for a
+rebuild. Hosa and similar make TRS-to-bare-wire as a stock item; a normal
 balanced TRS cable cut in half and stripped works equally well.
 
-Alternatives, both worse for a permanent install:
-
-- A TRS-to-XLR cable into a separate XLR-to-Euroblock adapter — two connection
-  points instead of one, more to fail.
-- Soldered custom leads — fine, but the screw terminals exist precisely so this
-  isn't necessary.
-
-**TBD:** conductor gauge and strip length that seat cleanly in these particular
-terminals. Worth noting once done, since it's the sort of thing that gets
-re-derived at 2am.
-
-**TBD:** Euroblock pitch (3.5 mm is typical for Ashly) — only matters if we ever
-need spare plugs, since the unit came with its own.
-
-**TBD:** cable length needed between the MOTU position and the AQM408.
+**TBD:** Euroblock pitch (3.5 mm is typical for Ashly) — only matters if a spare
+plug is ever needed, since the unit came with its own.
 
 **Levels:** the M4 tops out 5 dB below the AQM408's input ceiling, so there is
 headroom in hand and no pad is needed. Gain staging still needs to be set
