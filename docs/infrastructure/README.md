@@ -56,6 +56,7 @@ not network**.
 
 ## Docs
 
+- [Physical installation](physical.md) — where things are, cable runs, the Pelican case
 - [Hardware inventory](hardware.md) — master gear list
 - [Audio system](audio-system.md) — Loopback → MOTU → Ashly → QSC
 - [Lighting control](lighting-control.md) — OSC → Chromatik → Art-Net → LEDs

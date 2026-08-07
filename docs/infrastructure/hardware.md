@@ -54,7 +54,8 @@ yet acquired · **Planned** = future work.
 | XLR, GEARit → MOTU | 2 | In service | **TBD** length |
 | Cat5/6, stage → MOTU (**analog audio**) | 1 | In service | Carries audio, not network. **TBD** length |
 | Cat5/6, stage → live laptop (Pro DJ Link) | 1 | Needed | Separate run from the above |
-| Ashly → QSC | 8 | In service | One per corner per driver type. **TBD** connector type and lengths |
+| Pelican panel connector + mating field cable | 1 | In service | Carries all 8 Ashly outputs. Single point of failure; also the dust seal. **TBD** make/series/pins, and whether a spare exists |
+| Ashly → QSC | 8 | In service | One per corner per driver type, downstream of the panel connector. **TBD** connector type and lengths |
 | QSC daisy-chain (loop-thru) | 8 | In service | Second box in each chain. **TBD** connector type and lengths |
 | USB-C, MacBook → MOTU | 1 | In service | |
 

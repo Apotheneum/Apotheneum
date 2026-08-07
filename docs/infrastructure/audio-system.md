@@ -113,6 +113,11 @@ ducking, signal generator.
 **left/right** (conventional) or **criss-cross** (L and R alternate around the
 space, less directional). Both are matrix config, not a re-patch.
 
+> The Euroblock outputs are **not** the service point. The AQM408's rear panel
+> is enclosed in the Pelican case; everything reaches the outside through a
+> panel-mount multipin connector. See [physical
+> installation](physical.md#the-rear-panel-hides-the-ashlys-own-connectors).
+
 ### Speaker topology
 
 **8 lows + 8 highs across 4 corners**, driven from 8 Ashly outputs. Each corner
