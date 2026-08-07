@@ -14,9 +14,9 @@ flowchart TB
 
     subgraph DJ["🎧 Live DJ input — live shows only"]
         DECKS["Decks / mixer"]
-        GEAR["GEARit snake<br>analog audio over Cat5/6"]
+        GI1["GEARit box<br>under stage"]
         CDJ["CDJs<br>(beat sync planned)"]
-        DECKS -->|"2x XLR"| GEAR
+        DECKS -->|"2x XLR"| GI1
     end
 
     subgraph LIVEMAC["💻 Live MacBook — live shows only"]
@@ -26,7 +26,9 @@ flowchart TB
     end
 
     subgraph SOUND["🔊 Sound"]
+        GI2["GEARit box<br>at MOTU"]
         MOTU["MOTU M4"]
+        GI2 -->|"2x XLR"| MOTU
         AQM["Ashly AQM408<br>matrix + crossover"]
         IPAD["iPad<br>AQM408 web UI"]
         HI["8x QSC highs"]
@@ -48,12 +50,11 @@ flowchart TB
         HBOX --> FLOOR
     end
 
-    DJ ~~~ LIVEMAC
     LB ==>|"one USB-C cable<br>audio + network"| MOTU
     CHR ==>|"same cable"| SW
     LCHR -->|Ethernet| SW
-    GEAR -->|"2x XLR"| MOTU
-    CDJ -.->|"Pro DJ Link"| LCHR
+    GI1 ==>|"Cat5/6 — analog audio, not network"| GI2
+    CDJ -.->|"Ethernet — Pro DJ Link"| LIVEMAC
     CHR -.->|"Art-Net, built but off"| FLOOR
 ```
 
@@ -61,9 +62,17 @@ flowchart TB
 Everything in **Sound** and **Output hardware** is permanent; the **Live MacBook**
 and **Live DJ input** boxes only exist during live shows.
 
-Heavy lines are the single USB-C cable from the resident MacBook — it carries
-audio *and* network, so losing it takes out sound and lights together. Dashed
-lines are control or not-yet-built.
+**Heavy lines are cables carrying something their connector doesn't suggest**,
+and both are traps:
+
+- The **USB-C cable** to the resident MacBook carries audio *and* network, so
+  losing it takes out sound and lights together.
+- The **Cat5/6 between the GEARit boxes** carries analog audio, not network. No
+  switch goes on either end. The live rig needs a *second, separate* Cat5/6 run
+  for Pro DJ Link — same cable type, entirely different job. Label both ends of
+  both.
+
+Dashed lines are control paths or not-yet-built.
 
 > **Only one Chromatik may output at a time.** Both MacBooks run Chromatik and
 > both can reach the LED controllers over Art-Net. When bringing the live
