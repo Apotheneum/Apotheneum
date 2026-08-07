@@ -26,17 +26,10 @@ import heronarts.lx.LXCategory;
 import heronarts.lx.color.LXColor;
 import heronarts.lx.parameter.CompoundParameter;
 import heronarts.lx.parameter.DiscreteParameter;
-import heronarts.lx.parameter.EnumParameter;
 import heronarts.lx.utils.LXUtils;
 
 @LXCategory("Apotheneum/piemonte")
 public class Radiate extends ParameterPattern {
-
-  public enum Target {
-    BOTH,
-    CUBE,
-    CYLINDER
-  }
 
   private static final int MAX_RAYS = 90;
   private static final double SCENE_MS = 6700;   // per palette scene (~40s arc / 6)
@@ -54,10 +47,6 @@ public class Radiate extends ParameterPattern {
   public final CompoundParameter sensitivity =
     new CompoundParameter("Sens", 0.5, 0, 1)
     .setDescription("How easily the music blooms and fills the room");
-
-  public final EnumParameter<Target> target =
-    new EnumParameter<Target>("Target", Target.CYLINDER)
-    .setDescription("Which structures to render to");
 
   // per-ray state
   private final double[] rx = new double[MAX_RAYS];   // column position (fixed)
@@ -81,7 +70,7 @@ public class Radiate extends ParameterPattern {
     super(lx, 0.5, 0, 1, 0.5, 0, 1);
     addParameter("rays", this.rays);
     addParameter("sensitivity", this.sensitivity);
-    addParameter("target", this.target);
+    addTargetParameter(Target.CYLINDER);
   }
 
   private static double hashd(int n) {
@@ -99,23 +88,14 @@ public class Radiate extends ParameterPattern {
     this.inited = true;
   }
 
-  private double band(int i, int n) {
-    heronarts.lx.audio.GraphicMeter m = this.lx.engine.audio.meter;
-    int nb = Math.max(1, m.numBands);
-    int lo = i * nb / n;
-    int hi = Math.max(lo + 1, (i + 1) * nb / n);
-    return m.getAveragef(lo, hi - lo);
-  }
 
   private boolean detect(double deltaMs) {
-    heronarts.lx.audio.GraphicMeter m = this.lx.engine.audio.meter;
-    int nb = Math.max(1, m.numBands);
-    double bass = m.getAveragef(0, Math.max(1, nb / 4));
+    double bass = this.level.getValue();
     this.bassAvg += (bass - this.bassAvg) * (1 - Math.exp(-deltaMs / 400.0));
     this.sinceBeatMs += deltaMs;
     double sens = this.sensitivity.getValue();
     double threshold = 1.05 + (1 - sens) * 0.7;
-    boolean beat = (bass > this.bassAvg * threshold)
+    boolean beat = pulseHit() || (bass > this.bassAvg * threshold)
       && (bass > this.prevBass)
       && (this.sinceBeatMs >= 140)
       && (bass > 0.01);
@@ -123,7 +103,7 @@ public class Radiate extends ParameterPattern {
     if (beat) {
       this.sinceBeatMs = 0;
     }
-    double level = m.getAveragef(0, nb);
+    double level = this.level.getValue();
     double aUp = 1 - Math.exp(-deltaMs / 25.0);
     double aDn = 1 - Math.exp(-deltaMs / 220.0);
     this.levelEnv += (level - this.levelEnv) * ((level > this.levelEnv) ? aUp : aDn);
@@ -170,7 +150,7 @@ public class Radiate extends ParameterPattern {
       : 1 - Math.exp(-deltaMs / 2000.0);
     this.floodEnv += (floodTarget - this.floodEnv) * fa;
 
-    final Target t = this.target.getEnum();
+    final Target t = getTarget();
     if (t != Target.CUBE) {
       renderField(Apotheneum.cylinder.exterior, deltaMs);
       copyCylinderExterior();

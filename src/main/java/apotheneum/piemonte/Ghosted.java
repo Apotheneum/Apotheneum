@@ -135,7 +135,9 @@ public class Ghosted extends StrandPattern {
       // groups of consecutive lines share a color: the sweep fires red packs
       // and blue packs as it circles
       final int chunk = (int) (((this.sweep % 1.0) + 1.0) % 1.0 * 8);
-      final int grp = (hashd(chunk * 53 + (int) this.laps * 97) < 0.5) ? 0 : 1;
+      // red<->blue balance drifts on the hue cycle instead of a fixed 50/50
+      final double cyc = 0.5 + 0.5 * Math.sin(2 * Math.PI * this.timeMs / HUE_CYCLE_MS);
+      final int grp = (hashd(chunk * 53 + (int) this.laps * 97) < 0.25 + 0.5 * cyc) ? 0 : 1;
       final double az = ((this.sweep + jitter) % 1.0 + 1.0) % 1.0;
       this.cube.fire(az, grp);
       this.cylinder.fire(az, grp);
@@ -153,9 +155,7 @@ public class Ghosted extends StrandPattern {
     final double hueShift = LXColor.h(getColor());
     final double env = swellEnv();
 
-    // the color field: hot floor core -> white shockwave band -> azure sky,
-    // with the red<->blue balance cycling slowly
-    final double cyc = 0.5 + 0.5 * Math.sin(2 * Math.PI * this.timeMs / HUE_CYCLE_MS);
+    // the color field: hot floor core -> white shockwave band -> azure sky
     final int red = LXColor.hsb((float) (((8 + hueShift) % 360)), 100, 100);
     final int blue = LXColor.hsb((float) (((214 + hueShift) % 360)), 96, 100);
     final int tq = (int) (this.timeMs / 60);

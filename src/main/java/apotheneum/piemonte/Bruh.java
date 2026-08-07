@@ -18,17 +18,10 @@ import heronarts.lx.LXCategory;
 import heronarts.lx.color.LXColor;
 import heronarts.lx.parameter.CompoundParameter;
 import heronarts.lx.parameter.DiscreteParameter;
-import heronarts.lx.parameter.EnumParameter;
 import heronarts.lx.utils.LXUtils;
 
 @LXCategory("Apotheneum/piemonte")
 public class Bruh extends ParameterPattern {
-
-  public enum Target {
-    BOTH,
-    CUBE,
-    CYLINDER
-  }
 
   private static final int MAX_DROPS = 160;
   private static final int MAX_SPLASH = 600;
@@ -46,10 +39,6 @@ public class Bruh extends ParameterPattern {
   public final CompoundParameter trail =
     new CompoundParameter("Trail", 0.5, 0, 1)
     .setDescription("How long the rain streaks trail behind each drop");
-
-  public final EnumParameter<Target> target =
-    new EnumParameter<Target>("Target", Target.BOTH)
-    .setDescription("Which structures to render to");
 
   private final class Surface {
     int w, h;
@@ -117,14 +106,14 @@ public class Bruh extends ParameterPattern {
     addParameter("drops", this.drops);
     addParameter("splash", this.splash);
     addParameter("trail", this.trail);
-    addParameter("target", this.target);
+    addTargetParameter();
   }
 
   @Override
   protected void render(double deltaMs) {
     setColors(LXColor.BLACK);
     final int base = getColor();
-    final Target t = this.target.getEnum();
+    final Target t = getTarget();
     if (t != Target.CYLINDER) {
       step(this.cube, Apotheneum.cube.exterior, deltaMs, base);
     }
