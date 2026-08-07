@@ -125,9 +125,9 @@
   <path class="audio" d="M -155 424 L -155 470" marker-end="url(#arrowAudio)"/>
   <text class="small" x="-148" y="450">2x TRS → Euroblock</text>
 
-  <!-- MOTU case hub -> switch -->
-  <path class="net" d="M -250 424 C -216 500, -236 566, -290 586" marker-end="url(#arrowNet)"/>
-  <text class="small" x="-244" y="520" fill="#1d6fb8">Ethernet</text>
+  <!-- MacBook -> local switch -->
+  <path class="net" d="M -290 424 C -244 470, -244 546, -290 580" marker-end="url(#arrowNet)"/>
+  <text class="small" x="-238" y="508" fill="#1d6fb8">Ethernet</text>
 
   <!-- Ashly -> corners: out to the near corner, then along the cube edges -->
   <!-- NW -->

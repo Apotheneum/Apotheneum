@@ -67,6 +67,10 @@ There is an **Ethernet port on the back of the MOTU case**, which the MacBook ha
 no way to reach directly — so the case must contain a **USB hub or dock** that
 the M4 and the Ethernet port both hang off.
 
+That Ethernet link belongs to the **MacBook**, not to the MOTU. The M4 is not on
+the network at all; it just shares the case and the hub. The port on the panel is
+simply where the MacBook's network connection emerges.
+
 ```text
      Resident MacBook
            │
