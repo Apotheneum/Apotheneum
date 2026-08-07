@@ -155,8 +155,9 @@ recommended. RJ-45 to the same network as the iPad.
 
 - Default IP is automatic (DHCP → link-local). Also answers at
   `http://AQM408_<MAC>.local/`
-- Factory login `admin` / `secret` — **must be changed**. Roles: admin, guest
-  admin, operator, view-only
+- Login: factory defaults are in the vendor manual and **must be changed**.
+  Store the real credentials in the crew password manager, not here. Roles:
+  admin, guest admin, operator, view-only
 - **No power switch** — software only, or pull AC
 - Rear reset switch: *admin reset* (restores password, keeps presets, reverts to
   automatic IP) or *factory default* (erases everything)
