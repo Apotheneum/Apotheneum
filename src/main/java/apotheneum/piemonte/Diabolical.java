@@ -20,16 +20,9 @@ import heronarts.lx.LXCategory;
 import heronarts.lx.color.LXColor;
 import heronarts.lx.parameter.CompoundParameter;
 import heronarts.lx.parameter.DiscreteParameter;
-import heronarts.lx.parameter.EnumParameter;
 
 @LXCategory("Apotheneum/piemonte")
 public class Diabolical extends ParameterPattern {
-
-  public enum Target {
-    BOTH,
-    CUBE,
-    CYLINDER
-  }
 
   private static final double ROT = 0.0006;    // rotation (twist) rad/ms at spin 1, speed 1
   private static final double SCROLL = 0.0016; // outward scroll / ms at speed 1
@@ -42,10 +35,6 @@ public class Diabolical extends ParameterPattern {
   public final CompoundParameter spin =
     new CompoundParameter("Spin", 0.4, 0, 1)
     .setDescription("How fast the spiral rotates");
-
-  public final EnumParameter<Target> target =
-    new EnumParameter<Target>("Target", Target.BOTH)
-    .setDescription("Which structures to render to");
 
   private static final class Panel {
     final int[][] idx;
@@ -65,7 +54,7 @@ public class Diabolical extends ParameterPattern {
     super(lx, 0.5, 0, 1, 0.5, 0, 1);
     addParameter("quantity", this.quantity);
     addParameter("spin", this.spin);
-    addParameter("target", this.target);
+    addTargetParameter();
   }
 
   private void buildPanels(Target t) {
@@ -110,7 +99,7 @@ public class Diabolical extends ParameterPattern {
   @Override
   protected void render(double deltaMs) {
     setColors(LXColor.BLACK);
-    final Target t = this.target.getEnum();
+    final Target t = getTarget();
     if (this.panels == null || this.builtTarget != t) {
       buildPanels(t);
     }

@@ -26,17 +26,10 @@ import heronarts.lx.model.LXPoint;
 import heronarts.lx.parameter.BooleanParameter;
 import heronarts.lx.parameter.CompoundParameter;
 import heronarts.lx.parameter.DiscreteParameter;
-import heronarts.lx.parameter.EnumParameter;
 import heronarts.lx.utils.LXUtils;
 
 @LXCategory("Apotheneum/piemonte")
 public class Crush extends ParameterPattern {
-
-  public enum Target {
-    BOTH,
-    CUBE,
-    CYLINDER
-  }
 
   private static final double DESC_RATE = 0.0006;   // beam descent / ms at speed 1
   private static final double POUR_RATE = 0.00035;  // pour-line descent / ms at speed 1
@@ -58,10 +51,6 @@ public class Crush extends ParameterPattern {
     new BooleanParameter("Strobe", false)
     .setMode(BooleanParameter.Mode.MOMENTARY)
     .setDescription("Strobe the region above the surface line while held");
-
-  public final EnumParameter<Target> target =
-    new EnumParameter<Target>("Target", Target.BOTH)
-    .setDescription("Which structures to render to");
 
   private final GradientUtils.ColorStops stops = new GradientUtils.ColorStops();
 
@@ -96,7 +85,7 @@ public class Crush extends ParameterPattern {
     addParameter("bands", this.bands);
     addParameter("sensitivity", this.sensitivity);
     addParameter("strobe", this.strobe);
-    addParameter("target", this.target);
+    addTargetParameter();
   }
 
   private void reset(int n) {
@@ -123,14 +112,12 @@ public class Crush extends ParameterPattern {
   }
 
   private boolean detectDrop(double deltaMs) {
-    heronarts.lx.audio.GraphicMeter m = this.lx.engine.audio.meter;
-    int nb = Math.max(1, m.numBands);
-    double bass = m.getAveragef(0, Math.max(1, nb / 4));
+    double bass = this.level.getValue();
     this.bassAvg += (bass - this.bassAvg) * (1 - Math.exp(-deltaMs / 400.0));
     this.sinceBeatMs += deltaMs;
     double sens = this.sensitivity.getValue();
     double threshold = 1.15 + (1 - sens) * 0.8;
-    boolean beat = (bass > this.bassAvg * threshold)
+    boolean beat = pulseHit() || (bass > this.bassAvg * threshold)
       && (bass > this.prevBass)
       && (this.sinceBeatMs >= 300)
       && (bass > 0.01);
@@ -138,7 +125,7 @@ public class Crush extends ParameterPattern {
     if (beat) {
       this.sinceBeatMs = 0;
     }
-    double level = m.getAveragef(0, nb);
+    double level = this.level.getValue();
     double alpha = (level > this.levelEnv)
       ? 1 - Math.exp(-deltaMs / 25.0)
       : 1 - Math.exp(-deltaMs / 220.0);
@@ -233,7 +220,7 @@ public class Crush extends ParameterPattern {
     final boolean strobeOn = this.strobe.isOn()
       && (frac0(this.timeMs * 0.001 * STROBE_HZ) < 0.45);
 
-    final Target t = this.target.getEnum();
+    final Target t = getTarget();
     if (t != Target.CYLINDER) {
       draw(Apotheneum.cube.exterior, n, edge, fillTop, beamColor, beamTop, bandH, flashE, amp, strobeOn);
     }

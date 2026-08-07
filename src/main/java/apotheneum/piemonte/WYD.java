@@ -21,18 +21,11 @@ import heronarts.lx.color.LXColor;
 import heronarts.lx.model.LXPoint;
 import heronarts.lx.parameter.CompoundParameter;
 import heronarts.lx.parameter.DiscreteParameter;
-import heronarts.lx.parameter.EnumParameter;
 import heronarts.lx.utils.LXUtils;
 import heronarts.lx.utils.Noise;
 
 @LXCategory("Apotheneum/piemonte")
 public class WYD extends ParameterPattern {
-
-  public enum Target {
-    BOTH,
-    CUBE,
-    CYLINDER
-  }
 
   private static final double TAU = Math.PI * 2;
   private static final float FX = 2.2f;    // horizontal noise frequency (flow warp)
@@ -47,10 +40,6 @@ public class WYD extends ParameterPattern {
     new CompoundParameter("Depth", 0.6, 0, 1)
     .setDescription("Strength of the light/shadow that gives the waves depth");
 
-  public final EnumParameter<Target> target =
-    new EnumParameter<Target>("Target", Target.BOTH)
-    .setDescription("Which structures to render to");
-
   private double timeMs = 0;
 
   public WYD(LX lx) {
@@ -58,7 +47,7 @@ public class WYD extends ParameterPattern {
     super(lx, 0.4, 0, 1, 0.5, 0, 1);
     addParameter("density", this.density);
     addParameter("depth", this.depth);
-    addParameter("target", this.target);
+    addTargetParameter();
   }
 
   @Override
@@ -79,7 +68,7 @@ public class WYD extends ParameterPattern {
     final int shadow = LXColor.hsb(
       (float) ((LXColor.h(base) + 320) % 360),
       (float) Math.min(100, LXColor.s(base) + 10), 100);
-    final Target t = this.target.getEnum();
+    final Target t = getTarget();
 
     if (t != Target.CYLINDER) {
       draw(Apotheneum.cube.exterior, drift, tEvolve, dens, sharp, depthAmt, base, shadow);

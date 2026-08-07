@@ -23,17 +23,10 @@ import heronarts.lx.LXCategory;
 import heronarts.lx.color.LXColor;
 import heronarts.lx.parameter.CompoundParameter;
 import heronarts.lx.parameter.DiscreteParameter;
-import heronarts.lx.parameter.EnumParameter;
 import heronarts.lx.utils.LXUtils;
 
 @LXCategory("Apotheneum/piemonte")
 public class Cooked extends ParameterPattern {
-
-  public enum Target {
-    BOTH,
-    CUBE,
-    CYLINDER
-  }
 
   private static final int MAX_SNAKES = 96;
   private static final int MAX_LEN = 64;
@@ -55,10 +48,6 @@ public class Cooked extends ParameterPattern {
   public final DiscreteParameter length =
     new DiscreteParameter("Length", 26, 5, MAX_LEN)
     .setDescription("Snake body length");
-
-  public final EnumParameter<Target> target =
-    new EnumParameter<Target>("Target", Target.BOTH)
-    .setDescription("Which structures to render to");
 
   private final class Surface {
     int w, h;
@@ -125,14 +114,14 @@ public class Cooked extends ParameterPattern {
     addParameter("snakes", this.snakes);
     addParameter("rate", this.rate);
     addParameter("length", this.length);
-    addParameter("target", this.target);
+    addTargetParameter();
   }
 
   @Override
   protected void render(double deltaMs) {
     setColors(LXColor.BLACK);
     this.timeMs += deltaMs;
-    final Target t = this.target.getEnum();
+    final Target t = getTarget();
     if (t != Target.CYLINDER) {
       step(this.cube, Apotheneum.cube.exterior, deltaMs);
     }
@@ -232,26 +221,28 @@ public class Cooked extends ParameterPattern {
           break;
         }
 
-        // slither forward
+        // slither forward; note the cell the tail vacates BEFORE the head
+        // moves — computing it after resolves to the still-occupied tail and
+        // leaves a stale owner entry (false collisions on multi-step frames)
+        final boolean willGrow = s.curLen[i] < Math.min(maxLen, MAX_LEN);
+        final int vacated = willGrow ? -1
+          : s.body[i][(s.headIdx[i] - s.curLen[i] + 1 + MAX_LEN * 2) % MAX_LEN];
         s.headIdx[i] = (s.headIdx[i] + 1) % MAX_LEN;
         s.body[i][s.headIdx[i]] = cell;
-        if (s.curLen[i] < Math.min(maxLen, MAX_LEN)) {
+        if (willGrow) {
           s.curLen[i]++;
         }
         s.owner[cell] = i;
-        // release the vacated tail cell
-        final int tailCell = s.body[i][(s.headIdx[i] - s.curLen[i] + 1 + MAX_LEN * 2) % MAX_LEN];
-        if (s.owner[tailCell] == i && tailCell != cell) {
-          // only clear if the tail actually moved off it this step
+        if (vacated >= 0 && vacated != cell && s.owner[vacated] == i) {
           boolean stillBody = false;
           for (int k = 0; k < s.curLen[i]; ++k) {
-            if (s.body[i][(s.headIdx[i] - k + MAX_LEN * 2) % MAX_LEN] == tailCell) {
+            if (s.body[i][(s.headIdx[i] - k + MAX_LEN * 2) % MAX_LEN] == vacated) {
               stillBody = true;
               break;
             }
           }
           if (!stillBody) {
-            s.owner[tailCell] = -1;
+            s.owner[vacated] = -1;
           }
         }
       }

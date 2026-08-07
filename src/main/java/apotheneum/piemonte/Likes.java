@@ -151,14 +151,11 @@ public class Likes extends StrandPattern {
 
   /** Onset detector on the top quarter of the spectrum (pitch hits). */
   private boolean detectPitchHit(double deltaMs) {
-    heronarts.lx.audio.GraphicMeter m = this.lx.engine.audio.meter;
-    final int nb = Math.max(1, m.numBands);
-    final int q = Math.max(1, nb / 4);
-    final double treb = m.getAveragef(nb - q, q);
+    double treb = this.level.getValue();
     this.trebAvg += (treb - this.trebAvg) * (1 - Math.exp(-deltaMs / 400.0));
     this.sinceTrebMs += deltaMs;
     final double threshold = 1.05 + (1 - this.sensitivity.getValue()) * 0.7;
-    final boolean hit = (treb > this.trebAvg * threshold)
+    final boolean hit = pulseHit() || (treb > this.trebAvg * threshold)
       && (treb > this.prevTreb)
       && (this.sinceTrebMs >= 160)
       && (treb > 0.005);

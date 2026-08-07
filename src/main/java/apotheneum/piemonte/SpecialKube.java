@@ -21,16 +21,9 @@ import heronarts.lx.LXCategory;
 import heronarts.lx.color.LXColor;
 import heronarts.lx.parameter.CompoundParameter;
 import heronarts.lx.parameter.DiscreteParameter;
-import heronarts.lx.parameter.EnumParameter;
 
 @LXCategory("Apotheneum/piemonte")
 public class SpecialKube extends ParameterPattern {
-
-  public enum Target {
-    BOTH,
-    CUBE,
-    CYLINDER
-  }
 
   private static final int MAX_CUBES = 48;
   private static final int CYAN = LXColor.rgb(0, 255, 255);
@@ -57,10 +50,6 @@ public class SpecialKube extends ParameterPattern {
   public final CompoundParameter thick =
     new CompoundParameter("Thick", 0.5, 0, 1)
     .setDescription("Wireframe line thickness");
-
-  public final EnumParameter<Target> target =
-    new EnumParameter<Target>("Target", Target.BOTH)
-    .setDescription("Which structures to render to");
 
   private static final class Panel {
     final int[][] idx;
@@ -95,7 +84,7 @@ public class SpecialKube extends ParameterPattern {
     addParameter("spin", this.spin);
     addParameter("special", this.special);
     addParameter("thick", this.thick);
-    addParameter("target", this.target);
+    addTargetParameter();
   }
 
   private void buildPanels(Target t) {
@@ -153,7 +142,7 @@ public class SpecialKube extends ParameterPattern {
   protected void render(double deltaMs) {
     setColors(LXColor.BLACK);
 
-    final Target t = this.target.getEnum();
+    final Target t = getTarget();
     if (this.panels == null || this.builtTarget != t) {
       buildPanels(t);
       this.inited = false;
