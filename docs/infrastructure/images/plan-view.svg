@@ -84,6 +84,11 @@
   <text class="lblb" x="40" y="712" text-anchor="middle">Network switch</text>
   <text class="small" x="40" y="730" text-anchor="middle">10.0.1.0/24</text>
 
+  <!-- ==== floor ethernet box, at the corner of the floor ==== -->
+  <rect class="box" x="342" y="478" width="132" height="36"/>
+  <text class="small" x="408" y="494" text-anchor="middle">Floor ethernet box</text>
+  <text class="small" x="408" y="508" text-anchor="middle">motors + lights</text>
+
   <!-- ==== live macbook ==== -->
   <rect class="box" x="566" y="478" width="158" height="52"/>
   <text class="lblb" x="645" y="500" text-anchor="middle">Live MacBook</text>
@@ -95,8 +100,8 @@
   <text class="small" x="-16" y="600" fill="#1d6fb8">Ethernet</text>
 
   <!-- stage GEARit -> control (analog audio over cat5) -->
-  <path class="audio" d="M 425 425 C 240 500, 40 560, -60 553" marker-end="url(#arrowAudio)"/>
-  <text class="small" x="190" y="528" text-anchor="middle" fill="#c2410c">Cat5/6 — ANALOG AUDIO</text>
+  <path class="net" d="M 425 425 C 240 500, 40 560, -60 553" marker-end="url(#arrowNet)"/>
+  <text class="small" x="190" y="528" text-anchor="middle" fill="#c2410c">Cat5/6 cable — ANALOG AUDIO inside</text>
 
   <!-- GEARit -> MOTU, short XLR hop -->
   <path class="audio" d="M -155 530 L -155 502" marker-end="url(#arrowAudio)"/>
@@ -124,12 +129,12 @@
   <text class="small" x="96" y="576" fill="#1d6fb8">32 controllers</text>
 
   <!-- floor controller -> haptic floor -->
-  <path class="net" d="M -60 618 C 140 596, 330 520, 424 462" marker-end="url(#arrowNet)"/>
-  <text class="small" x="120" y="586" fill="#1d6fb8">to haptic floor</text>
+  <path class="net" d="M -60 618 C 120 604, 250 560, 340 502" marker-end="url(#arrowNet)"/>
+  <text class="small" x="104" y="590" fill="#1d6fb8">to floor ethernet box</text>
 
   <!-- switch -> haptic floor -->
-  <path class="net" d="M 120 716 C 280 716, 400 540, 452 470" marker-end="url(#arrowNet)"/>
-  <text class="small" x="250" y="708" fill="#1d6fb8">to haptic floor switch</text>
+  <path class="net" d="M 120 704 C 250 664, 340 570, 380 516" marker-end="url(#arrowNet)"/>
+  <text class="small" x="212" y="664" fill="#1d6fb8">Art-Net to floor</text>
 
   <!-- stage CDJ ethernet -> live macbook -->
   <path class="net" d="M 552 452 L 594 478" marker-end="url(#arrowNet)"/>
