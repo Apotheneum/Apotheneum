@@ -4,55 +4,65 @@
 
 ```mermaid
 flowchart TB
-    subgraph SRC["Source apps"]
-        APPS["Ableton Live<br>Bitwig Studio<br>Vezér"]
-    end
-
-    subgraph RESIDENT["Resident MacBook — one USB-C cable to the case"]
-        LB["Loopback Audio 1/2<br>virtual device"]
+    subgraph RESIDENT["🖥️ Resident MacBook — prerecorded shows"]
+        APPS["Ableton Live · Bitwig Studio · Vezér"]
+        LB["Loopback Audio 1/2"]
         CHR["Chromatik (LX)"]
+        APPS -->|audio| LB
+        APPS -->|"OSC :3030"| CHR
     end
 
-    HUB["USB hub/dock<br>in MOTU case"]
+    subgraph LIVEMAC["💻 Live MacBook — live shows only"]
+        MIDI["USB MIDI controllers"]
+        LCHR["Chromatik (LX)"]
+        MIDI --> LCHR
+    end
 
-    MOTU["MOTU M4"]
-    AQM["Ashly AQM408<br>matrix + crossover"]
-    HI["8x QSC highs"]
-    SUB["8x QSC lows"]
-    CTRL["32 LED controllers<br>10.0.1.101-.132"]
-    LEDS["13,280 LEDs<br>cube + cylinder"]
-    IPAD["iPad"]
-
-    subgraph LIVE["Live DJ only"]
+    subgraph DJ["🎧 Live DJ input — live shows only"]
         DECKS["Decks / mixer"]
-        GI1["GEARit box<br>under stage"]
-        GI2["GEARit box<br>at MOTU"]
-        CDJ["CDJs"]
-        LIVECHR["Live MacBook<br>Chromatik (LX)<br>+ USB MIDI<br>Ethernet only"]
+        GEAR["GEARit snake<br>analog audio over Cat5/6"]
+        CDJ["CDJs<br>(beat sync planned)"]
+        DECKS -->|"2x XLR"| GEAR
     end
 
-    APPS -->|audio| LB
-    APPS -->|"OSC :3030"| CHR
-    LB -->|USB-C| HUB
-    CHR -->|USB-C| HUB
-    HUB --> MOTU
-    MOTU -->|"2x TRS to Euroblock"| AQM
-    AQM -->|"4 out"| HI
-    AQM -->|"4 out"| SUB
-    CTRL --> LEDS
-    IPAD -.->|web UI| AQM
+    subgraph SOUND["🔊 Sound"]
+        MOTU["MOTU M4"]
+        AQM["Ashly AQM408<br>matrix + crossover"]
+        IPAD["iPad<br>AQM408 web UI"]
+        HI["8x QSC highs"]
+        SUB["8x QSC lows"]
+        MOTU -->|"2x TRS to Euroblock"| AQM
+        AQM -->|"4 out"| HI
+        AQM -->|"4 out"| SUB
+        IPAD -.-> AQM
+    end
 
-    DECKS -->|"2x XLR"| GI1
-    GI1 ==>|"Cat5/6 = ANALOG AUDIO"| GI2
-    GI2 -->|"2x XLR"| MOTU
-    CDJ -.->|"Cat5/6 Pro DJ Link"| LIVECHR
-    LIVECHR -->|"Ethernet"| SW["Switch"]
-    HUB -->|"Ethernet"| SW
-    SW -->|"Art-Net"| CTRL
+    subgraph OUTPUT["💡 Output hardware"]
+        SW["Network switch"]
+        CTRL["32 LED controllers<br>10.0.1.101-.132"]
+        LEDS["13,280 LEDs<br>cube + cylinder"]
+        HBOX["Haptic driver box<br>standalone, on an interval"]
+        FLOOR["Haptic floor<br>96 motors + 96 lights"]
+        SW -->|"Art-Net"| CTRL
+        CTRL --> LEDS
+        HBOX --> FLOOR
+    end
+
+    LB ==>|"one USB-C cable<br>audio + network"| MOTU
+    CHR ==>|"same cable"| SW
+    LCHR -->|Ethernet| SW
+    GEAR -->|"2x XLR"| MOTU
+    CDJ -.->|"Pro DJ Link"| LCHR
+    CHR -.->|"Art-Net, built but off"| FLOOR
 ```
 
-Dashed = control or planned. The heavy line is Cat5/6 carrying **analog audio,
-not network**.
+**Reading it:** the two MacBooks are alternatives, never both driving at once.
+Everything in **Sound** and **Output hardware** is permanent; the **Live MacBook**
+and **Live DJ input** boxes only exist during live shows.
+
+Heavy lines are the single USB-C cable from the resident MacBook — it carries
+audio *and* network, so losing it takes out sound and lights together. Dashed
+lines are control or not-yet-built.
 
 > **Only one Chromatik may output at a time.** Both MacBooks run Chromatik and
 > both can reach the LED controllers over Art-Net. When bringing the live
