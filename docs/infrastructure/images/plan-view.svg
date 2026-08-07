@@ -74,6 +74,11 @@
   <text class="lblb" x="-155" y="552" text-anchor="middle">GEARit box</text>
   <text class="small" x="-155" y="568" text-anchor="middle">at the control position</text>
 
+  <!-- ==== haptic floor controller ==== -->
+  <rect class="box" x="-250" y="600" width="190" height="54"/>
+  <text class="lblb" x="-155" y="622" text-anchor="middle">Floor controller</text>
+  <text class="small" x="-155" y="640" text-anchor="middle">drives haptics on an interval</text>
+
   <!-- ==== switch — offset diagonally out from the corner ==== -->
   <rect class="box" x="-40" y="690" width="160" height="52"/>
   <text class="lblb" x="40" y="712" text-anchor="middle">Network switch</text>
@@ -117,6 +122,10 @@
   <path class="net" d="M 60 690 C 90 520, 150 260, 236 176" marker-end="url(#arrowNet)"/>
   <text class="small" x="96" y="560" fill="#1d6fb8">Art-Net</text>
   <text class="small" x="96" y="576" fill="#1d6fb8">32 controllers</text>
+
+  <!-- floor controller -> haptic floor -->
+  <path class="net" d="M -60 618 C 140 596, 330 520, 424 462" marker-end="url(#arrowNet)"/>
+  <text class="small" x="120" y="586" fill="#1d6fb8">to haptic floor</text>
 
   <!-- switch -> haptic floor -->
   <path class="net" d="M 120 716 C 280 716, 400 540, 452 470" marker-end="url(#arrowNet)"/>
