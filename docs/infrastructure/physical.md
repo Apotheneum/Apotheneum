@@ -13,10 +13,12 @@ For how a subsystem works, see [audio](audio-system.md) and
 things actually sit is not yet confirmed. Corrections welcome, and the file is
 plain SVG so it can be edited directly.
 
-Plan view: cube outside, cylinder inside, stage at centre. Speakers at the four
-corners, two highs and two lows each — eight runs from the Ashly, one per driver
-type. Control position to one side with the receiving GEARit box, network switch
-offset from the near corner, live MacBook at the stage edge next to the DJ.
+Plan view: cube outside, cylinder inside, stage at centre. The control position
+is broken out as the chain it actually is — stage snake into the GEARit box, XLR
+into the MOTU, TRS-to-Euroblock into the Ashly, then eight speaker runs out to
+the four corners, one per driver type. The MacBook sits alongside on USB-C. Live
+MacBook at the stage edge beside the DJ; floor controller and switch each reach
+the floor ethernet box.
 
 **TBD:** which corner the switch is actually in.
 **TBD:** power — where it comes from and how far the run is. Left off the

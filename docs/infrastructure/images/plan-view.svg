@@ -1,10 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="-260 0 1160 830" width="1160" height="830" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Helvetica, Arial, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-500 0 1400 830" width="1400" height="830" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Helvetica, Arial, sans-serif">
   <title>Apotheneum plan view — draft</title>
 
   <defs>
-    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-      <path d="M 0 0 L 10 5 L 0 10 z" fill="#8b8b8b"/>
-    </marker>
     <marker id="arrowAudio" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
       <path d="M 0 0 L 10 5 L 0 10 z" fill="#c2410c"/>
     </marker>
@@ -21,16 +18,15 @@
     .box   { fill: #808080; fill-opacity: .10; stroke: #7a7a7a; stroke-width: 1.5; rx: 4; }
     .audio { stroke: #c2410c; stroke-width: 2.5; fill: none; }
     .net   { stroke: #1d6fb8; stroke-width: 2.5; fill: none; }
-    .power { stroke: #8b8b8b; stroke-width: 2.5; fill: none; stroke-dasharray: 7 5; }
-    .spk   { fill: #c2410c; fill-opacity: .18; stroke: #c2410c; stroke-width: 1.5; }
     .hi    { stroke: #c2410c; stroke-width: 2; fill: none; }
     .lo    { stroke: #c2410c; stroke-width: 2; fill: none; stroke-dasharray: 6 4; }
+    .spk   { fill: #c2410c; fill-opacity: .18; stroke: #c2410c; stroke-width: 1.5; }
     .title { font-size: 20px; font-weight: 700; fill: #4a4a4a; }
     .tbd   { font-size: 11px; font-style: italic; fill: #b45309; }
   </style>
 
-  <text class="title" x="-250" y="38">Apotheneum — plan view</text>
-  <text class="tbd" x="-250" y="58">DRAFT — positions are placeholders. Correct on site.</text>
+  <text class="title" x="-490" y="38">Apotheneum — plan view</text>
+  <text class="tbd" x="-490" y="58">DRAFT — positions are placeholders. Correct on site.</text>
 
   <!-- ==== cube ==== -->
   <rect class="struct" x="230" y="150" width="500" height="500"/>
@@ -49,7 +45,17 @@
   <text class="small" x="480" y="423" text-anchor="middle">GEARit box (under stage)</text>
   <text class="small" x="480" y="452" text-anchor="middle">haptic floor beneath</text>
 
-  <!-- ==== speakers, 4 corners: 2 high + 2 low each ==== -->
+  <!-- ==== floor ethernet box, corner of the floor ==== -->
+  <rect class="box" x="342" y="478" width="132" height="36"/>
+  <text class="small" x="408" y="494" text-anchor="middle">Floor ethernet box</text>
+  <text class="small" x="408" y="508" text-anchor="middle">motors + lights</text>
+
+  <!-- ==== live macbook ==== -->
+  <rect class="box" x="566" y="478" width="158" height="52"/>
+  <text class="lblb" x="645" y="500" text-anchor="middle">Live MacBook</text>
+  <text class="small" x="645" y="518" text-anchor="middle">stage edge, live only</text>
+
+  <!-- ==== speakers, 4 corners ==== -->
   <g>
     <rect class="spk" x="252" y="176" width="58" height="24" rx="3"/>
     <text class="small" x="281" y="192" text-anchor="middle">2 hi · 2 lo</text>
@@ -61,91 +67,92 @@
     <text class="small" x="281" y="616" text-anchor="middle">2 hi · 2 lo</text>
   </g>
 
-  <!-- ==== control position ==== -->
-  <rect class="box" x="-250" y="370" width="190" height="132"/>
-  <text class="lblb" x="-155" y="394" text-anchor="middle">Control position</text>
-  <text class="lbl"  x="-155" y="418" text-anchor="middle">MacBook (resident)</text>
-  <text class="lbl"  x="-155" y="440" text-anchor="middle">MOTU case</text>
-  <text class="lbl"  x="-155" y="462" text-anchor="middle">Ashly case</text>
-  <text class="small" x="-155" y="484" text-anchor="middle">stacked — see physical.md</text>
+  <!-- ==== control position: signal chain, top to bottom ==== -->
+  <text class="small" x="-155" y="272" text-anchor="middle">— control position —</text>
 
-  <!-- ==== GEARit box at the control position ==== -->
-  <rect class="box" x="-250" y="530" width="190" height="46"/>
-  <text class="lblb" x="-155" y="552" text-anchor="middle">GEARit box</text>
-  <text class="small" x="-155" y="568" text-anchor="middle">at the control position</text>
+  <rect class="box" x="-250" y="286" width="190" height="46"/>
+  <text class="lblb" x="-155" y="304" text-anchor="middle">GEARit box</text>
+  <text class="small" x="-155" y="322" text-anchor="middle">receives the stage snake</text>
 
-  <!-- ==== haptic floor controller ==== -->
-  <rect class="box" x="-250" y="600" width="190" height="54"/>
-  <text class="lblb" x="-155" y="622" text-anchor="middle">Floor controller</text>
-  <text class="small" x="-155" y="640" text-anchor="middle">drives haptics on an interval</text>
+  <rect class="box" x="-250" y="378" width="190" height="46"/>
+  <text class="lblb" x="-155" y="396" text-anchor="middle">MOTU M4</text>
+  <text class="small" x="-155" y="414" text-anchor="middle">in its Pelican case</text>
 
-  <!-- ==== switch — offset diagonally out from the corner ==== -->
+  <rect class="box" x="-250" y="470" width="190" height="52"/>
+  <text class="lblb" x="-155" y="490" text-anchor="middle">Ashly AQM408</text>
+  <text class="small" x="-155" y="508" text-anchor="middle">matrix + crossover</text>
+
+  <!-- ==== macbook, offset ==== -->
+  <rect class="box" x="-470" y="368" width="180" height="66"/>
+  <text class="lblb" x="-380" y="392" text-anchor="middle">Resident MacBook</text>
+  <text class="small" x="-380" y="410" text-anchor="middle">on top of the MOTU case</text>
+  <text class="small" x="-380" y="426" text-anchor="middle">prerecorded shows</text>
+
+  <!-- ==== floor controller ==== -->
+  <rect class="box" x="-470" y="560" width="180" height="56"/>
+  <text class="lblb" x="-380" y="583" text-anchor="middle">Floor controller</text>
+  <text class="small" x="-380" y="601" text-anchor="middle">haptics, on an interval</text>
+
+  <!-- ==== switch ==== -->
   <rect class="box" x="-40" y="690" width="160" height="52"/>
   <text class="lblb" x="40" y="712" text-anchor="middle">Network switch</text>
   <text class="small" x="40" y="730" text-anchor="middle">10.0.1.0/24</text>
 
-  <!-- ==== floor ethernet box, at the corner of the floor ==== -->
-  <rect class="box" x="342" y="478" width="132" height="36"/>
-  <text class="small" x="408" y="494" text-anchor="middle">Floor ethernet box</text>
-  <text class="small" x="408" y="508" text-anchor="middle">motors + lights</text>
+  <!-- ================= connections ================= -->
 
-  <!-- ==== live macbook ==== -->
-  <rect class="box" x="566" y="478" width="158" height="52"/>
-  <text class="lblb" x="645" y="500" text-anchor="middle">Live MacBook</text>
-  <text class="small" x="645" y="518" text-anchor="middle">stage edge, live only</text>
+  <!-- stage snake -> GEARit at control position (Cat5 cable, analog inside) -->
+  <path class="net" d="M 425 419 C 240 360, 40 320, -60 310" marker-end="url(#arrowNet)"/>
+  <text class="small" x="182" y="344" text-anchor="middle" fill="#c2410c">Cat5/6 cable — ANALOG AUDIO inside</text>
 
-  <!-- ==== connections ==== -->
-  <!-- control -> switch -->
-  <path class="net" d="M -60 470 C 10 540, -20 640, -25 690" marker-end="url(#arrowNet)"/>
-  <text class="small" x="-16" y="600" fill="#1d6fb8">Ethernet</text>
+  <!-- GEARit -> MOTU -->
+  <path class="audio" d="M -155 332 L -155 378" marker-end="url(#arrowAudio)"/>
+  <text class="small" x="-148" y="358">2x XLR</text>
 
-  <!-- stage GEARit -> control (analog audio over cat5) -->
-  <path class="net" d="M 425 425 C 240 500, 40 560, -60 553" marker-end="url(#arrowNet)"/>
-  <text class="small" x="190" y="528" text-anchor="middle" fill="#c2410c">Cat5/6 cable — ANALOG AUDIO inside</text>
+  <!-- MacBook -> MOTU -->
+  <path class="net" d="M -290 398 L -250 398" marker-end="url(#arrowNet)"/>
+  <text class="small" x="-288" y="390">USB-C</text>
 
-  <!-- GEARit -> MOTU, short XLR hop -->
-  <path class="audio" d="M -155 530 L -155 502" marker-end="url(#arrowAudio)"/>
-  <text class="small" x="-146" y="522" fill="#c2410c">2x XLR</text>
+  <!-- MOTU -> Ashly -->
+  <path class="audio" d="M -155 424 L -155 470" marker-end="url(#arrowAudio)"/>
+  <text class="small" x="-148" y="450">2x TRS → Euroblock</text>
 
-  <!-- Ashly -> 4 corners, one cable per driver type (8 total) -->
-  <!-- NW -->
-  <path class="hi" d="M -60 390 C 40 302, 158 212, 248 190" marker-end="url(#arrowAudio)"/>
-  <path class="lo" d="M -60 400 C 48 320, 168 228, 252 202" marker-end="url(#arrowAudio)"/>
-  <!-- SW -->
-  <path class="hi" d="M -60 476 C 40 546, 160 596, 248 606" marker-end="url(#arrowAudio)"/>
-  <path class="lo" d="M -60 486 C 48 562, 170 612, 252 620" marker-end="url(#arrowAudio)"/>
-  <!-- NE, routed over the top -->
-  <path class="hi" d="M -60 380 C 0 128, 330 98, 668 170" marker-end="url(#arrowAudio)"/>
-  <path class="lo" d="M -60 370 C 10 108, 340 78, 686 168" marker-end="url(#arrowAudio)"/>
-  <!-- SE, routed along the bottom -->
-  <path class="hi" d="M -60 494 C 70 668, 400 664, 668 628" marker-end="url(#arrowAudio)"/>
-  <path class="lo" d="M -60 504 C 78 686, 410 682, 686 630" marker-end="url(#arrowAudio)"/>
-  <text class="small" x="-46" y="330" fill="#c2410c">8 runs: high + low</text>
-  <text class="small" x="-46" y="345" fill="#c2410c">to each of 4 corners</text>
+  <!-- MOTU case hub -> switch -->
+  <path class="net" d="M -60 410 C 40 470, 20 610, -12 690" marker-end="url(#arrowNet)"/>
+  <text class="small" x="16" y="566" fill="#1d6fb8">Ethernet</text>
+
+  <!-- Ashly -> 4 corners, high + low each -->
+  <path class="hi" d="M -60 482 C 40 400, 158 240, 248 190" marker-end="url(#arrowAudio)"/>
+  <path class="lo" d="M -60 492 C 48 414, 168 256, 252 202" marker-end="url(#arrowAudio)"/>
+  <path class="hi" d="M -60 500 C 40 556, 160 596, 248 606" marker-end="url(#arrowAudio)"/>
+  <path class="lo" d="M -60 510 C 48 572, 170 612, 252 620" marker-end="url(#arrowAudio)"/>
+  <path class="hi" d="M -60 476 C 20 140, 340 104, 668 170" marker-end="url(#arrowAudio)"/>
+  <path class="lo" d="M -60 470 C 30 120, 350 84, 686 168" marker-end="url(#arrowAudio)"/>
+  <path class="hi" d="M -60 516 C 70 672, 400 664, 668 628" marker-end="url(#arrowAudio)"/>
+  <path class="lo" d="M -60 522 C 78 690, 410 682, 686 630" marker-end="url(#arrowAudio)"/>
+  <text class="small" x="-56" y="546" fill="#c2410c">8 runs: high + low to each corner</text>
+
+  <!-- floor controller -> floor ethernet box -->
+  <path class="net" d="M -290 586 C -60 620, 200 560, 340 502" marker-end="url(#arrowNet)"/>
+  <text class="small" x="-40" y="620" fill="#1d6fb8">to floor ethernet box</text>
 
   <!-- switch -> LEDs -->
   <path class="net" d="M 60 690 C 90 520, 150 260, 236 176" marker-end="url(#arrowNet)"/>
-  <text class="small" x="96" y="560" fill="#1d6fb8">Art-Net</text>
-  <text class="small" x="96" y="576" fill="#1d6fb8">32 controllers</text>
+  <text class="small" x="82" y="600" fill="#1d6fb8">Art-Net — 32 controllers</text>
 
-  <!-- floor controller -> haptic floor -->
-  <path class="net" d="M -60 618 C 120 604, 250 560, 340 502" marker-end="url(#arrowNet)"/>
-  <text class="small" x="104" y="590" fill="#1d6fb8">to floor ethernet box</text>
-
-  <!-- switch -> haptic floor -->
+  <!-- switch -> floor -->
   <path class="net" d="M 120 704 C 250 664, 340 570, 380 516" marker-end="url(#arrowNet)"/>
-  <text class="small" x="212" y="664" fill="#1d6fb8">Art-Net to floor</text>
+  <text class="small" x="196" y="668" fill="#1d6fb8">Art-Net to floor</text>
 
-  <!-- stage CDJ ethernet -> live macbook -->
+  <!-- CDJs -> live macbook -->
   <path class="net" d="M 552 452 L 594 478" marker-end="url(#arrowNet)"/>
   <text class="small" x="556" y="474" fill="#1d6fb8">Pro DJ Link</text>
 
   <!-- live macbook -> switch -->
-  <path class="net" d="M 600 530 C 470 700, 260 760, 122 730" marker-end="url(#arrowNet)"/>
-  <text class="small" x="376" y="754" text-anchor="middle" fill="#1d6fb8">Ethernet to switch</text>
+  <path class="net" d="M 600 530 C 470 700, 260 762, 122 730" marker-end="url(#arrowNet)"/>
+  <text class="small" x="368" y="742" text-anchor="middle" fill="#1d6fb8">Ethernet to switch</text>
 
   <!-- ==== legend ==== -->
-  <g transform="translate(640, 240)">
+  <g transform="translate(640, 250)">
     <rect class="box" x="0" y="-22" width="240" height="122"/>
     <line class="audio" x1="14" y1="0" x2="46" y2="0"/>
     <text class="small" x="56" y="4">audio</text>
