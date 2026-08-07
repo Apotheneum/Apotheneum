@@ -51,11 +51,6 @@
   <path class="audio" d="M 480 400 L 480 424" marker-end="url(#arrowAudio)"/>
   <text class="small" x="488" y="418" fill="#c2410c">2x XLR</text>
 
-  <!-- ==== LED controllers ==== -->
-  <rect class="box" x="388" y="158" width="184" height="44"/>
-  <text class="lblb" x="480" y="176" text-anchor="middle">32 LED controllers</text>
-  <text class="small" x="480" y="192" text-anchor="middle">on top of the cube</text>
-
   <!-- ==== floor ethernet box, corner of the floor ==== -->
   <rect class="box" x="342" y="478" width="132" height="36"/>
   <text class="lblb" x="408" y="494" text-anchor="middle">Stage switch</text>
@@ -108,9 +103,14 @@
   <rect class="box" x="-470" y="566" width="180" height="40"/>
   <text class="lblb" x="-380" y="591" text-anchor="middle">Local switch</text>
 
+  <!-- ==== top switch, on top of the cube ==== -->
+  <rect class="box" x="60" y="608" width="170" height="46"/>
+  <text class="lblb" x="145" y="626" text-anchor="middle">Top switch</text>
+  <text class="small" x="145" y="642" text-anchor="middle">on top of the cube</text>
+
   <!-- ==== switch, at the cube corner ==== -->
-  <rect class="box" x="150" y="700" width="160" height="40"/>
-  <text class="lblb" x="230" y="725" text-anchor="middle">Network switch</text>
+  <rect class="box" x="60" y="700" width="170" height="40"/>
+  <text class="lblb" x="145" y="725" text-anchor="middle">Corner switch</text>
 
   <!-- ================= connections ================= -->
 
@@ -155,15 +155,17 @@
   <text class="small" x="-374" y="548" fill="#1d6fb8">Ethernet</text>
 
   <!-- local switch -> corner switch, one cable -->
-  <path class="net" d="M -290 596 C -120 700, 20 736, 148 724" marker-end="url(#arrowNet)"/>
+  <path class="net" d="M -290 596 C -160 700, -60 736, 58 724" marker-end="url(#arrowNet)"/>
   <text class="small" x="-176" y="690" fill="#1d6fb8">single cable to the corner</text>
 
   <!-- switch -> LEDs -->
-  <path class="net" d="M 238 700 C 232 480, 330 250, 400 202" marker-end="url(#arrowNet)"/>
-  <text class="small" x="248" y="470" fill="#1d6fb8">Art-Net</text>
+  <path class="net" d="M 145 700 L 145 654" marker-end="url(#arrowNet)"/>
+  <path class="net" d="M 145 608 C 145 420, 250 230, 320 186" marker-end="url(#arrowNet)"/>
+  <text class="small" x="152" y="420" fill="#1d6fb8">Art-Net to all 32</text>
+  <text class="small" x="152" y="434" fill="#1d6fb8">LED controllers</text>
 
   <!-- switch -> floor -->
-  <path class="net" d="M 290 700 C 330 620, 348 556, 376 516" marker-end="url(#arrowNet)"/>
+  <path class="net" d="M 230 712 C 320 660, 348 566, 378 518" marker-end="url(#arrowNet)"/>
   <text class="small" x="300" y="612" fill="#1d6fb8">uplink to stage switch</text>
 
   <!-- CDJs -> live macbook -->

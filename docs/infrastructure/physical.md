@@ -158,19 +158,26 @@ ventilation, and whether they run closed.
 | Resident MacBook | MacBook | MOTU case | **One USB-C cable** — carries audio and network both |
 | Resident MacBook uplink | MOTU case Ethernet port | Switch | Fed by the internal hub |
 
-### Three switches, chained
+### Four switches, chained
 
 ```text
-  MacBook ─┐
-           ├─▶ Local switch ──one cable──▶ Corner switch ──▶ Stage switch ──┬─▶ floor motors + lights
-  Floor ───┘   (control position)         │                                └─▶ Live MacBook
-  controller                              └─▶ 32 LED controllers
+  MacBook ─┐                              ┌─▶ Top switch ──▶ 32 LED controllers
+           ├─▶ Local switch ──one cable──▶ Corner switch
+  Floor ───┘   (control position)         └─▶ Stage switch ──┬─▶ floor motors + lights
+  controller                                                 └─▶ Live MacBook
 ```
 
+| Switch | Where | Serves |
+|---|---|---|
+| Local | Control position | MacBook, floor controller |
+| Corner | Corner of the cube | Uplinks to top and stage |
+| Top | On top of the cube | All 32 LED controllers |
+| Stage | Corner of the stage | Floor motors and lights, live MacBook |
+
 The MacBook and floor controller plug into a **local switch** at the control
-position, which reaches the **corner switch** over a single cable. The corner
-switch feeds the LED controllers and uplinks to the **stage switch**, which
-serves the floor and the live MacBook.
+position, which reaches the **corner switch** over a single cable. From the
+corner, one run goes up to the **top switch** — which every LED controller hangs
+off — and another to the **stage switch**.
 
 **Is it a problem that the live MacBook's Art-Net goes stage → corner → LEDs?**
 No. Switched Ethernet forwards frames wherever they're addressed; two hops costs
@@ -199,7 +206,7 @@ What to watch:
 - **Don't let anything broadcast onto this network.** That includes tools that
   default to broadcast Art-Net.
 - **Keep Pro DJ Link off it** — separate NIC on the live MacBook, as planned.
-- **Never patch a second cable between any two switches.** With three switches
+- **Never patch a second cable between any two switches.** With four switches
   chained, one extra cable creates a loop, and unmanaged switches have no
   spanning tree to break it. The result is a broadcast storm that takes down
   every network in the rig at once — the single most destructive mistake
@@ -207,10 +214,12 @@ What to watch:
 - **The uplinks carry everything downstream of them.** All Art-Net from the live
   MacBook crosses stage → corner. Fine on gigabit, tight on 100 Mbit.
 - **Each switch is a failure domain for what hangs off it.** Corner switch down
-  = lights, floor, and live MacBook all gone. Stage switch down = floor and live
-  MacBook. Local switch down = the resident machine and floor controller.
+  = everything downstream: lights, floor, live MacBook. Top switch down = all 32
+  LED controllers, nothing else. Stage switch down = floor and live MacBook.
+  Local switch down = the resident machine and floor controller. Which symptom
+  appears tells you which switch to look at.
 
-**TBD:** confirm all three switches are gigabit, and record make/model and
+**TBD:** confirm all four switches are gigabit, and record make/model and
 location for each.
 
 ### The switch
