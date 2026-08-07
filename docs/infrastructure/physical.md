@@ -7,9 +7,22 @@ For how a subsystem works, see [audio](audio-system.md) and
 
 ## Layout
 
-**TBD — the spatial description.** Cube with the stage in the middle; cable runs
-from stage to the two Pelican cases, and from there out to the speakers and LED
-controllers. Worth a plan-view diagram once the routes are confirmed.
+![Plan view](images/plan-view.svg)
+
+**This is a draft — positions are placeholders.** The topology is right; where
+things actually sit is not yet confirmed. Corrections welcome, and the file is
+plain SVG so it can be edited directly.
+
+Plan view: cube outside, cylinder inside, stage at centre. Speakers at the four
+corners, two highs and two lows each. Control position and generator to one side,
+network switch at the near corner.
+
+**TBD:** which corner the switch is actually in.
+**TBD:** where the generator sits relative to the control position, and how far
+the AC run is.
+**TBD:** actual cable routes — the lines here show what connects to what, not the
+path a cable takes.
+**TBD:** where the 32 LED controllers physically sit around the structure.
 
 ## Pelican cases
 

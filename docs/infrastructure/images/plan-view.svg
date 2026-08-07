@@ -1,0 +1,129 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 820" width="900" height="820" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Helvetica, Arial, sans-serif">
+  <title>Apotheneum plan view — draft</title>
+
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#8b8b8b"/>
+    </marker>
+    <marker id="arrowAudio" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#c2410c"/>
+    </marker>
+    <marker id="arrowNet" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#1d6fb8"/>
+    </marker>
+  </defs>
+
+  <style>
+    .lbl   { font-size: 13px; fill: #6b6b6b; }
+    .lblb  { font-size: 14px; font-weight: 600; fill: #4a4a4a; }
+    .small { font-size: 11px; fill: #8b8b8b; }
+    .struct{ fill: none; stroke: #9a9a9a; stroke-width: 2; }
+    .box   { fill: #808080; fill-opacity: .10; stroke: #7a7a7a; stroke-width: 1.5; rx: 4; }
+    .audio { stroke: #c2410c; stroke-width: 2.5; fill: none; }
+    .net   { stroke: #1d6fb8; stroke-width: 2.5; fill: none; }
+    .power { stroke: #8b8b8b; stroke-width: 2.5; fill: none; stroke-dasharray: 7 5; }
+    .spk   { fill: #c2410c; fill-opacity: .18; stroke: #c2410c; stroke-width: 1.5; }
+    .title { font-size: 20px; font-weight: 700; fill: #4a4a4a; }
+    .tbd   { font-size: 11px; font-style: italic; fill: #b45309; }
+  </style>
+
+  <text class="title" x="30" y="38">Apotheneum — plan view</text>
+  <text class="tbd" x="30" y="58">DRAFT — positions are placeholders. Correct on site.</text>
+
+  <!-- ==== cube ==== -->
+  <rect class="struct" x="230" y="150" width="500" height="500"/>
+  <text class="lblb" x="240" y="170">Cube</text>
+
+  <!-- ==== cylinder ==== -->
+  <circle class="struct" cx="480" cy="400" r="185"/>
+  <text class="lblb" x="480" y="238" text-anchor="middle">Cylinder</text>
+
+  <!-- ==== stage ==== -->
+  <rect class="box" x="405" y="330" width="150" height="140"/>
+  <text class="lblb" x="480" y="356" text-anchor="middle">Stage</text>
+  <text class="lbl"  x="480" y="376" text-anchor="middle">CDJs / decks</text>
+  <text class="lbl"  x="480" y="394" text-anchor="middle">mixer</text>
+  <rect class="box" x="425" y="406" width="110" height="26"/>
+  <text class="small" x="480" y="423" text-anchor="middle">GEARit box (under stage)</text>
+  <text class="small" x="480" y="452" text-anchor="middle">haptic floor beneath</text>
+
+  <!-- ==== speakers, 4 corners: high + low each ==== -->
+  <g>
+    <rect class="spk" x="258" y="178" width="46" height="22" rx="3"/>
+    <text class="small" x="281" y="193" text-anchor="middle">2 hi 2 lo</text>
+    <rect class="spk" x="656" y="178" width="46" height="22" rx="3"/>
+    <text class="small" x="679" y="193" text-anchor="middle">2 hi 2 lo</text>
+    <rect class="spk" x="656" y="600" width="46" height="22" rx="3"/>
+    <text class="small" x="679" y="615" text-anchor="middle">2 hi 2 lo</text>
+    <rect class="spk" x="258" y="600" width="46" height="22" rx="3"/>
+    <text class="small" x="281" y="615" text-anchor="middle">2 hi 2 lo</text>
+  </g>
+
+  <!-- ==== corner: switch ==== -->
+  <rect class="box" x="150" y="620" width="130" height="46"/>
+  <text class="lblb" x="215" y="640" text-anchor="middle">Network switch</text>
+  <text class="small" x="215" y="656" text-anchor="middle">10.0.1.0/24</text>
+
+  <!-- ==== control position ==== -->
+  <rect class="box" x="60" y="470" width="180" height="120"/>
+  <text class="lblb" x="150" y="492" text-anchor="middle">Control position</text>
+  <text class="lbl"  x="150" y="514" text-anchor="middle">MacBook (resident)</text>
+  <text class="lbl"  x="150" y="534" text-anchor="middle">MOTU case</text>
+  <text class="lbl"  x="150" y="554" text-anchor="middle">Ashly case</text>
+  <text class="small" x="150" y="574" text-anchor="middle">stacked, see physical.md</text>
+
+  <!-- ==== generator ==== -->
+  <rect class="box" x="60" y="370" width="180" height="60"/>
+  <text class="lblb" x="150" y="394" text-anchor="middle">Generator</text>
+  <text class="small" x="150" y="412" text-anchor="middle">AC to control position</text>
+
+  <!-- ==== live macbook ==== -->
+  <rect class="box" x="660" y="700" width="180" height="56"/>
+  <text class="lblb" x="750" y="722" text-anchor="middle">Live MacBook</text>
+  <text class="small" x="750" y="740" text-anchor="middle">live shows only</text>
+
+  <!-- ==== connections ==== -->
+  <!-- generator -> control -->
+  <path class="power" d="M 150 430 L 150 470" marker-end="url(#arrow)"/>
+
+  <!-- control -> switch -->
+  <path class="net" d="M 160 590 L 190 620" marker-end="url(#arrowNet)"/>
+
+  <!-- stage GEARit -> control (analog audio over cat5) -->
+  <path class="audio" d="M 425 419 C 330 419, 300 500, 240 520" marker-end="url(#arrowAudio)"/>
+  <text class="small" x="316" y="474" text-anchor="middle" fill="#c2410c">Cat5/6 — ANALOG AUDIO</text>
+
+  <!-- stage CDJ ethernet -> live macbook -->
+  <path class="net" d="M 545 440 C 640 500, 700 640, 740 700" marker-end="url(#arrowNet)"/>
+  <text class="small" x="672" y="574" fill="#1d6fb8">Cat5/6 — Pro DJ Link</text>
+
+  <!-- live macbook -> switch -->
+  <path class="net" d="M 660 728 C 420 790, 260 720, 225 666" marker-end="url(#arrowNet)"/>
+  <text class="small" x="452" y="782" text-anchor="middle" fill="#1d6fb8">Ethernet</text>
+
+  <!-- switch -> LEDs (around structure) -->
+  <path class="net" d="M 245 630 C 300 600, 240 300, 240 200" marker-end="url(#arrowNet)"/>
+  <text class="small" x="196" y="330" fill="#1d6fb8">Art-Net</text>
+  <text class="small" x="196" y="346" fill="#1d6fb8">32 controllers</text>
+
+  <!-- switch -> haptic floor -->
+  <path class="net" d="M 280 646 C 380 646, 420 500, 448 470" marker-end="url(#arrowNet)"/>
+  <text class="small" x="368" y="600" fill="#1d6fb8">to haptic floor switch</text>
+
+  <!-- Ashly -> speakers (one representative run) -->
+  <path class="audio" d="M 240 545 C 320 560, 300 630, 258 611" marker-end="url(#arrowAudio)"/>
+  <path class="audio" d="M 200 470 C 210 300, 240 210, 258 192" marker-end="url(#arrowAudio)"/>
+  <text class="small" x="120" y="255" fill="#c2410c">speaker runs</text>
+  <text class="small" x="120" y="271" fill="#c2410c">to 4 corners</text>
+
+  <!-- ==== legend ==== -->
+  <g transform="translate(620, 100)">
+    <rect class="box" x="0" y="-20" width="250" height="96"/>
+    <line class="audio" x1="14" y1="0" x2="46" y2="0"/>
+    <text class="small" x="56" y="4">audio</text>
+    <line class="net" x1="14" y1="24" x2="46" y2="24"/>
+    <text class="small" x="56" y="28">network / Art-Net</text>
+    <line class="power" x1="14" y1="48" x2="46" y2="48"/>
+    <text class="small" x="56" y="52">AC power</text>
+  </g>
+</svg>
