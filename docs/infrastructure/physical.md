@@ -68,8 +68,15 @@ hub.** A failure there takes out the PA feed and Art-Net output together, which
 looks like two unrelated faults at once and invites troubleshooting in the wrong
 place. It also means a spare USB-C cable is worth more than its price suggests.
 
-**TBD:** what the hub/dock actually is — make, model, whether it's powered.
-**TBD:** is the MacBook also charged over this cable, or separately?
+**The hub is powered** — it runs from AC, not from the MacBook's bus. That
+removes the usual suspect for intermittent dropouts on a chain like this, and it
+means the hub keeps its downstream devices alive independently of the laptop.
+
+**TBD:** what the hub/dock actually is — make and model.
+**TBD:** does the MacBook charge over this same USB-C cable? A powered hub
+usually delivers power back over USB-C PD, which would make the one cable
+data + audio + charging. Worth confirming, because it changes what unplugging
+the laptop actually does.
 **TBD:** the USB-C cable's spec. Not all USB-C cables carry data at the same
 rate, and a charge-only cable would fail in a confusing way.
 **TBD:** is there a spare?
@@ -144,8 +151,14 @@ different things. Both ends of both should be labelled.
 
 ## Power
 
-**TBD** — not documented. Needs: what's on which circuit, total draw, what the
-two cases are fed from, and whether the speakers are locally powered.
+Everything in the case runs from AC — the powered USB hub included. There is an
+AC adapter that the case's contents plug into.
+
+**TBD:** what the AC adapter / distribution actually is, and its capacity.
+**TBD:** how many AC feeds the rig needs in total, and from where.
+**TBD:** what's on which circuit, and total draw.
+**TBD:** are the QSC boxes locally powered at each corner?
+**TBD:** anything on UPS? A power blip currently takes down the whole show.
 
 ## Photos needed
 

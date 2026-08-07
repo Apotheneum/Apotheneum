@@ -20,7 +20,7 @@ yet acquired · **Planned** = future work.
 | Item | Qty | Status | Notes |
 |---|---|---|---|
 | MOTU M4 | 1 | In service | 4-in/4-out USB-C interface, bus-powered. In its own Pelican case, MacBook on top |
-| USB hub/dock, MOTU case | 1 | In service | Fans the single USB-C cable out to the M4 and the case's Ethernet port. **Inferred** — **TBD** make/model, powered or not |
+| USB hub/dock, MOTU case | 1 | In service | Powered from AC. Fans the single USB-C cable out to the M4 and the case's Ethernet port. **TBD** make/model |
 | Ashly AQM408 | 1 | In service | 1RU, 4x8 DSP matrix + crossover. In its own Pelican case. **TBD** MAC, IP, rack position |
 | QSC highs | 8 | In service | Powered, with loop-thru. 4 driven from the Ashly, 4 daisy-chained. **TBD** model |
 | QSC lows | 8 | In service | Powered, with loop-thru. 4 driven from the Ashly, 4 daisy-chained. **TBD** model |
@@ -39,6 +39,13 @@ yet acquired · **Planned** = future work.
 |---|---|---|---|
 | Haptic floor driver box | 1 | In service | Standalone, interval-driven. Not connected to Chromatik. **TBD** make/model |
 | Haptic triangles | 6 | In service | 16 positions each, every position a motor + a light. 96 motors, 96 lights. Art-Net path to `10.0.1.201` exists but is disabled. See [haptics](haptics.md) |
+
+## Power
+
+| Item | Qty | Status | Notes |
+|---|---|---|---|
+| AC adapter / distribution, case | 1 | In service | Everything in the case plugs into it, hub included. **TBD** make/model, capacity |
+| UPS | 0 | — | **TBD** whether one is wanted; a blip currently drops the whole show |
 
 ## Network
 
