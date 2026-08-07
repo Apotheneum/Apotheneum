@@ -154,6 +154,33 @@ ventilation, and whether they run closed.
 | Resident MacBook | MacBook | MOTU case | **One USB-C cable** — carries audio and network both |
 | Resident MacBook uplink | MOTU case Ethernet port | Switch | Fed by the internal hub |
 
+### Sharing one switch between lights and floor
+
+Low risk as built, for one specific reason: **Art-Net here is unicast, not
+broadcast.** Every controller has its own host address in the fixture files
+(`10.0.1.101`–`.132`, floor at `.201`), so the switch forwards each stream only
+to its destination. The floor never sees LED traffic and vice versa. Had this
+been broadcast Art-Net, every device would receive all 192 universes and the
+cheapest hardware on the network would be the first to fall over.
+
+Rough load: 192 universes at ~44 fps is on the order of **40 Mbps**. Comfortable
+on gigabit, marginal on a 100 Mbit switch. The floor adds one universe — noise
+by comparison.
+
+What to watch:
+
+- **Use gigabit switches.** At 100 Mbit the LED traffic alone is a third of the
+  link.
+- **Shared failure domain.** One switch now takes out lights *and* floor
+  together. That's the real cost of consolidating, and it's a reasonable trade
+  for one less cable run — but worth knowing when something goes dark.
+- **Don't let anything broadcast onto this network.** That includes tools that
+  default to broadcast Art-Net.
+- **Keep Pro DJ Link off it** — separate NIC on the live MacBook, as planned.
+- **Don't cross-connect the two switches** into a loop.
+
+**TBD:** confirm both switches are gigabit.
+
 ### The switch
 
 A network switch ties the whole system together. The **live MacBook connects to
