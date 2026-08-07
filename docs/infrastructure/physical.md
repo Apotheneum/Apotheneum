@@ -15,18 +15,26 @@ controllers. Worth a plan-view diagram once the routes are confirmed.
 
 **There are two**, and it's worth being precise about which is which.
 
-| Case | Contains | Notes |
-|---|---|---|
-| **Ashly case** | Ashly AQM408 | Rear panel covers the AQM408's own connectors — see below |
-| **MOTU case** | MOTU M4 | The resident MacBook **sits on top of this case**, not inside it |
+They are **stacked, and stay stacked** — the MOTU case is always in place on top
+of the Ashly case, with the resident MacBook on top of that.
 
-The MacBook being on the lid rather than in a case has consequences worth
-noting: it is the exposed element of the rig, it needs the case closed to sit
-on, and anything requiring the MOTU case to be opened means moving the machine
-that is running the show.
+```text
+        ┌──────────────────────┐
+        │  Resident MacBook    │   sits on the lid
+        ├──────────────────────┤
+        │  MOTU case (M4)      │   always in place
+        ├──────────────────────┤
+        │  Ashly case (AQM408) │   rear panel + multipin, see below
+        └──────────────────────┘
+```
+
+Consequences worth noting: the MacBook is the exposed element of the rig; the
+MOTU case must stay closed for it to sit on; and reaching the Ashly means moving
+both the machine running the show and the interface above it. Nothing in this
+stack is a casual thing to open during a show day.
 
 **TBD:** how the MacBook is secured, if at all.
-**TBD:** where the two cases sit relative to each other and to the stage.
+**TBD:** where the stack sits relative to the stage.
 **TBD:** is the MOTU case's rear panelled like the Ashly's, or are the M4's
 jacks reachable directly?
 
@@ -78,7 +86,20 @@ ventilation, and whether they run closed.
 | Analog audio snake | GEARit box under stage | GEARit box at MOTU | Cat5/6 carrying **analog audio, not network**. **TBD** length and route |
 | Pro DJ Link | Stage | Live MacBook | Separate Cat5/6, real network. **TBD** route |
 | Speaker outputs | Pelican panel connector | 4 corners | 8 circuits through one multipin. **TBD** breakout location |
-| LED network | **TBD** | 32 controllers | **TBD** switch location and topology |
+| LED network | Switch | 32 controllers | **TBD** switch location, model, port count |
+| Live MacBook uplink | Live MacBook Ethernet | Switch | Its only connection to the system |
+
+### The switch
+
+A network switch ties the whole system together. The **live MacBook connects to
+it over Ethernet and nothing else** — it has no audio path, no connection to the
+MOTU, and no connection to the Ashly. Its entire participation in the show is
+Art-Net over that one link.
+
+**TBD:** switch make, model, port count, and where it physically sits.
+**TBD:** what else is on it — the AQM408's control port, the resident MacBook,
+the 32 LED controllers, and the haptics box are all candidates.
+**TBD:** what serves DHCP on `10.0.1.0/24`, if anything.
 
 **Labelling:** the two Cat5/6 runs from stage look identical and carry entirely
 different things. Both ends of both should be labelled.

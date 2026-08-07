@@ -26,7 +26,7 @@ flowchart TB
         GI1["GEARit box<br>under stage"]
         GI2["GEARit box<br>at MOTU"]
         CDJ["CDJs"]
-        LIVECHR["Live MacBook<br>Chromatik (LX)<br>+ USB MIDI<br>no Loopback"]
+        LIVECHR["Live MacBook<br>Chromatik (LX)<br>+ USB MIDI<br>Ethernet only"]
     end
 
     APPS -->|audio| LB
@@ -35,7 +35,6 @@ flowchart TB
     MOTU -->|"2x TRS to Euroblock"| AQM
     AQM -->|"4 out"| HI
     AQM -->|"4 out"| SUB
-    CHR -->|"Art-Net (off during live)"| CTRL
     CTRL --> LEDS
     IPAD -.->|web UI| AQM
 
@@ -43,7 +42,9 @@ flowchart TB
     GI1 ==>|"Cat5/6 = ANALOG AUDIO"| GI2
     GI2 -->|"2x XLR"| MOTU
     CDJ -.->|"Cat5/6 Pro DJ Link"| LIVECHR
-    LIVECHR -->|"Art-Net (live only)"| CTRL
+    LIVECHR -->|"Ethernet"| SW["Switch"]
+    CHR -->|"Ethernet"| SW
+    SW -->|"Art-Net"| CTRL
 ```
 
 Dashed = control or planned. The heavy line is Cat5/6 carrying **analog audio,
@@ -71,6 +72,7 @@ not network**.
 | Chromatik | Yes | Yes |
 | Loopback | Yes | **No** |
 | Art-Net to LEDs | Yes — **off during live sets** | Yes — live sets only |
+| Connection to the system | Ethernet + USB to MOTU | **Ethernet only** — no MOTU, no Ashly |
 | USB MIDI controllers | — | Yes |
 | Audio to the PA | Yes, via Loopback → MOTU | No |
 

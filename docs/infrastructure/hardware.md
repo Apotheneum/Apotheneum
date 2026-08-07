@@ -11,7 +11,8 @@ yet acquired · **Planned** = future work.
 |---|---|---|---|
 | Resident MacBook | 1 | In service | Sits on top of the MOTU Pelican case. Runs prerecorded sets. **TBD** model, macOS version |
 | Live MacBook | 1 | In service | Brought out for live sets. USB MIDI connects here. **TBD** model, macOS version |
-| USB Ethernet adapter | 1 | Needed | Second NIC for the live MacBook — CDJ network on one, LEDs on the other |
+| Ethernet adapter, live MacBook | 1 | In service | Its only link to the system — Ethernet to the switch, nothing else |
+| Second Ethernet adapter, live MacBook | 1 | Needed | For the CDJ Pro DJ Link network, keeping it off the Art-Net segment |
 | iPad | 1 | In service | AQM408 web UI. **TBD** model, iPadOS version |
 
 ## Audio
@@ -42,7 +43,7 @@ yet acquired · **Planned** = future work.
 
 | Item | Qty | Status | Notes |
 |---|---|---|---|
-| Switch(es) | **TBD** | In service | **TBD** make/model/port count, and what serves DHCP on `10.0.1.0/24` |
+| Switch | 1+ | In service | Ties the whole system together — LED controllers, both MacBooks, AQM408 control. **TBD** make/model/port count, location, and what serves DHCP |
 | Router | **TBD** | **TBD** | **TBD** whether one exists, and what the iPad joins |
 
 ## Cables
