@@ -37,7 +37,8 @@ yet acquired · **Planned** = future work.
 
 | Item | Qty | Status | Notes |
 |---|---|---|---|
-| Haptic floor driver box | 1 | In service | Standalone, interval-driven. Not connected to Chromatik. **TBD** make/model |
+| Haptic floor driver box | 1 | In service | Drives the floor on an interval. **TBD** make/model |
+| Haptic floor switch | 1 | In service | Motors and lights hang off it; reached from the main switch. **TBD** make/model/port count |
 | Haptic triangles | 6 | In service | 16 positions each, every position a motor + a light. 96 motors, 96 lights. Art-Net path to `10.0.1.201` exists but is disabled. See [haptics](haptics.md) |
 
 ## Power

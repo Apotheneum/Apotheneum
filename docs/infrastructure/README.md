@@ -31,9 +31,11 @@ flowchart TB
         CTRL["32 LED controllers"]
         LEDS["13,280 LEDs"]
         HBOX["Haptic driver box"]
-        FLOOR["Haptic floor"]
+        HSW["Haptic floor switch"]
+        FLOOR["Haptic floor<br>motors + lights"]
         SW --> CTRL --> LEDS
-        HBOX --> FLOOR
+        SW --> HSW --> FLOOR
+        HBOX --> HSW
     end
 
     DECKS --> MOTU
@@ -45,8 +47,9 @@ flowchart TB
 
 **Reading it:** the two MacBooks are alternatives — never both driving at once.
 **Sound** and **Output hardware** are permanent; the **Live MacBook** and **Live
-DJ input** boxes only exist during live shows. The haptic floor runs from its own
-box on an interval, connected to nothing else.
+DJ input** boxes only exist during live shows. The haptic floor is on the
+network *and* fed by its own driver box — today the box drives it, on an
+interval.
 
 Cable types, addresses, and signal detail live in the subsystem pages below —
 this diagram is only the shape of the system.
