@@ -53,6 +53,47 @@ public class LindenmayerTree extends ApotheneumPattern {
   private double sinceRebuild = 1e9;   // ms since last distance-field rebuild
 
   private static final int MAX_SEG = 1600;
+
+  // Segment bins for the distance field. The search below returns exactly the
+  // same nearest segment as scanning all of them, but stops as soon as no
+  // unexamined bin could hold anything closer.
+  private static final int DFB = 32;
+  private final int[] binStart = new int[DFB * DFB + 1];
+  private final int[] binCount = new int[DFB * DFB];
+  private int[] binItems = new int[MAX_SEG * 6];
+
+  private void buildSegmentBins() {
+    java.util.Arrays.fill(binCount, 0);
+    for (int s = 0; s < segCount; s++) {
+      int x0 = binIdx(Math.min(segX0[s], segX1[s]));
+      int x1 = binIdx(Math.max(segX0[s], segX1[s]));
+      int y0 = binIdx(Math.min(segY0[s], segY1[s]));
+      int y1 = binIdx(Math.max(segY0[s], segY1[s]));
+      for (int by = y0; by <= y1; by++)
+        for (int bx = x0; bx <= x1; bx++) binCount[by * DFB + bx]++;
+    }
+    int run = 0;
+    for (int i = 0; i < DFB * DFB; i++) { binStart[i] = run; run += binCount[i]; }
+    binStart[DFB * DFB] = run;
+    if (binItems.length < run) binItems = new int[run];
+    int[] fill = new int[DFB * DFB];
+    for (int s = 0; s < segCount; s++) {
+      int x0 = binIdx(Math.min(segX0[s], segX1[s]));
+      int x1 = binIdx(Math.max(segX0[s], segX1[s]));
+      int y0 = binIdx(Math.min(segY0[s], segY1[s]));
+      int y1 = binIdx(Math.max(segY0[s], segY1[s]));
+      for (int by = y0; by <= y1; by++)
+        for (int bx = x0; bx <= x1; bx++) {
+          int b = by * DFB + bx;
+          binItems[binStart[b] + fill[b]++] = s;
+        }
+    }
+  }
+
+  private static int binIdx(float v) {
+    int i = (int) (v * DFB);
+    return i < 0 ? 0 : (i >= DFB ? DFB - 1 : i);
+  }
   private final float[] segX0 = new float[MAX_SEG];
   private final float[] segY0 = new float[MAX_SEG];
   private final float[] segX1 = new float[MAX_SEG];
@@ -399,15 +440,32 @@ public class LindenmayerTree extends ApotheneumPattern {
   // ─── Distance field ──────────────────────────────────────────────────────
 
   private void buildDistanceField() {
+    buildSegmentBins();
     float invW = 1f / GRID_W, invH = 1f / GRID_H;
     for (int gy = 0; gy < GRID_H; gy++) {
       float py = (gy + 0.5f) * invH;
       for (int gx = 0; gx < GRID_W; gx++) {
         float px = (gx + 0.5f) * invW;
         float best = Float.MAX_VALUE, bestDepth = 0f, bestBirth = maxBirth;
-        for (int s = 0; s < segCount; s++) {
-          float d = distPointSeg(px, py, segX0[s], segY0[s], segX1[s], segY1[s]);
-          if (d < best) { best = d; bestDepth = segDepth[s]; bestBirth = segBirth[s] + dpsT * segLen[s]; }
+        int cbx = binIdx(px), cby = binIdx(py);
+        for (int ring = 0; ring < DFB; ring++) {
+          // everything outside this ring is at least this far away
+          if (ring > 0 && best <= (ring - 1) * (1f / DFB)) break;
+          int lo = cbx - ring, hi = cbx + ring, lo2 = cby - ring, hi2 = cby + ring;
+          for (int by = lo2; by <= hi2; by++) {
+            if (by < 0 || by >= DFB) continue;
+            boolean edgeRow = (by == lo2 || by == hi2);
+            for (int bx = lo; bx <= hi; bx++) {
+              if (bx < 0 || bx >= DFB) continue;
+              if (!edgeRow && bx != lo && bx != hi) continue;
+              int b = by * DFB + bx;
+              for (int k = binStart[b], e = binStart[b] + binCount[b]; k < e; k++) {
+                int s = binItems[k];
+                float d = distPointSeg(px, py, segX0[s], segY0[s], segX1[s], segY1[s]);
+                if (d < best) { best = d; bestDepth = segDepth[s]; bestBirth = segBirth[s] + dpsT * segLen[s]; }
+              }
+            }
+          }
         }
         int cell = gy * GRID_W + gx;
         gridDist[cell]  = best;

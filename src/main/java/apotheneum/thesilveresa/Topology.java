@@ -101,6 +101,7 @@ public class Topology extends ApotheneumPattern {
   private final int[] nDeg = new int[MAX_NODE];
   private final float[] nHealth = new float[MAX_NODE];   // 1 = fine, 0 = failed
   private final float[] nStress = new float[MAX_NODE];
+  private final float[] nShed = new float[MAX_NODE];
   private int nodeCount = 0;
 
   private final int[] eA = new int[MAX_EDGE];
@@ -274,14 +275,24 @@ public class Topology extends ApotheneumPattern {
       shockPending = false;
     }
 
+    // Shed load used to be found by scanning every edge for every node -
+    // nodes x edges each frame. One pass over the edges gathers the same
+    // totals, since each edge contributes to exactly its two endpoints.
+    java.util.Arrays.fill(nShed, 0, nodeCount, 0f);
+    for (int e = 0; e < edgeCount; e++) {
+      int a = eA[e], b = eB[e];
+      if (a == b) {
+        if (nHealth[a] < 0.4f) nShed[a] += 0.16f * loadA;
+      } else {
+        // both ends shed independently, exactly as the per-node scan did
+        if (nHealth[b] < 0.4f) nShed[a] += 0.16f * loadA;
+        if (nHealth[a] < 0.4f) nShed[b] += 0.16f * loadA;
+      }
+    }
+
     for (int i = 0; i < nodeCount; i++) {
       float base = loadA * (0.35f + 0.65f * nDeg[i] / maxDeg);
-      // load shed from failed neighbours lands here
-      float extra = 0f;
-      for (int e = 0; e < edgeCount; e++) {
-        if (eA[e] == i && nHealth[eB[e]] < 0.4f) extra += 0.16f * loadA;
-        else if (eB[e] == i && nHealth[eA[e]] < 0.4f) extra += 0.16f * loadA;
-      }
+      float extra = nShed[i];
       nStress[i] = nStress[i] * 0.92f + (base + extra) * 0.08f * 8f;
       if (nStress[i] > 1f && nHealth[i] > 0f) {
         nHealth[i] -= dt * 2.4f;
