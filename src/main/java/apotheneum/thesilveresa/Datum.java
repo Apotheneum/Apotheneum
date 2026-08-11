@@ -95,6 +95,8 @@ public class Datum extends ApotheneumPattern {
     .setDescription("Cylinder tile count");
   private final BooleanParameter symmetry = new BooleanParameter("Sym", false)
     .setDescription("Mirror alternate faces and tiles");
+  private final CompoundParameter rotate = new CompoundParameter("Rot", 90, 0, 360)
+    .setDescription("Rotate the image around the cylinder");
   private final BooleanParameter vertical = new BooleanParameter("Vert", false)
     .setDescription("Run the scale vertically");
 
@@ -137,6 +139,7 @@ public class Datum extends ApotheneumPattern {
     addParameter("Repeat",  this.repeat);
     addParameter("Sym",     this.symmetry);
     addParameter("Vert",    this.vertical);
+    addParameter("Rot",     this.rotate);
   }
 
   private static float expToU(float e) {
@@ -220,12 +223,17 @@ public class Datum extends ApotheneumPattern {
     boolean sym = symmetry.isOn();
     int rep = clampi((int) repeat.getValuef(), 1, 8);
     if (sym) rep = Math.max(2, (rep / 2) * 2);
+    // Shift before the fold, so a mirrored image rotates rigidly instead of
+    // sliding through a fixed mirror line.
+    float rot = rotate.getValuef() / 360f;
     for (int ri = 0; ri < numRings; ri++) {
       Ring ring = rings[ri];
       int np = ring.points.length;
       float v = (float) ri / (numRings - 1);
       for (int pi = 0; pi < np; pi++) {
-        float g = (float) pi / np * rep;
+        float a = (float) pi / np + rot;
+        a -= (float) Math.floor(a);
+        float g = a * rep;
         float u;
         if (sym) {
           float gg = g - 2f * (float) Math.floor(g * 0.5f);
