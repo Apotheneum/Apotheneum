@@ -1,7 +1,9 @@
 package apotheneum.doved.effects;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.stream.Stream;
@@ -18,6 +20,7 @@ import heronarts.lx.LX;
 import heronarts.lx.ModelBuffer;
 import heronarts.lx.color.GradientUtils.BlendMode;
 import heronarts.lx.color.LXColor;
+import heronarts.lx.effect.LXEffect;
 import heronarts.lx.effect.color.ColorizeEffect;
 import heronarts.lx.utils.LXUtils;
 
@@ -34,9 +37,32 @@ class ColorizeMultiplyEffectTest extends HeadlessLxTest {
     assertEquals(0x7f000000, apply(effect, 0x7f000000));
   }
 
+  @Test
+  void fixedSaturatedFirstStopStillMapsExactZeroToBlack() {
+    LX lx = newHeadlessLx();
+    ColorizeMultiplyEffect effect = effect(lx);
+    effect.color1.setColor(LXColor.RED);
+    effect.color2.setColor(LXColor.BLUE);
+    effect.depth.setValue(0);
+
+    assertEquals(0xff000000, apply(effect, 0xff000000));
+  }
+
+  @Test
+  void luminosityZeroStillMapsToBlack() {
+    LX lx = newHeadlessLx();
+    ColorizeMultiplyEffect effect = effect(lx);
+    effect.source.setValue(ColorizeMultiplyEffect.SourceMode.LUMINOSITY);
+    effect.color1.setColor(LXColor.RED);
+    effect.color2.setColor(LXColor.BLUE);
+    effect.depth.setValue(0);
+
+    assertEquals(0x4d000000, apply(effect, 0x4d000000));
+  }
+
   @ParameterizedTest
   @ValueSource(ints = { 16, 64, 128, 224, 255 })
-  void depthZeroMatchesColorizeForNonzeroBrightness(int value) {
+  void depthZeroMatchesColorizeRgbForOpaqueNonzeroBrightness(int value) {
     LX lx = newHeadlessLx();
     ColorizeMultiplyEffect effect = effect(lx);
     effect.depth.setValue(0);
@@ -49,12 +75,12 @@ class ColorizeMultiplyEffectTest extends HeadlessLxTest {
     stock.color2.setColor(0xff0066ff);
 
     int input = LXColor.rgba(value, value, value, 255);
-    assertEquals(apply(stock, input), apply(effect, input));
+    assertEquals(apply(stock, input) & LXColor.RGB_MASK, apply(effect, input) & LXColor.RGB_MASK);
   }
 
   @ParameterizedTest
   @EnumSource(BlendMode.class)
-  void depthZeroMatchesColorizeAcrossBlendModes(BlendMode blendMode) {
+  void depthZeroMatchesColorizeRgbAcrossBlendModes(BlendMode blendMode) {
     LX lx = newHeadlessLx();
     ColorizeMultiplyEffect effect = effect(lx);
     effect.depth.setValue(0);
@@ -69,7 +95,28 @@ class ColorizeMultiplyEffectTest extends HeadlessLxTest {
     stock.color2.setColor(0xff0066ff);
 
     int input = LXColor.rgba(137, 137, 137, 255);
-    assertEquals(apply(stock, input), apply(effect, input));
+    assertEquals(apply(stock, input) & LXColor.RGB_MASK, apply(effect, input) & LXColor.RGB_MASK);
+  }
+
+  @Test
+  void depthZeroMatchesColorizeRgbButPreservesNonOpaqueSourceAlpha() {
+    LX lx = newHeadlessLx();
+    ColorizeMultiplyEffect effect = effect(lx);
+    effect.depth.setValue(0);
+    effect.color1.setColor(0xffff3300);
+    effect.color2.setColor(0xff0066ff);
+
+    ColorizeEffect stock = new ColorizeEffect(lx);
+    stock.setDamping(false);
+    stock.color1.setColor(0xffff3300);
+    stock.color2.setColor(0xff0066ff);
+
+    int input = LXColor.rgba(137, 137, 137, 73);
+    int stockOutput = apply(stock, input);
+    int effectOutput = apply(effect, input);
+    assertEquals(stockOutput & LXColor.RGB_MASK, effectOutput & LXColor.RGB_MASK);
+    assertEquals(255, stockOutput >>> LXColor.ALPHA_SHIFT);
+    assertEquals(73, effectOutput >>> LXColor.ALPHA_SHIFT);
   }
 
   static Stream<Arguments> fullDepthCases() {
@@ -96,6 +143,37 @@ class ColorizeMultiplyEffectTest extends HeadlessLxTest {
   }
 
   @Test
+  void fullDepthHalfBrightnessRedHasHandDerivedArgb() {
+    LX lx = newHeadlessLx();
+    ColorizeMultiplyEffect effect = effect(lx);
+    effect.color1.setColor(LXColor.RED);
+    effect.color2.setColor(LXColor.RED);
+    effect.depth.setValue(1);
+
+    assertEquals(0xff800000, apply(effect, 0xff808080));
+  }
+
+  static Stream<Arguments> amountCases() {
+    return Stream.of(
+      Arguments.of(0, 0xff204060),
+      Arguments.of(.5, 0xff706050),
+      Arguments.of(1, 0xffc08040));
+  }
+
+  @ParameterizedTest
+  @MethodSource("amountCases")
+  void amountCrossfadesRgbAgainstOriginal(double amount, int expected) {
+    LX lx = newHeadlessLx();
+    ColorizeMultiplyEffect effect = effect(lx);
+    effect.depth.setValue(0);
+    effect.color1.setColor(0xffc08040);
+    effect.color2.setColor(0xffc08040);
+    effect.amount.setValue(amount);
+
+    assertEquals(expected, apply(effect, 0xff204060));
+  }
+
+  @Test
   void thresholdDoesNotRemapColorAboveCutoff() {
     LX lx = newHeadlessLx();
     ColorizeMultiplyEffect effect = effect(lx);
@@ -110,6 +188,20 @@ class ColorizeMultiplyEffectTest extends HeadlessLxTest {
     int highThreshold = apply(effect, input);
 
     assertEquals(lowThreshold, highThreshold);
+  }
+
+  @Test
+  void thresholdEqualityIsNotGated() {
+    LX lx = newHeadlessLx();
+    ColorizeMultiplyEffect effect = effect(lx);
+    effect.depth.setValue(0);
+    effect.color1.setColor(LXColor.RED);
+    effect.color2.setColor(LXColor.RED);
+    effect.thresholdMode.setValue(ColorizeMultiplyEffect.ThresholdMode.BLACK);
+    int input = LXColor.gray(25);
+    effect.threshold.setValue(LXColor.b(input) * .01f);
+
+    assertEquals(LXColor.RED, apply(effect, input));
   }
 
   @ParameterizedTest
@@ -139,15 +231,60 @@ class ColorizeMultiplyEffectTest extends HeadlessLxTest {
     LX lx = newHeadlessLx();
     ColorizeMultiplyEffect effect = effect(lx);
     configureThreeColorPalette(lx, effect);
-    effect.depth.setValue(1);
+    effect.depth.setValue(0);
 
-    int result = apply(effect, LXColor.gray(50));
-    int red = (result & LXColor.R_MASK) >>> LXColor.R_SHIFT;
-    int green = (result & LXColor.G_MASK) >>> LXColor.G_SHIFT;
-    int blue = result & LXColor.B_MASK;
+    int middle = apply(effect, LXColor.gray(50));
+    int green = (middle & LXColor.G_MASK) >>> LXColor.G_SHIFT;
+    assertTrue(green > ((middle & LXColor.R_MASK) >>> LXColor.R_SHIFT));
+    assertTrue(green > (middle & LXColor.B_MASK));
 
-    assertTrue(green > red && green > blue,
-      "mid-brightness input selects and scales the middle green palette stop");
+    effect.paletteDepth.setValue(.5);
+    int shallow = apply(effect, LXColor.gray(50));
+    effect.paletteInvert.setValue(true);
+    int shallowInverted = apply(effect, LXColor.gray(50));
+
+    assertNotEquals(middle, shallow, "palette depth changes the sampled range");
+    assertNotEquals(shallow, shallowInverted, "palette inversion reverses the sampled range");
+    assertTrue(((shallow & LXColor.R_MASK) >>> LXColor.R_SHIFT) > (shallow & LXColor.B_MASK));
+    assertTrue((shallowInverted & LXColor.B_MASK) >
+      ((shallowInverted & LXColor.R_MASK) >>> LXColor.R_SHIFT));
+  }
+
+  @Test
+  void relativeModeMatchesColorizeRgb() {
+    LX lx = newHeadlessLx();
+    ColorizeMultiplyEffect effect = effect(lx);
+    effect.depth.setValue(0);
+    effect.color1.setColor(LXColor.RED);
+    effect.gradientHue.setValue(120);
+    effect.colorMode.setValue(ColorizeMultiplyEffect.ColorMode.RELATIVE);
+
+    ColorizeEffect stock = new ColorizeEffect(lx);
+    stock.setDamping(false);
+    stock.color1.setColor(LXColor.RED);
+    stock.gradientHue.setValue(120);
+    stock.colorMode.setValue(ColorizeEffect.ColorMode.RELATIVE);
+
+    int input = LXColor.gray(67);
+    assertEquals(apply(stock, input) & LXColor.RGB_MASK, apply(effect, input) & LXColor.RGB_MASK);
+  }
+
+  @Test
+  void linkedModeMatchesColorizeRgb() {
+    LX lx = newHeadlessLx();
+    lx.engine.palette.swatch.getColor(0).primary.setColor(LXColor.RED);
+    ColorizeMultiplyEffect effect = effect(lx);
+    effect.depth.setValue(0);
+    effect.gradientHue.setValue(120);
+    effect.colorMode.setValue(ColorizeMultiplyEffect.ColorMode.LINKED);
+
+    ColorizeEffect stock = new ColorizeEffect(lx);
+    stock.setDamping(false);
+    stock.gradientHue.setValue(120);
+    stock.colorMode.setValue(ColorizeEffect.ColorMode.LINKED);
+
+    int input = LXColor.gray(67);
+    assertEquals(apply(stock, input) & LXColor.RGB_MASK, apply(effect, input) & LXColor.RGB_MASK);
   }
 
   @Test
@@ -199,6 +336,17 @@ class ColorizeMultiplyEffectTest extends HeadlessLxTest {
 
     assertEquals(0xff000000 | (effectColor(LXColor.RED, LXColor.BLUE, luminosity) & LXColor.RGB_MASK),
       apply(effect, input));
+  }
+
+  @Test
+  void instantiatesByFullyQualifiedClassName() throws LX.InstantiationException {
+    LX lx = newHeadlessLx();
+    LXEffect instance = lx.instantiateEffect(ColorizeMultiplyEffect.class.getName());
+    try {
+      assertInstanceOf(ColorizeMultiplyEffect.class, instance);
+    } finally {
+      instance.dispose();
+    }
   }
 
   private static ColorizeMultiplyEffect effect(LX lx) {

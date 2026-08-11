@@ -1,3 +1,25 @@
+/**
+ * Copyright 2020- Mark C. Slee, Heron Arts LLC
+ *
+ * This file is part of the LX Studio software library. By using
+ * LX, you agree to the terms of the LX Studio Software License
+ * and Distribution Agreement, available at: http://lx.studio/license
+ *
+ * Please note that the LX license is not open-source. The license
+ * allows for free, non-commercial use.
+ *
+ * HERON ARTS MAKES NO WARRANTY, EXPRESS, IMPLIED, STATUTORY, OR
+ * OTHERWISE, AND SPECIFICALLY DISCLAIMS ANY WARRANTY OF
+ * MERCHANTABILITY, NON-INFRINGEMENT, OR FITNESS FOR A PARTICULAR
+ * PURPOSE, WITH RESPECT TO THE SOFTWARE.
+ *
+ * Gradient configuration and parameter behavior are derived from
+ * heronarts.lx.effect.color.ColorizeEffect. Rendering changes by Dan Oved.
+ *
+ * @author Mark C. Slee <mark@heronarts.com>
+ * @author Dan Oved
+ */
+
 package apotheneum.doved.effects;
 
 import heronarts.lx.LX;
@@ -85,7 +107,7 @@ public class ColorizeMultiplyEffect extends LXEffect implements GradientFunction
   public final CompoundParameter depth =
     new CompoundParameter("Depth", 1)
     .setUnits(CompoundParameter.Units.PERCENT_NORMALIZED)
-    .setDescription("How strongly source brightness scales the gradient color");
+    .setDescription("Blends from plain colorize RGB with source alpha retained to full brightness scaling");
 
   public final EnumParameter<SourceMode> source =
     new EnumParameter<SourceMode>("Source", SourceMode.BRIGHTNESS)
@@ -292,6 +314,8 @@ public class ColorizeMultiplyEffect extends LXEffect implements GradientFunction
     final float gradientDepth = palette ? this.paletteDepth.getValuef() : 1;
     final boolean invert = palette && this.paletteInvert.isOn();
     final float depth = this.depth.getValuef();
+    final boolean zeroDepth = depth == 0;
+    final boolean fullDepth = depth == 1;
     final float threshold = this.threshold.getValuef();
     final ThresholdMode thresholdMode = this.thresholdMode.getEnum();
 
@@ -320,18 +344,29 @@ public class ColorizeMultiplyEffect extends LXEffect implements GradientFunction
         gradientLerp = 1 - gradientLerp;
       }
       final int gradientColor = this.colorStops.getColor(gradientLerp, blendFunction);
-      final int multipliedColor = LXColor.scaleBrightness(gradientColor, sourceValue);
-      final int depthColor = lerpRgb(gradientColor, multipliedColor, depth);
+      final int depthColor;
+      if (zeroDepth) {
+        depthColor = gradientColor;
+      } else {
+        final int multipliedColor = LXColor.scaleBrightness(gradientColor, sourceValue);
+        depthColor = fullDepth ? multipliedColor : lerpRgb(gradientColor, multipliedColor, depth);
+      }
       this.colors[index] = blendRgbPreserveAlpha(original, depthColor, effectAmount);
     }
   }
 
   private static int fadeAlpha(int color, float amount) {
+    if (amount == 1) {
+      return color & LXColor.RGB_MASK;
+    }
     final int alpha = LXUtils.lerpi(color >>> LXColor.ALPHA_SHIFT, 0, amount);
     return (alpha << LXColor.ALPHA_SHIFT) | (color & LXColor.RGB_MASK);
   }
 
   private static int blendRgbPreserveAlpha(int original, int target, float amount) {
+    if (amount == 1) {
+      return (original & LXColor.ALPHA_MASK) | (target & LXColor.RGB_MASK);
+    }
     return (original & LXColor.ALPHA_MASK) | (lerpRgb(original, target, amount) & LXColor.RGB_MASK);
   }
 

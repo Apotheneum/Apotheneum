@@ -15,7 +15,7 @@ public class ProviderWarmupListener implements LauncherSessionListener {
     try {
       javax.sound.midi.MidiSystem.getMidiDeviceInfo();
       javax.sound.sampled.AudioSystem.getMixerInfo();
-    } catch (Throwable ignored) {
+    } catch (Exception | LinkageError ignored) {
       // Soundless runners may throw after the classloading side effect we need.
     }
   }
