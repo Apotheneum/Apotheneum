@@ -120,8 +120,6 @@ public class IcosahedralCapsid extends ApotheneumPattern {
     .setDescription("Output brightness");
 
   private float time = 0f;
-  // Wrapped every frame. An unwrapped time * speed loses angular precision over
-  // a night-long run, and makes any change to RotSp jump the hero position.
   private float heroPhase = 0f;
 
   // Constructor
@@ -175,8 +173,18 @@ public class IcosahedralCapsid extends ApotheneumPattern {
     }
 
     float tiles   = Math.max(1f, tileCount.getValuef());
-    heroPhase += (float)(deltaMs / 1000.0) * rotSpeed.getValuef() / 200f;
-    heroPhase -= (float) Math.floor(heroPhase);
+    // RotSp is a RATE and is integrated, so moving the knob changes how fast
+    // the pair travels without moving where it is. RotSp 0 is the home command:
+    // phase resets to exactly 0, so the pair lands on Rot and every loop of the
+    // night is identical. The small epsilon keeps that snap reachable even if
+    // automation lands on 0.003 instead of a clean 0.
+    float rotSp = rotSpeed.getValuef();
+    if (rotSp <= 0.01f) {
+      heroPhase = 0f;
+    } else {
+      heroPhase += (float)(deltaMs / 1000.0) * rotSp / 200f;
+      heroPhase -= (float) Math.floor(heroPhase);
+    }
     float heroRot = heroPhase + rotate.getValuef() / 360f;
     float pVar    = phaseVar.getValuef() / 100f;
     float breathAmt = breathe.getValueb() ?
