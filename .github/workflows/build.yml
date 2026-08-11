@@ -1,9 +1,10 @@
 name: build
 
-# Build and test on every PR and every push to main, so breakage is caught here
+# Compile check on every PR and every push to main, so breakage is caught here
 # rather than the next time someone builds locally.
 #
-# `mvn package` compiles the package and runs the headless-LX component tests.
+# This is a compile check only — the project has no src/test yet. If tests are
+# added later, `mvn package` runs them with no change to this file.
 
 on:
   pull_request:
