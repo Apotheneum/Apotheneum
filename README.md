@@ -100,6 +100,12 @@ $ mvn -Pinstall install
 
 This builds the JAR file and copies it to `~/Chromatik/Packages` for automatic loading in Chromatik.
 
+Headless component tests can be run without installing the package:
+
+```bash
+$ mvn test
+```
+
 #### Releasing
 
 Releases are cut by pushing a calendar tag. CI builds the JAR and creates the GitHub
