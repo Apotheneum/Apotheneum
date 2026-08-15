@@ -151,6 +151,8 @@ public class MyGeneralPattern extends LXPattern {
 }
 ```
 
+**For audio-reactive patterns:** do envelope-following in the DAW and pipe the result in over OSC rather than reading the internal audio meter — see [Audio-Reactive Patterns](docs/audio-modulation.md).
+
 #### Example Patterns
 
 * [`StripePattern.java`](src/main/java/apotheneum/examples/StripePattern.java) - General 3D geometry pattern
