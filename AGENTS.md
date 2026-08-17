@@ -116,9 +116,9 @@ The installation has doors that affect pixel availability:
 
 ### Door Handling
 
-**Door columns have reduced points** - They are physically cut short at the door height:
-- Use `cube.exterior.available(globalColumnIndex)` to check available height per column
-- Door columns return fewer than `GRID_HEIGHT` or `CYLINDER_HEIGHT` points
+**Door columns are logically shorter, not physically shorter.** Every column carries a full `GRID_HEIGHT` / `CYLINDER_HEIGHT` worth of points — the `Cube.Face` and `Cylinder.Orientation` constructors throw `IllegalStateException` if one doesn't. What changes at a door is the *usable* height:
+- Use `cube.exterior.available(globalColumnIndex)` for the usable height of a column — it returns `GRID_HEIGHT - DOOR_HEIGHT` for door columns, `GRID_HEIGHT` otherwise
+- **Never use `column.points.length` as the door boundary.** It is the full height on every column, door or not, so treating it as the limit lights pixels that aren't there
 - **Global column indexing**: For cube faces, use `face * GRID_WIDTH + localColumn` for global indexing
 - **Vertical traversal**: Use adjacent full columns for going up/down around doors
 - **Path building**: When tracing edges around doors:
@@ -128,9 +128,9 @@ The installation has doors that affect pixel availability:
 
 ### Model Structure
 
-- **Cube.Face.columns[]**: Array of `LXModel` objects (not `Face.Column` type)
-- **Cylinder.exterior.columns[]**: Array of `LXModel` objects  
-- **Points access**: Use `column.points[y]` directly on `LXModel`
+- **`Cube.Face.columns[]` and `Cylinder.Orientation.columns[]`**: both are `Apotheneum.Column[]` — a wrapper extending `Sequence`, not raw `LXModel`
+- **Points access**: `column.points[y]` (the `LXPoint[]` on `Sequence`). `Column` also exposes `size` and navigation (`next()`/`previous()`)
+- **Raw model access**: `column.model` when you specifically need the underlying `LXModel`
 - **Point indexing**: Y=0 is top, Y=max is bottom (inverted from typical coordinate system)
 
 ### 3D Distance Calculations
@@ -160,7 +160,7 @@ double dist3D = Math.sqrt(
 
 ## Dependencies
 
-- Java 21+ required
+- **Build with JDK 25**, even though the project targets Java 21 bytecode (`maven.compiler.release=21`). Chromatik 1.2.2 (`lx`/`glx`/`glxstudio`) ships class-file major version 69, which javac 21 refuses to read off the classpath — installing exactly Java 21 makes every build fail. CI pins JDK 25 for this reason.
 - Maven for build management
 - LX Framework (Chromatik) - provided dependency
 - No external testing framework configured

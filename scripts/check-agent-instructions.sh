@@ -87,11 +87,20 @@ while IFS= read -r target; do
   # Both link forms Markdown allows: inline `](target)` and reference definitions
   # `[label]: target`. Checking only the inline form would let a reference-style
   # link point at a missing file and still pass.
+  #
+  # A destination may carry an optional title — [text](file.md "Title") — and may
+  # be wrapped in angle brackets to allow spaces. Both have to come off before the
+  # filesystem check, or a perfectly valid link fails CI for a file that exists.
 done < <(
   {
     grep -oE '\]\([^)]+\)' "$AGENTS_FILE" | sed -e 's/^](//' -e 's/)$//'
     grep -oE '^\[[^]]+\]:[[:space:]]*[^[:space:]]+' "$AGENTS_FILE" | sed -e 's/^\[[^]]*\]:[[:space:]]*//'
-  } || true
+  } | sed -E \
+        -e 's/^[[:space:]]+//' \
+        -e 's/[[:space:]]+["'"'"'(].*$//' \
+        -e 's/^<(.*)>$/\1/' \
+        -e 's/[[:space:]]+$//' \
+    || true
 )
 
 if (( broken )); then
