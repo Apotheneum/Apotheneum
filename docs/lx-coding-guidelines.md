@@ -19,7 +19,7 @@ The meta-point, in his words:
 The goal is to keep the slop contained: working *and* idiomatic, not just
 working.
 
-[CLAUDE.md](../CLAUDE.md) covers Apotheneum-specific geometry, base classes and
+[AGENTS.md](../AGENTS.md) covers Apotheneum-specific geometry, base classes and
 UI rules. This doc covers general LX idioms.
 
 ---
@@ -325,7 +325,7 @@ it.
 - **Framework helpers used, not reimplemented** — `setColors`, `EnumParameter`
   labels, subclassing existing components (§5).
 - **Model bounds respected** — no drawing outside the geometry; door columns use
-  `available(columnIndex)` (§7, CLAUDE.md).
+  `available(columnIndex)` (§7, AGENTS.md).
 - **Logging via `LX.log`/`LX.error`** with the throwable passed through; no
   `System.out.println` or `printStackTrace`; prefix helpers rather than inline
   literals (§9).
@@ -345,7 +345,7 @@ it.
 
 ---
 
-Related: [CLAUDE.md](../CLAUDE.md) (Apotheneum geometry, base classes, UI
+Related: [AGENTS.md](../AGENTS.md) (Apotheneum geometry, base classes, UI
 rules), [audio-modulation.md](audio-modulation.md) (audio-reactive patterns).
 These guidelines are shared with the sibling
 [`chromatik-mcp`](https://github.com/oveddan/chromatik-mcp) project; fixes worth
