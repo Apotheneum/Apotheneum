@@ -132,14 +132,16 @@ check if it already exists — or should exist — in LX itself.
 
 ## Part 2 — Conventions from the LX source
 
-File references are to the LX source tree (`heronarts.lx`).
+References point at classes and methods in the LX source tree (`heronarts.lx`),
+never at line numbers — the repo tracks whatever `lx.version` the `pom.xml` sets,
+and line numbers go stale on the next bump while a symbol name stays greppable.
 
 ### 9. Logging: use `LX.log` / `LX.warning` / `LX.error`
 
 Don't use `System.out` / `printStackTrace` or a third-party logger. LX has a
 static logging API that prefixes every line with `[LX yyyy/MM/dd HH:mm:ss]` and
-is redirected to the Chromatik log file (`~/Chromatik/Logs`) —
-`LX.java:1544-1583`:
+is redirected to the Chromatik log file (`~/Chromatik/Logs`) — the static
+`log`/`warning`/`debug`/`error` methods on `LX`:
 
 ```java
 LX.log(String message)                  // stdout
@@ -161,8 +163,7 @@ preserved; don't flatten it to a string.
 
 LX's house style is to catch at the seam of an operation, log it for
 developers, surface a user-facing message, and keep running rather than
-propagate. `LXCommandEngine.perform` is the canonical example
-(`command/LXCommandEngine.java:58-89`):
+propagate. `LXCommandEngine.perform` is the canonical example:
 
 ```java
 public LXCommandEngine perform(LXCommand command) {
@@ -184,7 +185,7 @@ public LXCommandEngine perform(LXCommand command) {
 
 Two distinct channels: `LX.error(...)` for developer diagnostics,
 `lx.pushError(throwable, message)` for the user-facing surface
-(`LX.java:547-559`). Note that `lx.command.perform()` therefore *swallows*
+(`LX.pushError`). Note that `lx.command.perform()` therefore *swallows*
 command failures — it pushes a UI error and returns normally. Code that needs to
 know a mutation applied must read the state back rather than trusting the call
 returned.
@@ -194,7 +195,8 @@ returned.
 The engine runs on its own thread. Code on any other thread — an OSC handler, a
 spawned worker, a network callback — must not mutate LX state directly. Instead
 enqueue a `Runnable` that LX drains at the top of the next engine loop
-(`LXEngine.java:846`, processed at `:1087-1097`):
+(`LXEngine.addTask`, drained where `LXEngine` swaps `threadSafeTaskQueue`
+into `engineThreadTaskQueue`):
 
 ```java
 lx.engine.addTask(() -> {
@@ -248,7 +250,7 @@ So:
 
 Declare parameters as `public final` fields with fluent configuration, and
 register them via `addParameter(path, parameter)` in the constructor
-(`LXComponent.java:1212-1237`). Registration auto-wires listeners and OSC; you
+(`LXComponent.addParameter`). Registration auto-wires listeners and OSC; you
 don't manage that plumbing yourself:
 
 ```java
@@ -261,7 +263,8 @@ addParameter("speed", this.speed);
 
 Bounded parameters **clamp** out-of-range values silently rather than throwing;
 they throw `IllegalArgumentException` only for construction-time config errors
-(e.g. inverted bounds) — `parameter/BoundedParameter.java:241-256`. Don't write
+(e.g. inverted bounds) — see the `BoundedParameter` constructors, which clamp
+the initial value into `Range` rather than rejecting it. Don't write
 verification logic that assumes the value you set is the value you read back.
 
 ### 14. Serialization: `LXSerializable`, `KEY_*` constants, `Utils` helpers
@@ -269,8 +272,8 @@ verification logic that assumes the value you set is the value you read back.
 Persisted state implements `LXSerializable` (`save(LX, JsonObject)` /
 `load(LX, JsonObject)`), names every JSON key with a `KEY_*` constant, uses the
 `LXSerializable.Utils` helpers for parameter (de)serialization, and **guards
-every read with `obj.has(key)`** (`LXComponent.java:1466-1510`,
-`LXSerializable.java`):
+every read with `obj.has(key)`** (`LXComponent.save`/`load`, and
+`LXSerializable.Utils`):
 
 ```java
 public final static String KEY_PARAMETERS = "parameters";
@@ -285,7 +288,8 @@ if (obj.has(KEY_PARAMETERS)) { LXSerializable.Utils.loadParameters(lx, obj, this
 Register listeners and resources in the constructor / `onActive()`; tear them
 down in the matching `onInactive()` / `dispose()`. `dispose()` unregisters
 everything it added and **must call `super.dispose()`** — LX asserts this with
-`LXComponent.assertDisposed` (`LXComponent.java:1082-1132`, `LX.java:728-731`).
+`LXComponent.assertDisposed`, which the static `LX.dispose(LXComponent)`
+helper calls immediately after `component.dispose()`.
 Disposing twice throws.
 
 Detach and release are distinct calls for UI components — a section added to a
@@ -295,16 +299,16 @@ the other.
 ### 16. Validate at boundaries with `Objects.requireNonNull`
 
 Public entry points null-check their arguments with a message rather than
-letting a later NPE surface far from the cause (`LX.java:691`); network/OSC
-handlers bounds-check indices and log via `LXOscEngine.error(...)` rather than
-throwing (`LXComponent.java:732-770`).
+letting a later NPE surface far from the cause (`LX.setModel` opens with
+`Objects.requireNonNull(model, "May not set null model on LX instance")`);
+network/OSC handlers bounds-check indices and log via `LXOscEngine.error(...)`
+rather than throwing (`LXComponent.handleOscMessage`).
 
 ### 17. Custom exception types
 
 When LX does throw, it uses small typed exceptions, not bare `RuntimeException`:
 `LX.InstantiationException` (with a `Type` enum: `EXCEPTION` / `LICENSE` /
-`PLUGIN`, `LX.java:75-97`) and `LXCommand.InvalidCommandException`
-(`command/LXCommand.java:99-111`). Follow suit if you need a checked failure
+`PLUGIN`) and `LXCommand.InvalidCommandException`. Follow suit if you need a checked failure
 mode that callers should distinguish.
 
 ---
