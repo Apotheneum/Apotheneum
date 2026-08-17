@@ -1,10 +1,17 @@
 name: build
 
-# Compile check on every PR and every push to main, so breakage is caught here
+# Compile + test on every PR and every push to main, so breakage is caught here
 # rather than the next time someone builds locally.
 #
-# This is a compile check only — the project has no src/test yet. If tests are
-# added later, `mvn package` runs them with no change to this file.
+# Tests are opt-in locally (maven.test.skip defaults to true) so a pattern author
+# never waits on them, but always-on here — hence `-Ptests`. Without that profile
+# this job would compile and run nothing under src/test, while looking green.
+#
+# Those tests construct a headless LX, which starts javax.sound audio and MIDI
+# device scans; that works on a bare runner with no sound card and needs no xvfb.
+#
+# Note surefire is configured with reuseForks=false, so each test class gets its
+# own JVM — this is slower than a normal suite, and deliberately so (see pom.xml).
 
 on:
   pull_request:
@@ -44,6 +51,7 @@ jobs:
         run: ./scripts/check-agent-instructions.sh
 
       # Plain `package` — NOT -Pinstall, which copies the jar into
-      # ~/Chromatik/Packages (pointless on a runner).
+      # ~/Chromatik/Packages (pointless on a runner). `-Ptests` is what actually
+      # runs the suite; see the note at the top of this file.
       - name: mvn package
-        run: mvn -B package
+        run: mvn -B -Ptests package

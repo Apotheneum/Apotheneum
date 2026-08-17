@@ -18,7 +18,16 @@
         <maven-source-plugin.version>3.0.1</maven-source-plugin.version>
         <maven-compiler-plugin.version>3.8.0</maven-compiler-plugin.version>
         <maven-resources-plugin.version>3.3.1</maven-resources-plugin.version>
-        
+        <maven-surefire-plugin.version>3.2.5</maven-surefire-plugin.version>
+        <junit.version>5.11.3</junit.version>
+
+        <!-- Tests are opt-in: `mvn compile` and `mvn -Pinstall install` neither compile
+             nor run them, so a pattern author never waits on a test run. Enable with the
+             `tests` profile below: `mvn -Ptests test`. Note maven.test.skip (rather than
+             skipTests) skips test *compilation* too, but Maven still resolves test-scoped
+             artifacts, so an ordinary build does download JUnit once. -->
+        <maven.test.skip>true</maven.test.skip>
+
     </properties>
     
     <dependencies>
@@ -33,12 +42,18 @@
             <artifactId>glx</artifactId>
             <version>${lx.version}</version>
             <scope>provided</scope>
-        </dependency>        
+        </dependency>
         <dependency>
             <groupId>com.heronarts</groupId>
             <artifactId>glxstudio</artifactId>
             <version>${lx.version}</version>
             <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <version>${junit.version}</version>
+            <scope>test</scope>
         </dependency>
     </dependencies>
   	
@@ -53,6 +68,22 @@
                         <arg>-Xlint</arg>
                         <arg>-Xpkginfo:always</arg>
                     </compilerArgs>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>${maven-surefire-plugin.version}</version>
+                <configuration>
+                    <!-- Each LX construction starts non-daemon javax.sound device-scan
+                         threads (audio + MIDI) that contend on a JDK-global monitor. Across
+                         test classes these accumulate and deadlock construction, so give
+                         every test class a fresh JVM rather than reusing one. -->
+                    <reuseForks>false</reuseForks>
+                    <!-- The same contention can deadlock a fork outright, and JUnit @Timeout
+                         doesn't cover lifecycle methods; bound the whole fork so a wedged
+                         test JVM fails the build instead of hanging it. -->
+                    <forkedProcessTimeoutInSeconds>900</forkedProcessTimeoutInSeconds>
                 </configuration>
             </plugin>
             <plugin>
@@ -84,6 +115,13 @@
     </build>
 
     <profiles>
+        <!-- Run the test suite explicitly: `mvn -Ptests test` -->
+        <profile>
+            <id>tests</id>
+            <properties>
+                <maven.test.skip>false</maven.test.skip>
+            </properties>
+        </profile>
         <profile>
             <id>install</id>
             <build>

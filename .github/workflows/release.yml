@@ -36,10 +36,12 @@ jobs:
           distribution: temurin
           cache: maven
 
-      # Build before publishing anything. Plain `package` — NOT -Pinstall,
-      # which copies the jar into ~/Chromatik/Packages (pointless on a runner).
+      # Build before publishing anything. NOT -Pinstall, which copies the jar
+      # into ~/Chromatik/Packages (pointless on a runner). -Ptests is required:
+      # tests are opt-in, so without it the suite is neither compiled nor run
+      # and a tag pointing at an untested commit would publish unchecked.
       - name: mvn package
-        run: mvn -B package
+        run: mvn -B -Ptests package
 
       # The built jar is named from the pom version (apotheneum-2.0.0-SNAPSHOT.jar),
       # which is not the release identity and shouldn't be a public download name.
