@@ -91,15 +91,23 @@ while IFS= read -r target; do
   # A destination may carry an optional title — [text](file.md "Title") — and may
   # be wrapped in angle brackets to allow spaces. Both have to come off before the
   # filesystem check, or a perfectly valid link fails CI for a file that exists.
+  #
+  # A title is only stripped when its quote is properly closed. An unterminated
+  # one — [text](file.md "oops) — is not a link at all in Markdown; it renders as
+  # literal text. Stripping it anyway would check the bare path, find it, and pass
+  # a link that doesn't exist. Left intact, the path check fails and reports it.
+  # Parenthesized titles are deliberately unhandled: they're rare, and the capture
+  # below ends at the first ")" so the text can't be told apart from a real path.
 done < <(
   {
     grep -oE '\]\([^)]+\)' "$AGENTS_FILE" | sed -e 's/^](//' -e 's/)$//'
     grep -oE '^\[[^]]+\]:[[:space:]]*[^[:space:]]+' "$AGENTS_FILE" | sed -e 's/^\[[^]]*\]:[[:space:]]*//'
   } | sed -E \
         -e 's/^[[:space:]]+//' \
-        -e 's/[[:space:]]+["'"'"'(].*$//' \
-        -e 's/^<(.*)>$/\1/' \
         -e 's/[[:space:]]+$//' \
+        -e 's/^([^[:space:]]+)[[:space:]]+"[^"]*"$/\1/' \
+        -e "s/^([^[:space:]]+)[[:space:]]+'[^']*'\$/\1/" \
+        -e 's/^<(.*)>$/\1/' \
     || true
 )
 
