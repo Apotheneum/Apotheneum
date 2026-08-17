@@ -26,10 +26,18 @@ Apotheneum is a visual, sonic and haptic instrument for immersive LED art instal
 
 ### Releasing
 
-Releases are cut by pushing a calendar tag — CI (`.github/workflows/release.yml`) builds the JAR and creates the GitHub Release. Never build and upload a release JAR by hand.
+CI (`.github/workflows/release.yml`) builds the JAR and creates the GitHub Release. Never build and upload a release JAR by hand. Two ways to cut one:
+
+Push a calendar tag:
 
 ```bash
 git tag 2026.07.21 && git push origin 2026.07.21
+```
+
+Or run the workflow — from the Actions tab, or the CLI. With no tag it uses today's UTC date, appending `-2`, `-3`, … if that tag is taken, and creates the tag itself:
+
+```bash
+gh workflow run release.yml
 ```
 
 The pom version is not part of release identity — it stays a SNAPSHOT and is not bumped per release. Each release publishes `apotheneum.jar` (stable name, served by `releases/latest/download/apotheneum.jar`) and `apotheneum-<tag>.jar` (pinnable).

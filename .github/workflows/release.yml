@@ -1,8 +1,12 @@
 name: release
 
-# Cut a release the way this project already does: push a calendar tag.
+# Cut a release either way:
 #
-#   git tag 2026.07.21 && git push origin 2026.07.21
+#   1. Push a calendar tag:  git tag 2026.07.21 && git push origin 2026.07.21
+#   2. Run this workflow from the Actions tab ("Run workflow"), or:
+#          gh workflow run release.yml
+#      With no tag input it picks today's UTC date, suffixed -2, -3, … if that
+#      tag is already taken, and creates the tag itself at the chosen ref.
 #
 # CI builds the jar and creates the GitHub Release, so nobody has to build
 # locally and hand-upload the jar. The tag is the release identity; the pom
@@ -14,9 +18,23 @@ on:
     # Actions filter patterns support only * ** + ? ! — no character classes —
     # so this can't be pinned to digits. Anything matching cuts a real release.
     tags: ["20*.*.*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag — leave blank for today's date (auto-suffixed if taken)"
+        required: false
+        type: string
 
 permissions:
   contents: write
+
+# Two manual runs started close together would otherwise both see the same date
+# tag as free, and the loser would fail at `gh release create` instead of taking
+# the -2 it was promised. Serialize instead of cancelling: a release that is
+# already building should finish, not be killed halfway.
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 jobs:
   release:
@@ -26,6 +44,53 @@ jobs:
       GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
+
+      # One name for the release from here on, whichever way we were triggered.
+      # Tag push: the tag itself. Manual run: the typed tag, or today's UTC date
+      # with -2, -3, … appended until it's free (matching 2025.07.21-2 and
+      # 2026.08.07-2, both second releases cut on a day that already had one).
+      # The tag doesn't exist yet on a manual run — `gh release create --target`
+      # creates it at the checked-out commit, so nothing has to be git-pushed.
+      - name: Resolve release tag
+        # Via env, not ${{ }} inline in the script: an input interpolated
+        # straight into the shell is a command-injection hole.
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+        run: |
+          if [ "${GITHUB_EVENT_NAME}" = "push" ]; then
+            echo "RELEASE_TAG=${GITHUB_REF_NAME}" >> "$GITHUB_ENV"
+            exit 0
+          fi
+
+          exists() { [ -n "$(git ls-remote --tags origin "refs/tags/$1")" ]; }
+
+          TAG="$INPUT_TAG"
+          if [ -n "$TAG" ]; then
+            # Check the shape before spending a build on it. A tag is allowed to
+            # contain "/" — release/2026.08.17 is a legal ref — but it would then
+            # be read as a directory in the asset path below and the run would
+            # die after `mvn package` with a confusing cp error. Constrain to the
+            # calendar format the project actually uses, and say so up front.
+            if ! printf '%s' "$TAG" | grep -Eq '^[0-9]{4}\.[0-9]{2}\.[0-9]{2}(-[0-9]+)?$'; then
+              echo "tag '$TAG' is not a calendar tag (YYYY.MM.DD or YYYY.MM.DD-N)" >&2
+              exit 1
+            fi
+            # An explicit tag is a statement of intent — don't silently rename it.
+            if exists "$TAG"; then
+              echo "tag $TAG already exists; pick another or delete it first" >&2
+              exit 1
+            fi
+          else
+            BASE="$(date -u +%Y.%m.%d)"
+            TAG="$BASE"
+            n=1
+            while exists "$TAG"; do
+              n=$((n + 1))
+              TAG="${BASE}-${n}"
+            done
+          fi
+          echo "releasing as $TAG from $GITHUB_SHA"
+          echo "RELEASE_TAG=$TAG" >> "$GITHUB_ENV"
 
       # JDK 25 — see the note in build.yml. Chromatik 1.2.2 class files are
       # major version 69 and javac 21 cannot read them.
@@ -63,10 +128,12 @@ jobs:
           echo "built: $JAR"
           mkdir -p dist
           cp "$JAR" "dist/apotheneum.jar"
-          cp "$JAR" "dist/apotheneum-${GITHUB_REF_NAME}.jar"
+          cp "$JAR" "dist/apotheneum-${RELEASE_TAG}.jar"
 
+      # --target is what lets a manual run work: gh creates the tag at this
+      # commit. On a tag push the tag already exists and --target is ignored.
       - name: Create release
         run: |
-          gh release create "${GITHUB_REF_NAME}" \
-            --title "Apotheneum ${GITHUB_REF_NAME}" --generate-notes \
-            "dist/apotheneum.jar" "dist/apotheneum-${GITHUB_REF_NAME}.jar"
+          gh release create "${RELEASE_TAG}" --target "${GITHUB_SHA}" \
+            --title "Apotheneum ${RELEASE_TAG}" --generate-notes \
+            "dist/apotheneum.jar" "dist/apotheneum-${RELEASE_TAG}.jar"
