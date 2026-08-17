@@ -183,6 +183,45 @@ double dist3D = Math.sqrt(
 - **Logical grouping** - Group related parameters together (e.g., movement controls, visual controls, etc.)
 - **Clear button placement** - Important buttons like "Clear" should be easily accessible and not hidden by overcrowding
 
+### Wiring a Component to its UI
+
+**Patterns and effects: UI is optional.** Without `UIDeviceControls`, LX Studio falls back to
+`UIDeviceControls$Default` and auto-generates knobs from the parameters. Implement
+`UIDeviceControls<T>` on the class and override `buildDeviceControls` only to improve on that
+layout — which 23 classes here do, e.g. `mcslee/CubeBlinks.java`.
+
+**Modulators: UI is mandatory.** There is no `Default` for modulators. A modulator with no UI
+resolves to `UIModulatorControls$Missing`, which renders a placeholder and logs:
+
+```
+No UI implementation found for type: <YourModulator>
+```
+
+`LXStudio.UI.instantiateModulatorControls` resolves in this order: `LXModulator.Placeholder` →
+the modulator itself `instanceof UIModulatorControls` → the `Registry.modulatorControls` map →
+`Missing`. So implement the interface on the modulator itself:
+
+```java
+public class TempoTap extends LXModulator
+  implements LXOscComponent, UIModulatorControls<TempoTap> {
+
+  @Override
+  public void buildModulatorControls(UI ui, UIModulator uiModulator, TempoTap tempoTap) {
+    uiModulator.setLayout(UI2dContainer.Layout.HORIZONTAL, 4);
+    uiModulator.addChildren(newButton(tempoTap.tap, 60).setTriggerable(true));
+  }
+}
+```
+
+Imports: `heronarts.glx.ui.UI2dContainer`, `heronarts.lx.studio.LXStudio.UI`,
+`heronarts.lx.studio.ui.modulation.UIModulator`, `...UIModulatorControls`. All are
+`provided` scope, so tests still compile and run.
+
+The alternative — a separate UI class registered via `Registry.addUIModulatorControls(Class)`
+from a plugin's `initializeUI` — keeps glxstudio imports out of the modulator, which matters only
+for headless deployments without glxstudio on the classpath. It requires the plugin to be enabled,
+so prefer implementing the interface directly.
+
 ## Dependencies
 
 - **Build with JDK 25**, even though the project targets Java 21 bytecode (`maven.compiler.release=21`). Chromatik 1.2.2 (`lx`/`glx`/`glxstudio`) ships class-file major version 69, which javac 21 refuses to read off the classpath — installing exactly Java 21 makes every build fail. CI pins JDK 25 for this reason.
