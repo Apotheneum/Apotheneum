@@ -1,0 +1,11 @@
+# Shell scripts must keep LF endings. On Windows, a CRLF checkout of a script
+# with a `#!/usr/bin/env bash` shebang fails to run at all — bash reads the \r as
+# part of the interpreter name and reports "bad interpreter" / "no such file".
+*.sh text eol=lf
+*.command text eol=lf
+
+# Normalize Markdown to LF in the repository. AGENTS.md and CLAUDE.md must stay
+# byte-identical (scripts/check-agent-instructions.sh enforces it); without this,
+# an editor that rewrites one file's endings makes the two blobs differ for a
+# reason that has nothing to do with their content.
+*.md text=auto eol=lf

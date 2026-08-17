@@ -9,6 +9,11 @@
 #
 #   check-agent-instructions.sh          verify (used by CI)
 #   check-agent-instructions.sh --sync   copy AGENTS.md over CLAUDE.md, then verify
+#
+# On Windows, run this from Git Bash (bundled with Git for Windows) — it needs a
+# POSIX shell plus cmp/wc/grep/sed. If that is inconvenient, the sync is just a
+# file copy, so `copy AGENTS.md CLAUDE.md` in cmd or `Copy-Item AGENTS.md
+# CLAUDE.md` in PowerShell is equivalent; CI runs the real check either way.
 
 set -euo pipefail
 
@@ -64,7 +69,15 @@ while IFS= read -r target; do
     echo "FAIL: AGENTS.md has a broken relative link: $target" >&2
     broken=1
   fi
-done < <(perl -ne 'while (/\]\(([^)]+)\)/g) { print "$1\n" }' "$AGENTS_FILE")
+  # Both link forms Markdown allows: inline `](target)` and reference definitions
+  # `[label]: target`. Checking only the inline form would let a reference-style
+  # link point at a missing file and still pass.
+done < <(
+  {
+    grep -oE '\]\([^)]+\)' "$AGENTS_FILE" | sed -e 's/^](//' -e 's/)$//'
+    grep -oE '^\[[^]]+\]:[[:space:]]*[^[:space:]]+' "$AGENTS_FILE" | sed -e 's/^\[[^]]*\]:[[:space:]]*//'
+  } || true
+)
 
 if (( broken )); then
   exit 1

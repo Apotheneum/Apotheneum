@@ -36,13 +36,14 @@ jobs:
           distribution: temurin
           cache: maven
 
+      # AGENTS.md is canonical; CLAUDE.md is a byte-identical mirror. Catch drift
+      # here, since a stale mirror silently gives Claude Code different house rules
+      # than every other agent. Runs before the build: it takes a second, and
+      # there's no reason to sit through a compile to learn a doc link is broken.
+      - name: check agent instructions
+        run: ./scripts/check-agent-instructions.sh
+
       # Plain `package` — NOT -Pinstall, which copies the jar into
       # ~/Chromatik/Packages (pointless on a runner).
       - name: mvn package
         run: mvn -B package
-
-      # AGENTS.md is canonical; CLAUDE.md is a byte-identical mirror. Catch drift
-      # here, since a stale mirror silently gives Claude Code different house rules
-      # than every other agent.
-      - name: check agent instructions
-        run: ./scripts/check-agent-instructions.sh
