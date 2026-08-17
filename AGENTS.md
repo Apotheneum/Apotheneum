@@ -24,6 +24,31 @@ Apotheneum is a visual, sonic and haptic instrument for immersive LED art instal
 
 **IMPORTANT**: Always use `mvn -Pinstall install` instead of `mvn compile` when working on patterns, as this updates the Chromatik code and makes changes available in the lighting system.
 
+### Testing
+
+Tests are **opt-in**, so a normal build never waits on them:
+
+```bash
+mvn -Ptests test
+```
+
+`maven.test.skip` defaults to true, which skips test *compilation* as well, so
+`mvn compile` and `mvn -Pinstall install` neither build nor run the suite. If you
+add tests and they appear not to run, you almost certainly omitted `-Ptests`.
+
+Tests live under `src/test/java`. Extend
+[`HeadlessLxTest`](src/test/java/apotheneum/HeadlessLxTest.java) for anything
+needing an `LX` instance: it constructs one per test over a small `GridModel` and
+disposes it afterwards. Disposal is not optional — each `new LX(...)` starts a
+non-daemon MIDI device-update thread that contends on a static CoreMIDI lock on
+macOS, and undisposed instances accumulate until construction deadlocks. For the
+same reason surefire runs with `reuseForks=false`, giving every test class a fresh
+JVM, which makes the suite slower than its test count suggests.
+
+Note a component that implements a `UI*Controls` interface pulls glxstudio in at
+class-load time, so tests touching it need glxstudio on the classpath — it is a
+`provided` dependency, so this works out of the box.
+
 ### Releasing
 
 Releases are cut by pushing a calendar tag — CI (`.github/workflows/release.yml`) builds the JAR and creates the GitHub Release. Never build and upload a release JAR by hand.
@@ -163,7 +188,7 @@ double dist3D = Math.sqrt(
 - **Build with JDK 25**, even though the project targets Java 21 bytecode (`maven.compiler.release=21`). Chromatik 1.2.2 (`lx`/`glx`/`glxstudio`) ships class-file major version 69, which javac 21 refuses to read off the classpath — installing exactly Java 21 makes every build fail. CI pins JDK 25 for this reason.
 - Maven for build management
 - LX Framework (Chromatik) - provided dependency
-- No external testing framework configured
+- JUnit 5 for tests, opt-in — see Testing below
 
 ## File Structure
 
