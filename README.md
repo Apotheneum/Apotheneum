@@ -151,6 +151,8 @@ public class MyGeneralPattern extends LXPattern {
 }
 ```
 
+**Coding guidelines:** see [LX/Chromatik coding guidelines](docs/lx-coding-guidelines.md) before opening a PR — LX idioms from past review feedback on this repo (no allocation in the render loop, enums instead of magic constants, framework helpers, lifecycle symmetry), plus a review checklist.
+
 **For audio-reactive patterns:** do envelope-following in the DAW and pipe the result in over OSC rather than reading the internal audio meter — see [Audio-Reactive Patterns](docs/audio-modulation.md).
 
 #### Example Patterns

@@ -39,7 +39,20 @@ jobs:
           plugin_marketplaces: 'https://github.com/anthropics/claude-code.git'
           plugins: 'code-review@claude-code-plugins'
           prompt: '/code-review:code-review --comment ${{ github.repository }}/pull/${{ github.event.pull_request.number }}'
-          claude_args: '--allowedTools "mcp__github_inline_comment__create_inline_comment"'
+          # AGENTS.md already points at the coding guidelines, and CLAUDE.md imports
+          # it, so the reviewer starts with that pointer in context — but following a
+          # pointer is a choice. --append-system-prompt makes it an instruction, and
+          # goes in claude_args rather than prompt so the slash command above still
+          # parses as a command.
+          claude_args: >-
+            --allowedTools "mcp__github_inline_comment__create_inline_comment"
+            --append-system-prompt "Before reviewing, read docs/lx-coding-guidelines.md
+            and apply its Part 3 review checklist alongside the standard review
+            criteria. It records LX idioms specific to this repo that a general review
+            will miss: no allocation in the render loop, enums carrying behavior
+            instead of magic constants or string maps, framework helpers over
+            reinvention, symmetric listener and plugin lifecycle, and staying within
+            model bounds including the door cutouts."
           # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
           # or https://code.claude.com/docs/en/cli-reference for available options
 

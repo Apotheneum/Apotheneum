@@ -36,6 +36,13 @@ jobs:
           distribution: temurin
           cache: maven
 
+      # AGENTS.md is canonical; CLAUDE.md imports it. A broken import fails
+      # silently — Claude Code just loads nothing — so check it here. Runs before
+      # the build: it takes a second, and there's no reason to sit through a
+      # compile to learn a doc link is broken.
+      - name: check agent instructions
+        run: ./scripts/check-agent-instructions.sh
+
       # Plain `package` — NOT -Pinstall, which copies the jar into
       # ~/Chromatik/Packages (pointless on a runner).
       - name: mvn package
