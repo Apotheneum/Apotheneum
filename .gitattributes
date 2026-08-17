@@ -4,8 +4,5 @@
 *.sh text eol=lf
 *.command text eol=lf
 
-# Normalize Markdown to LF in the repository. AGENTS.md and CLAUDE.md must stay
-# byte-identical (scripts/check-agent-instructions.sh enforces it); without this,
-# an editor that rewrites one file's endings makes the two blobs differ for a
-# reason that has nothing to do with their content.
+# Normalize Markdown to LF so diffs stay clean across platforms.
 *.md text=auto eol=lf

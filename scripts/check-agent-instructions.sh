@@ -1,19 +1,16 @@
 #!/usr/bin/env bash
 #
-# Keeps the agent instruction files consistent.
+# Checks the agent instruction files.
 #
-# AGENTS.md is canonical (Codex, Cursor, and most other agents read it). CLAUDE.md
-# is a byte-identical mirror for clients that only load CLAUDE.md. A mirror rather
-# than a pointer file, because a pointer costs every session an extra read and is
-# silently skippable.
+# AGENTS.md is canonical — Codex, Cursor and most other agents read it. Claude
+# Code reads CLAUDE.md instead, so CLAUDE.md is a one-line `@AGENTS.md` import;
+# Claude Code expands it into context at launch, so there is one copy of the
+# text and nothing to sync. https://code.claude.com/docs/en/memory#agents-md
 #
-#   check-agent-instructions.sh          verify (used by CI)
-#   check-agent-instructions.sh --sync   copy AGENTS.md over CLAUDE.md, then verify
+# A symlink would also work, but needs Administrator or Developer Mode on
+# Windows, so the import is the portable choice.
 #
-# On Windows, run this from Git Bash (bundled with Git for Windows) — it needs a
-# POSIX shell plus cmp/wc/grep/sed. If that is inconvenient, the sync is just a
-# file copy, so `copy AGENTS.md CLAUDE.md` in cmd or `Copy-Item AGENTS.md
-# CLAUDE.md` in PowerShell is equivalent; CI runs the real check either way.
+# Run from Git Bash on Windows — needs a POSIX shell plus grep/sed/wc.
 
 set -euo pipefail
 
@@ -24,12 +21,12 @@ CLAUDE_FILE="$REPO_ROOT/CLAUDE.md"
 
 # Instruction files are prepended to every session's context. Past this size the
 # cost outweighs the guidance; move detail into docs/ and link to it instead.
+# The docs recommend staying under 200 lines for adherence, not just size.
 MAX_BYTES=32768
+MAX_LINES=200
 
-if [[ "${1:-}" == "--sync" ]]; then
-  cp "$AGENTS_FILE" "$CLAUDE_FILE"
-elif [[ $# -ne 0 ]]; then
-  echo "usage: $0 [--sync]" >&2
+if [[ $# -ne 0 ]]; then
+  echo "usage: $0" >&2
   exit 2
 fi
 
@@ -39,12 +36,24 @@ if [[ ! -s "$AGENTS_FILE" ]]; then
 fi
 
 if [[ ! -s "$CLAUDE_FILE" ]]; then
-  echo "FAIL: CLAUDE.md mirror is missing or empty — run $0 --sync" >&2
+  echo "FAIL: CLAUDE.md is missing or empty — Claude Code reads it, not AGENTS.md." >&2
+  echo "      It should contain a single line: @AGENTS.md" >&2
   exit 1
 fi
 
-if ! cmp -s "$AGENTS_FILE" "$CLAUDE_FILE"; then
-  echo "FAIL: CLAUDE.md differs from canonical AGENTS.md — run $0 --sync" >&2
+# The import only works unquoted: inside backticks or a fenced block, Claude Code
+# treats `@AGENTS.md` as literal text and silently loads nothing. Strip code spans
+# and fenced blocks before looking, so a documentation mention can't satisfy this.
+claude_md_live=$(
+  awk '
+    /^[[:space:]]*```/ { fenced = !fenced; next }
+    !fenced { gsub(/`[^`]*`/, ""); print }
+  ' "$CLAUDE_FILE"
+)
+
+if ! grep -qE '(^|[[:space:]])@AGENTS\.md([[:space:]]|$)' <<<"$claude_md_live"; then
+  echo "FAIL: CLAUDE.md does not import AGENTS.md outside of a code block." >&2
+  echo "      Add an unquoted '@AGENTS.md' line — inside backticks it loads nothing." >&2
   exit 1
 fi
 
@@ -52,6 +61,12 @@ agents_bytes=$(wc -c < "$AGENTS_FILE" | tr -d ' ')
 if (( agents_bytes > MAX_BYTES )); then
   echo "FAIL: AGENTS.md is ${agents_bytes} bytes; limit is ${MAX_BYTES}" >&2
   exit 1
+fi
+
+agents_lines=$(wc -l < "$AGENTS_FILE" | tr -d ' ')
+if (( agents_lines > MAX_LINES )); then
+  echo "WARN: AGENTS.md is ${agents_lines} lines; adherence drops past ${MAX_LINES}." >&2
+  echo "      Consider moving detail into docs/ or a path-scoped .claude/rules/ file." >&2
 fi
 
 # A broken link in an instruction file sends every agent that follows it on a
@@ -83,4 +98,4 @@ if (( broken )); then
   exit 1
 fi
 
-echo "agent instructions OK — ${agents_bytes} bytes, mirror matches, links resolve"
+echo "agent instructions OK — AGENTS.md ${agents_bytes} bytes / ${agents_lines} lines, CLAUDE.md imports it, links resolve"

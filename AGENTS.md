@@ -2,7 +2,7 @@
 
 Project context for AI coding assistants working in this repository — Claude Code, Codex, Cursor, and anything else that reads a repo instruction file.
 
-**This file is canonical. `CLAUDE.md` is a byte-identical mirror** for clients that only load `CLAUDE.md`. Edit `AGENTS.md`, then run `scripts/check-agent-instructions.sh --sync` to update the mirror; CI fails if the two drift.
+**Edit this file, not `CLAUDE.md`.** Claude Code reads `CLAUDE.md` rather than `AGENTS.md`, so `CLAUDE.md` is a one-line `@AGENTS.md` import that expands this file into context at launch. There is nothing to keep in sync. `scripts/check-agent-instructions.sh` verifies the import is intact.
 
 **Before writing or reviewing LX code, read [docs/lx-coding-guidelines.md](docs/lx-coding-guidelines.md)** — LX idioms distilled from `@mcslee`'s reviews on this repo plus conventions read out of the LX source (no render-loop allocation, enums over magic constants, framework helpers, logging, plugin/component lifecycle). It ends with a review checklist to use alongside `/code-review`. This file covers the Apotheneum-specific geometry, base classes and UI rules.
 
