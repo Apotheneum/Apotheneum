@@ -2,6 +2,8 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+**Before writing or reviewing LX code, read [docs/lx-coding-guidelines.md](docs/lx-coding-guidelines.md)** — LX idioms distilled from `@mcslee`'s reviews on this repo plus conventions read out of the LX source (no render-loop allocation, enums over magic constants, framework helpers, logging, plugin/component lifecycle). It ends with a review checklist to use alongside `/code-review`. This file covers the Apotheneum-specific geometry, base classes and UI rules.
+
 ## Debugging & Logs
 
 - **Log files location**: `~/Chromatik/Logs` - Check here for console output and debug messages from patterns
