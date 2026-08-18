@@ -102,11 +102,19 @@ This builds the JAR file and copies it to `~/Chromatik/Packages` for automatic l
 
 #### Releasing
 
-Releases are cut by pushing a calendar tag. CI builds the JAR and creates the GitHub
-Release — no local build or manual upload needed:
+CI builds the JAR and creates the GitHub Release — no local build or manual upload
+needed. Cut one by pushing a calendar tag:
 
 ```bash
 $ git tag 2026.07.21 && git push origin 2026.07.21
+```
+
+Or run the release workflow from the repo's **Actions** tab, or the command line.
+With no tag given it uses today's UTC date — appending `-2`, `-3`, … if that tag is
+already taken — and creates the tag for you:
+
+```bash
+$ gh workflow run release.yml
 ```
 
 Each release publishes two assets:
