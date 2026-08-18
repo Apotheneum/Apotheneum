@@ -1342,24 +1342,6 @@
       "host": "$cyl08",
       "universe": 162,
       "segments": [
-        { "start": 25740, "num": 43 },
-        { "start": 25783, "num": 43, "reverse": true },
-        { "start": 25826, "num": 43 },
-        { "start": 25869, "num": 43, "reverse": true },
-        { "start": 25912, "num": 43 },
-        { "start": 25955, "num": 43, "reverse": true },
-        { "start": 25998, "num": 43 },
-        { "start": 26041, "num": 43, "reverse": true },
-        { "start": 26084, "num": 43 },
-        { "start": 26127, "num": 43, "reverse": true }
-      ]
-    },
-    {
-      "enabled": "$cyl08On & !$cyl08Flip",
-      "protocol": "artnet",
-      "host": "$cyl08",
-      "universe": 165,
-      "segments": [
         { "start": 20580, "num": 43 },
         { "start": 20623, "num": 43, "reverse": true },
         { "start": 20666, "num": 43 },
@@ -1370,6 +1352,24 @@
         { "start": 20881, "num": 43, "reverse": true },
         { "start": 20924, "num": 43 },
         { "start": 20967, "num": 43, "reverse": true }
+      ]
+    },
+    {
+      "enabled": "$cyl08On & !$cyl08Flip",
+      "protocol": "artnet",
+      "host": "$cyl08",
+      "universe": 165,
+      "segments": [
+        { "start": 25740, "num": 43 },
+        { "start": 25783, "num": 43, "reverse": true },
+        { "start": 25826, "num": 43 },
+        { "start": 25869, "num": 43, "reverse": true },
+        { "start": 25912, "num": 43 },
+        { "start": 25955, "num": 43, "reverse": true },
+        { "start": 25998, "num": 43 },
+        { "start": 26041, "num": 43, "reverse": true },
+        { "start": 26084, "num": 43 },
+        { "start": 26127, "num": 43, "reverse": true }
       ]
     },
     {
@@ -3214,24 +3214,6 @@
       "host": "$cyl08",
       "universe": 162,
       "segments": [
-        { "start": 26127, "num": 43 },
-        { "start": 26084, "num": 43, "reverse": true },
-        { "start": 26041, "num": 43 },
-        { "start": 25998, "num": 43, "reverse": true },
-        { "start": 25955, "num": 43 },
-        { "start": 25912, "num": 43, "reverse": true },
-        { "start": 25869, "num": 43 },
-        { "start": 25826, "num": 43, "reverse": true },
-        { "start": 25783, "num": 43 },
-        { "start": 25740, "num": 43, "reverse": true }
-      ]
-    },
-    {
-      "enabled": "$cyl08On & $cyl08Flip",
-      "protocol": "artnet",
-      "host": "$cyl08",
-      "universe": 165,
-      "segments": [
         { "start": 20967, "num": 43 },
         { "start": 20924, "num": 43, "reverse": true },
         { "start": 20881, "num": 43 },
@@ -3242,6 +3224,24 @@
         { "start": 20666, "num": 43, "reverse": true },
         { "start": 20623, "num": 43 },
         { "start": 20580, "num": 43, "reverse": true }
+      ]
+    },
+    {
+      "enabled": "$cyl08On & $cyl08Flip",
+      "protocol": "artnet",
+      "host": "$cyl08",
+      "universe": 165,
+      "segments": [
+        { "start": 26127, "num": 43 },
+        { "start": 26084, "num": 43, "reverse": true },
+        { "start": 26041, "num": 43 },
+        { "start": 25998, "num": 43, "reverse": true },
+        { "start": 25955, "num": 43 },
+        { "start": 25912, "num": 43, "reverse": true },
+        { "start": 25869, "num": 43 },
+        { "start": 25826, "num": 43, "reverse": true },
+        { "start": 25783, "num": 43 },
+        { "start": 25740, "num": 43, "reverse": true }
       ]
     },
     {

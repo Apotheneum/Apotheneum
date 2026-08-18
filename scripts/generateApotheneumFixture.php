@@ -480,10 +480,6 @@ for ($i = 0; $i < 12; ++$i) {
 
   $sInt = 18000;
   $sExt = 23160;
-  if ($i == 6) { // cyl07 back to front
-    $sInt = 23160;
-    $sExt = 18000;
-  }
 
   $segments = array();
   for ($s = 0; $s < 10; ++$s) {
