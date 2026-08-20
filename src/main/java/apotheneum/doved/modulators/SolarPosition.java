@@ -3,6 +3,7 @@ package apotheneum.doved.modulators;
 import java.time.Clock;
 import java.time.DateTimeException;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.Objects;
 
@@ -30,11 +31,12 @@ import heronarts.lx.utils.LXUtils;
  * Produces an incoming sunlight ray from an offline astronomical calculation.
  *
  * <p>The sun determines a direction but not one unique ray: sunlight is effectively a
- * parallel field. {@link #targetX}, {@link #targetY} and {@link #targetZ} choose which ray
- * crosses the installation. By default it lands at the center of the floor. The origin is
- * the intersection of that ray with the sun-facing side of the normalized unit model, and
- * the output angles point from that origin inward toward the target. They therefore map
- * directly to the origin and aim controls of a transformed distance-field RAY.
+ * parallel field. {@link #offsetX}, {@link #offsetY} and {@link #offsetZ} choose which ray
+ * crosses the installation, relative to its normalized center. At zero offset the ray passes
+ * through the center; an offset Y of -.5 moves it to floor level. The origin is the intersection
+ * of that ray with the sun-facing side of the normalized unit model, and the output angles point
+ * from that origin inward toward the offset target. They therefore map directly to the origin
+ * and aim controls of a transformed distance-field RAY.
  *
  * <p>Output parameters are bounded rather than compound: they are modulation sources, not
  * targets. Their normalized values map directly to the corresponding normalized pattern
@@ -84,9 +86,9 @@ public class SolarPosition extends LXModulator implements LXNormalizedParameter,
     .setWrappable(true)
     .setDescription("True bearing of the installation's normalized +Z axis");
 
-  public final CompoundParameter targetX = target("Target X", .5);
-  public final CompoundParameter targetY = target("Target Y", 0);
-  public final CompoundParameter targetZ = target("Target Z", .5);
+  public final CompoundParameter offsetX = offset("Offset X");
+  public final CompoundParameter offsetY = offset("Offset Y");
+  public final CompoundParameter offsetZ = offset("Offset Z");
 
   public final EnumParameter<TimeSource> timeSource =
     new EnumParameter<TimeSource>("Clock", TimeSource.SYSTEM)
@@ -140,8 +142,9 @@ public class SolarPosition extends LXModulator implements LXNormalizedParameter,
   private int cachedYear = Integer.MIN_VALUE;
   private int cachedMonth = Integer.MIN_VALUE;
   private int cachedDay = Integer.MIN_VALUE;
+  private double cachedManualTime = Double.NaN;
   private String cachedZone = null;
-  private long manualDayStartMillis;
+  private long manualBaseMillis;
 
   public SolarPosition() {
     this(Clock.systemUTC());
@@ -162,9 +165,9 @@ public class SolarPosition extends LXModulator implements LXNormalizedParameter,
     addParameter("latitude", this.latitude);
     addParameter("longitude", this.longitude);
     addParameter("northOffset", this.northOffset);
-    addParameter("targetX", this.targetX);
-    addParameter("targetY", this.targetY);
-    addParameter("targetZ", this.targetZ);
+    addParameter("offsetX", this.offsetX);
+    addParameter("offsetY", this.offsetY);
+    addParameter("offsetZ", this.offsetZ);
     addParameter("timeSource", this.timeSource);
     addParameter("manualYear", this.manualYear);
     addParameter("manualMonth", this.manualMonth);
@@ -179,14 +182,15 @@ public class SolarPosition extends LXModulator implements LXNormalizedParameter,
     addParameter("elevation", this.elevation);
     addParameter("altitudeNorm", this.altitudeNorm);
 
-    setDescription("Tracks the real or rehearsed sun as an incoming ray through a target point");
+    setDescription("Tracks the real or rehearsed sun through a point offset from model center");
     setUnits(LXParameter.Units.PERCENT_NORMALIZED);
   }
 
-  private static CompoundParameter target(String label, double value) {
-    return new CompoundParameter(label, value)
+  private static CompoundParameter offset(String label) {
+    return new CompoundParameter(label, 0, -.5, .5)
       .setUnits(LXParameter.Units.PERCENT_NORMALIZED)
-      .setDescription("Normalized point the selected sunlight ray passes through");
+      .setPolarity(LXParameter.Polarity.BIPOLAR)
+      .setDescription("Offset from model center for the selected sunlight ray");
   }
 
   private static BoundedParameter output(
@@ -205,7 +209,7 @@ public class SolarPosition extends LXModulator implements LXNormalizedParameter,
     projectIncomingRay(
       this.solar.getAzimuthDegrees(), this.solar.getElevationDegrees(),
       this.northOffset.getValue(),
-      this.targetX.getValue(), this.targetY.getValue(), this.targetZ.getValue(),
+      this.offsetX.getValue(), this.offsetY.getValue(), this.offsetZ.getValue(),
       this.ray);
 
     this.originX.setValue(this.ray.originX);
@@ -242,26 +246,30 @@ public class SolarPosition extends LXModulator implements LXNormalizedParameter,
       return Math.round(this.systemSimulatedMillis);
     }
 
-    updateManualDayStart();
+    updateManualBase();
     this.manualElapsedMillis += Math.max(0, deltaMs) * this.timeScale.getValue();
-    return this.manualDayStartMillis
-      + Math.round(this.manualTime.getValue() * MILLIS_PER_HOUR + this.manualElapsedMillis);
+    return this.manualBaseMillis + Math.round(this.manualElapsedMillis);
   }
 
-  private void updateManualDayStart() {
+  private void updateManualBase() {
     resolveZone();
     final int year = this.manualYear.getValuei();
     final int month = this.manualMonth.getValuei();
     final int requestedDay = this.manualDay.getValuei();
     final int day = Math.min(requestedDay, daysInMonth(year, month));
+    final double manualTime = this.manualTime.getValue();
     final String zone = this.validZone.getId();
     if (year != this.cachedYear || month != this.cachedMonth || day != this.cachedDay
+      || Double.compare(manualTime, this.cachedManualTime) != 0
       || !zone.equals(this.cachedZone)) {
-      this.manualDayStartMillis =
-        LocalDate.of(year, month, day).atStartOfDay(this.validZone).toInstant().toEpochMilli();
+      final long wallMillis = Math.round(manualTime * MILLIS_PER_HOUR);
+      final LocalDateTime wallTime = LocalDate.of(year, month, day).atStartOfDay()
+        .plusNanos(wallMillis * 1_000_000);
+      this.manualBaseMillis = wallTime.atZone(this.validZone).toInstant().toEpochMilli();
       this.cachedYear = year;
       this.cachedMonth = month;
       this.cachedDay = day;
+      this.cachedManualTime = manualTime;
       this.cachedZone = zone;
     }
   }
@@ -331,28 +339,27 @@ public class SolarPosition extends LXModulator implements LXNormalizedParameter,
     uiModulator.setLayout(UI2dContainer.Layout.VERTICAL, 4);
     uiModulator.addChildren(
       row(
-        newDoubleBox(solarPosition.latitude, 48),
-        newDoubleBox(solarPosition.longitude, 48),
-        newDoubleBox(solarPosition.northOffset, 48),
-        newTextBox(solarPosition.timeZone, 72)),
+        newDoubleBox(solarPosition.latitude, 38),
+        newDoubleBox(solarPosition.longitude, 38),
+        newDoubleBox(solarPosition.northOffset, 34),
+        newTextBox(solarPosition.timeZone, 50),
+        outputBox(solarPosition.originX, 24),
+        outputBox(solarPosition.originY, 24)),
       row(
-        newEnumBox(solarPosition.timeSource, 44),
-        newIntegerBox(solarPosition.manualYear, 40),
-        newIntegerBox(solarPosition.manualMonth, 30),
-        newIntegerBox(solarPosition.manualDay, 30),
-        newDoubleBox(solarPosition.manualTime, 56)),
+        newEnumBox(solarPosition.timeSource, 34),
+        newIntegerBox(solarPosition.manualYear, 30),
+        newIntegerBox(solarPosition.manualMonth, 22),
+        newIntegerBox(solarPosition.manualDay, 22),
+        newDoubleBox(solarPosition.manualTime, 38),
+        outputBox(solarPosition.originZ, 22),
+        outputBox(solarPosition.azimuth, 26)),
       row(
-        newDoubleBox(solarPosition.timeScale, 44),
-        newDoubleBox(solarPosition.targetX, 44),
-        newDoubleBox(solarPosition.targetY, 44),
-        newDoubleBox(solarPosition.targetZ, 44)),
-      row(
-        outputBox(solarPosition.originX, 32),
-        outputBox(solarPosition.originY, 32),
-        outputBox(solarPosition.originZ, 32),
-        outputBox(solarPosition.azimuth, 32),
-        outputBox(solarPosition.elevation, 32),
-        outputBox(solarPosition.altitudeNorm, 32)));
+        newDoubleBox(solarPosition.timeScale, 36),
+        newDoubleBox(solarPosition.offsetX, 36),
+        newDoubleBox(solarPosition.offsetY, 36),
+        newDoubleBox(solarPosition.offsetZ, 36),
+        outputBox(solarPosition.elevation, 28),
+        outputBox(solarPosition.altitudeNorm, 28)));
   }
 
   private static UI2dContainer row(UI2dComponent... children) {
@@ -375,9 +382,12 @@ public class SolarPosition extends LXModulator implements LXNormalizedParameter,
 
   static Ray projectIncomingRay(
     double solarAzimuthDegrees, double solarElevationDegrees, double northOffsetDegrees,
-    double targetX, double targetY, double targetZ, Ray ray) {
+    double offsetX, double offsetY, double offsetZ, Ray ray) {
 
     Objects.requireNonNull(ray, "May not project into a null ray");
+    final double targetX = .5 + offsetX;
+    final double targetY = .5 + offsetY;
+    final double targetZ = .5 + offsetZ;
     final double modelSunAzimuth = Math.toRadians(
       SolarPositionCalculator.normalizeDegrees(solarAzimuthDegrees - northOffsetDegrees));
     final double solarElevation = Math.toRadians(solarElevationDegrees);

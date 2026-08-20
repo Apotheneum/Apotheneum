@@ -71,30 +71,72 @@ public class SolarPositionTest extends HeadlessLxTest {
   }
 
   @Test
-  void incomingRayStartsSunwardAndPassesThroughFloorCenter() {
+  void manualClockPreservesLocalWallTimeAcrossDstTransitions() {
+    assertManualTimeMatchesInstant(
+      2026, 3, 8, 12, Instant.parse("2026-03-08T19:00:00Z"));
+    assertManualTimeMatchesInstant(
+      2026, 11, 1, 12, Instant.parse("2026-11-01T20:00:00Z"));
+  }
+
+  @Test
+  void zeroOffsetRayStartsSunwardAndPassesThroughInstallationCenter() {
     final SolarPosition.Ray ray = new SolarPosition.Ray();
-    SolarPosition.projectIncomingRay(0, 45, 0, .5, 0, .5, ray);
+    SolarPosition.projectIncomingRay(0, 45, 0, 0, 0, 0, ray);
 
     assertEquals(.5, ray.originX, EPSILON);
-    assertEquals(.5, ray.originY, EPSILON);
+    assertEquals(1, ray.originY, EPSILON);
     assertEquals(1, ray.originZ, EPSILON);
     assertEquals(180, ray.azimuthDegrees, EPSILON);
     assertEquals(-45, ray.elevationDegrees, EPSILON);
 
-    // From the origin, the incoming direction reaches the configured center-floor target.
+    // From the origin, the incoming direction reaches the normalized installation center.
     final double travel = Math.sqrt(.5);
     final double directionY = Math.sin(Math.toRadians(ray.elevationDegrees));
     final double directionZ = Math.cos(Math.toRadians(ray.elevationDegrees))
       * Math.cos(Math.toRadians(ray.azimuthDegrees));
-    assertEquals(0, ray.originY + travel * directionY, EPSILON);
+    assertEquals(.5, ray.originY + travel * directionY, EPSILON);
     assertEquals(.5, ray.originZ + travel * directionZ, EPSILON);
+  }
+
+  @Test
+  void offsetsSelectAParallelRayRelativeToInstallationCenter() {
+    final SolarPosition.Ray ray = new SolarPosition.Ray();
+    SolarPosition.projectIncomingRay(0, 0, 0, .1, -.5, -.2, ray);
+
+    assertEquals(.6, ray.originX, EPSILON);
+    assertEquals(0, ray.originY, EPSILON);
+    assertEquals(1, ray.originZ, EPSILON);
+
+    // The incoming ray passes through center + offset = (.6, 0, .3).
+    final double travel = .7;
+    final double directionX = Math.cos(Math.toRadians(ray.elevationDegrees))
+      * Math.sin(Math.toRadians(ray.azimuthDegrees));
+    final double directionY = Math.sin(Math.toRadians(ray.elevationDegrees));
+    final double directionZ = Math.cos(Math.toRadians(ray.elevationDegrees))
+      * Math.cos(Math.toRadians(ray.azimuthDegrees));
+    assertEquals(.6, ray.originX + travel * directionX, EPSILON);
+    assertEquals(0, ray.originY + travel * directionY, EPSILON);
+    assertEquals(.3, ray.originZ + travel * directionZ, EPSILON);
+  }
+
+  @Test
+  void offsetsAreBipolarModulatableControlsCenteredOnZero() {
+    final CompoundParameter[] offsets = {
+      this.solarPosition.offsetX, this.solarPosition.offsetY, this.solarPosition.offsetZ
+    };
+    for (CompoundParameter offset : offsets) {
+      assertEquals(0, offset.getValue(), EPSILON);
+      assertEquals(-.5, offset.range.min, EPSILON);
+      assertEquals(.5, offset.range.max, EPSILON);
+      assertEquals(heronarts.lx.parameter.LXParameter.Polarity.BIPOLAR, offset.getPolarity());
+    }
   }
 
   @Test
   void northOffsetRotatesTheRayIntoTheInstallationFrame() {
     final SolarPosition.Ray ray = new SolarPosition.Ray();
     // If model +Z itself points east, a sun due east is directly along model +Z.
-    SolarPosition.projectIncomingRay(90, 0, 90, .5, .5, .5, ray);
+    SolarPosition.projectIncomingRay(90, 0, 90, 0, 0, 0, ray);
 
     assertEquals(.5, ray.originX, EPSILON);
     assertEquals(.5, ray.originY, EPSILON);
@@ -105,7 +147,7 @@ public class SolarPositionTest extends HeadlessLxTest {
   @Test
   void belowHorizonRemainsPhysicalAndDaylightOutputGatesIt() {
     final SolarPosition.Ray ray = new SolarPosition.Ray();
-    SolarPosition.projectIncomingRay(180, -10, 0, .5, 0, .5, ray);
+    SolarPosition.projectIncomingRay(180, -10, 0, 0, -.5, 0, ray);
 
     assertEquals(.5, ray.originX, EPSILON);
     assertEquals(0, ray.originY, EPSILON);
@@ -188,5 +230,28 @@ public class SolarPositionTest extends HeadlessLxTest {
     this.solarPosition.manualDay.setValue(17);
     this.solarPosition.manualTime.setValue(hour);
     this.solarPosition.timeScale.setValue(0);
+  }
+
+  private void assertManualTimeMatchesInstant(
+    int year, int month, int day, double hour, Instant expectedInstant) {
+
+    this.solarPosition.timeSource.setValue(SolarPosition.TimeSource.MANUAL);
+    this.solarPosition.timeZone.setValue("America/Los_Angeles");
+    this.solarPosition.manualYear.setValue(year);
+    this.solarPosition.manualMonth.setValue(month);
+    this.solarPosition.manualDay.setValue(day);
+    this.solarPosition.manualTime.setValue(hour);
+    this.solarPosition.timeScale.setValue(0);
+    this.solarPosition.loop(0);
+
+    final SolarPositionCalculator.Result expected = new SolarPositionCalculator.Result();
+    SolarPositionCalculator.calculate(
+      expectedInstant.toEpochMilli(),
+      this.solarPosition.latitude.getValue(), this.solarPosition.longitude.getValue(), expected);
+    assertEquals(
+      SolarPositionCalculator.normalizeDegrees(expected.getAzimuthDegrees() + 180),
+      this.solarPosition.azimuth.getValue(), EPSILON);
+    assertEquals(-expected.getElevationDegrees(),
+      this.solarPosition.elevation.getValue(), EPSILON);
   }
 }
