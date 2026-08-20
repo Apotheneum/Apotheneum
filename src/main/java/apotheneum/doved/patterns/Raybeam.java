@@ -201,11 +201,11 @@ public class Raybeam extends LXPattern
     }
   }
 
-  public final CompoundParameter originX = normalized("Origin X", .5,
+  public final CompoundParameter originX = normalized("X", .5,
     "World X coordinate of the local origin");
-  public final CompoundParameter originY = normalized("Origin Y", .5,
+  public final CompoundParameter originY = normalized("Y", .5,
     "World Y coordinate of the local origin");
-  public final CompoundParameter originZ = normalized("Origin Z", .5,
+  public final CompoundParameter originZ = normalized("Z", .5,
     "World Z coordinate of the local origin");
 
   public final CompoundParameter azimuth =
