@@ -40,6 +40,7 @@ public class Raybeam extends LXPattern
   private static final double HALF_PI = Math.PI / 2;
   private static final double CONE_HALF_SPACE_EPSILON = 1e-12;
   private static final double DEBUG_RAY_WIDTH = .04;
+  private static final int DEBUG_RAY_COLOR = LXColor.rgb(255, 0, 0);
 
   public enum Shape {
     POINT("Point") {
@@ -280,7 +281,7 @@ public class Raybeam extends LXPattern
 
   public final BooleanParameter showRay =
     new BooleanParameter("Show Ray", false)
-    .setDescription("Replace the pattern output with a thin ray showing the current origin and aim");
+    .setDescription("Overlay a red ray showing the current origin and aim");
 
   public final CompoundParameter width =
     new CompoundParameter("Width", .1, .001, 1)
@@ -374,17 +375,17 @@ public class Raybeam extends LXPattern
       final double x = this.frame.localX(point.xn, point.yn, point.zn);
       final double y = this.frame.localY(point.xn, point.yn, point.zn);
       final double z = this.frame.localZ(point.xn, point.yn, point.zn);
+      final double distance =
+        shape.distance(x, y, z, radius, minorRadius, coneSin, coneCos);
+      final double envelope = falloff.brightness(distance, width, softness);
+      this.colors[point.index] = LXColor.grayn(getBrightness(
+        shape, x, y, z, radius, minorRadius, coneSin, coneCos, distance, envelope));
       if (showRay) {
         final double rayDistance =
           Shape.RAY.distance(x, y, z, radius, minorRadius, coneSin, coneCos);
-        this.colors[point.index] = LXColor.grayn(
-          Falloff.LINEAR.brightness(rayDistance, DEBUG_RAY_WIDTH, 1));
-      } else {
-        final double distance =
-          shape.distance(x, y, z, radius, minorRadius, coneSin, coneCos);
-        final double envelope = falloff.brightness(distance, width, softness);
-        this.colors[point.index] = LXColor.grayn(getBrightness(
-          shape, x, y, z, radius, minorRadius, coneSin, coneCos, distance, envelope));
+        if (rayDistance <= DEBUG_RAY_WIDTH) {
+          this.colors[point.index] = DEBUG_RAY_COLOR;
+        }
       }
     }
   }

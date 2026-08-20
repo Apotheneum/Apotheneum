@@ -79,6 +79,27 @@ public class SolarPositionTest extends HeadlessLxTest {
   }
 
   @Test
+  void editingManualTimeResetsAccumulatedRehearsalTime() {
+    configureManualUtc(12);
+    this.solarPosition.timeScale.setValue(1);
+    this.solarPosition.loop(0);
+    this.solarPosition.loop(3_600_000);
+
+    this.solarPosition.manualTime.setValue(6);
+    this.solarPosition.loop(0);
+
+    final SolarPositionCalculator.Result expected = new SolarPositionCalculator.Result();
+    SolarPositionCalculator.calculate(
+      Instant.parse("2003-10-17T06:00:00Z").toEpochMilli(),
+      this.solarPosition.latitude.getValue(), this.solarPosition.longitude.getValue(), expected);
+    assertEquals(
+      SolarPositionCalculator.normalizeDegrees(expected.getAzimuthDegrees() + 180),
+      this.solarPosition.azimuth.getValue(), EPSILON);
+    assertEquals(-expected.getElevationDegrees(),
+      this.solarPosition.elevation.getValue(), EPSILON);
+  }
+
+  @Test
   void zeroOffsetRayStartsSunwardAndPassesThroughInstallationCenter() {
     final SolarPosition.Ray ray = new SolarPosition.Ray();
     SolarPosition.projectIncomingRay(0, 45, 0, 0, 0, 0, ray);

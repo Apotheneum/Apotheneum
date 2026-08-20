@@ -66,6 +66,7 @@ public class SolarPosition extends LXModulator implements LXNormalizedParameter,
   }
 
   private static final String DEFAULT_ZONE = "America/Los_Angeles";
+  private static final String PREFIX = "[SolarPosition] ";
   private static final double MILLIS_PER_HOUR = 3_600_000.;
   private static final double DIRECTION_EPSILON = 1e-12;
 
@@ -272,6 +273,7 @@ public class SolarPosition extends LXModulator implements LXNormalizedParameter,
       this.cachedDay = day;
       this.cachedManualTime = manualTime;
       this.cachedZone = zone;
+      this.manualElapsedMillis = 0;
     }
   }
 
@@ -294,10 +296,14 @@ public class SolarPosition extends LXModulator implements LXNormalizedParameter,
       try {
         this.validZone = ZoneId.of(requested);
       } catch (DateTimeException x) {
-        LX.warning("[SolarPosition] Invalid timezone '" + requested
+        warning("Invalid timezone '" + requested
           + "', continuing with " + this.validZone.getId());
       }
     }
+  }
+
+  private static void warning(String message) {
+    LX.warning(PREFIX + message);
   }
 
   @Override
