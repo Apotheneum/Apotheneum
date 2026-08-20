@@ -205,11 +205,11 @@ public class RaybeamTest extends HeadlessLxTest {
     final Raybeam.LocalFrame frame =
       new Raybeam.LocalFrame();
 
-    frame.update(0, 0, 0, 0, 0, 1, 1, 1);
+    frame.update(0, 0, 0, 0, 0, 0, 1, 1, 1);
     assertEquals(1, frame.localY(0, 0, 1), EPSILON);
     assertEquals(0, frame.localY(1, 0, 0), EPSILON);
 
-    frame.update(0, 0, 0, Math.PI / 2, 0, 1, 1, 1);
+    frame.update(0, 0, 0, Math.PI / 2, 0, 0, 1, 1, 1);
     assertEquals(0, frame.localY(0, 0, 1), EPSILON);
     assertEquals(1, frame.localY(1, 0, 0), EPSILON);
   }
@@ -219,7 +219,7 @@ public class RaybeamTest extends HeadlessLxTest {
     final Raybeam.LocalFrame frame =
       new Raybeam.LocalFrame();
     // Azimuth 0 and elevation +pi/2 align local XYZ exactly with world XYZ.
-    frame.update(.5, .5, .5, 0, Math.PI / 2, 1, 1, 1);
+    frame.update(.5, .5, .5, 0, Math.PI / 2, 0, 1, 1, 1);
 
     final double localY = frame.localY(.2, .8, .7);
     final double planeDistance =
@@ -235,11 +235,22 @@ public class RaybeamTest extends HeadlessLxTest {
   void scaleIsAppliedInLocalSpace() {
     final Raybeam.LocalFrame frame =
       new Raybeam.LocalFrame();
-    frame.update(0, 0, 0, 0, Math.PI / 2, 2, 4, .5);
+    frame.update(0, 0, 0, 0, Math.PI / 2, 0, 2, 4, .5);
 
     assertEquals(.5, frame.localX(1, 0, 0), EPSILON);
     assertEquals(.25, frame.localY(0, 1, 0), EPSILON);
     assertEquals(2, frame.localZ(0, 0, 1), EPSILON);
+  }
+
+  @Test
+  void rollRotatesTheScaledCrossSectionAroundTheAimedAxis() {
+    final Raybeam.LocalFrame frame =
+      new Raybeam.LocalFrame();
+    frame.update(0, 0, 0, 0, Math.PI / 2, Math.PI / 2, 2, 1, .5);
+
+    assertEquals(-.5, frame.localX(0, 0, 1), EPSILON);
+    assertEquals(1, frame.localY(0, 1, 0), EPSILON);
+    assertEquals(2, frame.localZ(1, 0, 0), EPSILON);
   }
 
   @Test
@@ -316,8 +327,8 @@ public class RaybeamTest extends HeadlessLxTest {
     final Raybeam pattern = new Raybeam(lx);
     try {
       final String[] paths = {
-        "originX", "originY", "originZ", "azimuth", "elevation", "width", "radius",
-        "minorRadius", "softness", "coneAngle", "scaleX", "scaleY", "scaleZ"
+        "originX", "originY", "originZ", "azimuth", "elevation", "roll", "width",
+        "radius", "minorRadius", "softness", "coneAngle", "scaleX", "scaleY", "scaleZ"
       };
       for (String path : paths) {
         assertTrue(pattern.getParameter(path) instanceof CompoundParameter,
