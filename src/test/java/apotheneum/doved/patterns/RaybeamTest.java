@@ -305,7 +305,7 @@ public class RaybeamTest extends HeadlessLxTest {
   }
 
   @Test
-  void renderUsesSelectedViewsAndDebugRayOverlaysTheShape() {
+  void renderUsesSelectedViewsAndShowRayDoesNotChangePatternOutput() {
     final LX lx = newHeadlessLx();
     final Raybeam pattern = new Raybeam(lx);
     final ModelBuffer buffer = new ModelBuffer(lx);
@@ -339,7 +339,7 @@ public class RaybeamTest extends HeadlessLxTest {
       pattern.showRay.setValue(true);
       pattern.loop(0);
 
-      assertEquals(LXColor.rgb(255, 0, 0), buffer.getArray()[selected.index]);
+      assertEquals(LXColor.WHITE, buffer.getArray()[selected.index]);
       assertEquals(LXColor.WHITE, buffer.getArray()[excluded.index]);
     } finally {
       pattern.dispose();

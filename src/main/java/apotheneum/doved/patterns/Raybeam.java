@@ -1,5 +1,9 @@
 package apotheneum.doved.patterns;
 
+import java.util.IdentityHashMap;
+import java.util.Map;
+
+import apotheneum.doved.ui.UIRaybeam;
 import heronarts.glx.ui.component.UIKnob;
 import heronarts.lx.LX;
 import heronarts.lx.LXCategory;
@@ -39,8 +43,6 @@ public class Raybeam extends LXPattern
   private static final double TWO_PI = 2 * Math.PI;
   private static final double HALF_PI = Math.PI / 2;
   private static final double CONE_HALF_SPACE_EPSILON = 1e-12;
-  private static final double DEBUG_RAY_WIDTH = .04;
-  private static final int DEBUG_RAY_COLOR = LXColor.rgb(255, 0, 0);
 
   public enum Shape {
     POINT("Point") {
@@ -281,7 +283,7 @@ public class Raybeam extends LXPattern
 
   public final BooleanParameter showRay =
     new BooleanParameter("Show Ray", false)
-    .setDescription("Overlay a red ray showing the current origin and aim");
+    .setDescription("Draw a red origin-and-aim line in the 3D preview");
 
   public final CompoundParameter width =
     new CompoundParameter("Width", .1, .001, 1)
@@ -317,6 +319,8 @@ public class Raybeam extends LXPattern
   public final CompoundParameter scaleZ = scale("Scale Z");
 
   private final LocalFrame frame = new LocalFrame();
+  private final Map<UIDevice, PreviewOverlays> previewOverlays =
+    new IdentityHashMap<UIDevice, PreviewOverlays>();
 
   public Raybeam(LX lx) {
     super(lx);
@@ -370,7 +374,6 @@ public class Raybeam extends LXPattern
     final double coneCos = Math.cos(coneAngle);
     final double width = this.width.getValue();
     final double softness = this.softness.getValue();
-    final boolean showRay = this.showRay.isOn();
     for (LXPoint point : this.model.points) {
       final double x = this.frame.localX(point.xn, point.yn, point.zn);
       final double y = this.frame.localY(point.xn, point.yn, point.zn);
@@ -380,13 +383,6 @@ public class Raybeam extends LXPattern
       final double envelope = falloff.brightness(distance, width, softness);
       this.colors[point.index] = LXColor.grayn(getBrightness(
         shape, x, y, z, radius, minorRadius, coneSin, coneCos, distance, envelope));
-      if (showRay) {
-        final double rayDistance =
-          Shape.RAY.distance(x, y, z, radius, minorRadius, coneSin, coneCos);
-        if (rayDistance <= DEBUG_RAY_WIDTH) {
-          this.colors[point.index] = DEBUG_RAY_COLOR;
-        }
-      }
     }
   }
 
@@ -403,6 +399,15 @@ public class Raybeam extends LXPattern
   @Override
   public void buildDeviceControls(
     UI ui, UIDevice uiDevice, Raybeam raybeam) {
+
+    final PreviewOverlays previous = this.previewOverlays.remove(uiDevice);
+    if (previous != null) {
+      previous.dispose(ui);
+    }
+    final PreviewOverlays overlays = new PreviewOverlays(ui, raybeam);
+    this.previewOverlays.put(uiDevice, overlays);
+    ui.preview.addComponent(overlays.main);
+    ui.previewAux.addComponent(overlays.auxiliary);
 
     final UIKnob radiusKnob = newKnob(raybeam.radius);
     radiusKnob.setEnabled(raybeam.shape.getEnum().usesRadius());
@@ -453,6 +458,33 @@ public class Raybeam extends LXPattern
       newKnob(raybeam.scaleX),
       newKnob(raybeam.scaleY),
       newKnob(raybeam.scaleZ));
+  }
+
+  @Override
+  public void disposeDeviceControls(
+    UI ui, UIDevice uiDevice, Raybeam raybeam) {
+
+    final PreviewOverlays overlays = this.previewOverlays.remove(uiDevice);
+    if (overlays != null) {
+      overlays.dispose(ui);
+    }
+  }
+
+  private static final class PreviewOverlays {
+    private final UIRaybeam main;
+    private final UIRaybeam auxiliary;
+
+    private PreviewOverlays(UI ui, Raybeam raybeam) {
+      this.main = new UIRaybeam(ui, raybeam, false);
+      this.auxiliary = new UIRaybeam(ui, raybeam, true);
+    }
+
+    private void dispose(UI ui) {
+      ui.preview.removeComponent(this.main);
+      this.main.dispose();
+      ui.previewAux.removeComponent(this.auxiliary);
+      this.auxiliary.dispose();
+    }
   }
 
   /** Precomputed inverse transform from normalized world coordinates into local space. */
