@@ -177,6 +177,24 @@ public class Raybeam extends LXPattern
     }
   }
 
+  /** Applies signed concentric bands while preserving the distance-field envelope. */
+  static final class Ripple {
+    private Ripple() {}
+
+    static double brightness(double envelope, double distance, double amount,
+      double spacing, double phase, double sharpness, double decay) {
+
+      if (amount <= 0 || envelope <= 0) {
+        return envelope;
+      }
+
+      final double wave = Math.cos(TWO_PI * (distance / spacing - phase));
+      final double shapedWave = Math.copySign(Math.pow(Math.abs(wave), sharpness), wave);
+      final double amplitude = amount * Math.pow(envelope, decay);
+      return LXUtils.constrain(envelope + amplitude * shapedWave, 0, 1);
+    }
+  }
+
   public final CompoundParameter originX = normalized("Origin X", .5,
     "World X coordinate of the local origin");
   public final CompoundParameter originY = normalized("Origin Y", .5,
@@ -214,6 +232,30 @@ public class Raybeam extends LXPattern
     .setUnits(LXParameter.Units.PERCENT_NORMALIZED)
     .setDescription("Fraction of width used to feather the transition");
 
+  public final CompoundParameter rippleAmount =
+    new CompoundParameter("Ripple Amt", .35)
+    .setUnits(LXParameter.Units.PERCENT_NORMALIZED)
+    .setDescription("Strength of concentric brightness ripples within the field");
+
+  public final CompoundParameter rippleSpacing =
+    new CompoundParameter("Ripple Gap", .08, .005, .5)
+    .setUnits(LXParameter.Units.PERCENT_NORMALIZED)
+    .setDescription("Distance between successive ripple crests");
+
+  public final CompoundParameter ripplePhase =
+    new CompoundParameter("Ripple Phase", 0)
+    .setUnits(LXParameter.Units.PERCENT_NORMALIZED)
+    .setWrappable(true)
+    .setDescription("Modulate upward from 0 to 1 to move ripples away from the shape");
+
+  public final CompoundParameter rippleSharpness =
+    new CompoundParameter("Ripple Sharp", 1, .25, 4)
+    .setDescription("Shape of ripple bands; higher values make them narrower");
+
+  public final CompoundParameter rippleDecay =
+    new CompoundParameter("Ripple Decay", 1.5, .1, 8)
+    .setDescription("How quickly ripple amplitude fades toward the field boundary");
+
   public final CompoundParameter radius =
     new CompoundParameter("Radius", .25, 0, 1)
     .setUnits(LXParameter.Units.PERCENT_NORMALIZED)
@@ -241,6 +283,11 @@ public class Raybeam extends LXPattern
     addParameter("width", this.width);
     addParameter("falloff", this.falloff);
     addParameter("softness", this.softness);
+    addParameter("rippleAmount", this.rippleAmount);
+    addParameter("rippleSpacing", this.rippleSpacing);
+    addParameter("ripplePhase", this.ripplePhase);
+    addParameter("rippleSharpness", this.rippleSharpness);
+    addParameter("rippleDecay", this.rippleDecay);
     addParameter("radius", this.radius);
     addParameter("coneAngle", this.coneAngle);
     addParameter("scaleX", this.scaleX);
@@ -276,14 +323,21 @@ public class Raybeam extends LXPattern
     final double coneCos = Math.cos(coneAngle);
     final double width = this.width.getValue();
     final double softness = this.softness.getValue();
+    final double rippleAmount = this.rippleAmount.getValue();
+    final double rippleSpacing = this.rippleSpacing.getValue();
+    final double ripplePhase = this.ripplePhase.getValue();
+    final double rippleSharpness = this.rippleSharpness.getValue();
+    final double rippleDecay = this.rippleDecay.getValue();
 
     for (LXPoint point : this.model.points) {
       final double x = this.frame.localX(point.xn, point.yn, point.zn);
       final double y = this.frame.localY(point.xn, point.yn, point.zn);
       final double z = this.frame.localZ(point.xn, point.yn, point.zn);
       final double distance = shape.distance(x, y, z, radius, coneSin, coneCos);
-      this.colors[point.index] = LXColor.grayn(
-        falloff.brightness(distance, width, softness));
+      final double envelope = falloff.brightness(distance, width, softness);
+      this.colors[point.index] = LXColor.grayn(Ripple.brightness(
+        envelope, distance, rippleAmount, rippleSpacing, ripplePhase,
+        rippleSharpness, rippleDecay));
     }
   }
 
@@ -323,6 +377,17 @@ public class Raybeam extends LXPattern
       newDropMenu(raybeam.falloff),
       newKnob(raybeam.width),
       newKnob(raybeam.softness));
+
+    addVerticalBreak(ui, uiDevice);
+    addColumn(uiDevice, "Ripple",
+      newKnob(raybeam.rippleAmount),
+      newKnob(raybeam.rippleSpacing),
+      newKnob(raybeam.ripplePhase));
+
+    addVerticalBreak(ui, uiDevice);
+    addColumn(uiDevice, "Ripple Shape",
+      newKnob(raybeam.rippleSharpness),
+      newKnob(raybeam.rippleDecay));
 
     addVerticalBreak(ui, uiDevice);
     addColumn(uiDevice, "Scale",
