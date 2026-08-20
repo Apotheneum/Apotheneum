@@ -289,6 +289,55 @@ public class RaybeamTest extends HeadlessLxTest {
   }
 
   @Test
+  void zeroRippleAmountPreservesTheDistanceFieldEnvelope() {
+    assertEquals(.63,
+      Raybeam.Ripple.brightness(.63, .17, 0, .1, .25, 2, 3),
+      EPSILON);
+  }
+
+  @Test
+  void increasingPhaseMovesRippleCrestsAwayFromTheShape() {
+    final double spacing = .2;
+    final double phase = .25;
+    final double atOrigin = Raybeam.Ripple.brightness(
+      .5, 0, .5, spacing, phase, 1, 1);
+    final double atMovingCrest = Raybeam.Ripple.brightness(
+      .5, spacing * phase, .5, spacing, phase, 1, 1);
+
+    assertEquals(.5, atOrigin, EPSILON);
+    assertEquals(.75, atMovingCrest, EPSILON);
+  }
+
+  @Test
+  void rippleAmplitudeFadesWithTheDistanceFieldEnvelope() {
+    final double inner = Raybeam.Ripple.brightness(
+      .8, .1, .5, .2, 0, 1, 1);
+    final double outer = Raybeam.Ripple.brightness(
+      .2, .1, .5, .2, 0, 1, 1);
+
+    assertEquals(.4, .8 - inner, EPSILON);
+    assertEquals(.1, .2 - outer, EPSILON);
+  }
+
+  @Test
+  void rippleSharpnessNarrowsIntermediateWaveValues() {
+    final double broad = Raybeam.Ripple.brightness(
+      .5, 1.0 / 6, 1, 1, 0, 1, 1);
+    final double narrow = Raybeam.Ripple.brightness(
+      .5, 1.0 / 6, 1, 1, 0, 2, 1);
+
+    assertEquals(.75, broad, EPSILON);
+    assertEquals(.625, narrow, EPSILON);
+  }
+
+  @Test
+  void rippleCannotLightPixelsOutsideTheFieldBoundary() {
+    assertEquals(0,
+      Raybeam.Ripple.brightness(0, .4, 1, .1, 0, 1, .1),
+      EPSILON);
+  }
+
+  @Test
   void patternProvidesCustomDeviceControls() {
     assertTrue(UIDeviceControls.class.isAssignableFrom(Raybeam.class));
   }
@@ -328,7 +377,9 @@ public class RaybeamTest extends HeadlessLxTest {
     try {
       final String[] paths = {
         "originX", "originY", "originZ", "azimuth", "elevation", "roll", "width",
-        "radius", "minorRadius", "softness", "coneAngle", "scaleX", "scaleY", "scaleZ"
+        "radius", "minorRadius", "softness", "coneAngle", "rippleAmount", "rippleSpacing",
+        "ripplePhase",
+        "rippleSharpness", "rippleDecay", "scaleX", "scaleY", "scaleZ"
       };
       for (String path : paths) {
         assertTrue(pattern.getParameter(path) instanceof CompoundParameter,
