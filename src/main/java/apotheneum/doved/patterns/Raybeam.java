@@ -22,8 +22,8 @@ import heronarts.lx.utils.LXUtils;
  * <p>The local Y axis is the axis of {@link Shape#LINE}, {@link Shape#RAY},
  * {@link Shape#CYLINDER}, {@link Shape#TORUS} and {@link Shape#CONE}. Azimuth turns that
  * axis around world Y; elevation aims it from straight down through the horizon to straight
- * up; roll spins the local X/Z plane around the aimed axis. The orientation basis is computed
- * once per frame, outside the point loop.
+ * up. Roll adds an independent turn around the world vertical Y axis. The orientation basis is
+ * computed once per frame, outside the point loop.
  *
  * <p>The pattern iterates {@link #model}, the model selected by the standard LX device view
  * selector. It clears the full output before drawing that view so switching views never leaves
@@ -224,7 +224,7 @@ public class Raybeam extends LXPattern
     new CompoundParameter("Roll", 0)
     .setUnits(LXParameter.Units.PERCENT_NORMALIZED)
     .setWrappable(true)
-    .setDescription("Rotation around the aimed local Y axis, mapping 0-1 to 0-2pi");
+    .setDescription("Rotation around world Y, mapping 0-1 to 0-2pi");
 
   public final EnumParameter<Shape> shape =
     new EnumParameter<Shape>("Shape", Shape.LINE)
@@ -404,27 +404,22 @@ public class Raybeam extends LXPattern
       this.originY = originY;
       this.originZ = originZ;
 
-      final double sinAzimuth = Math.sin(azimuth);
-      final double cosAzimuth = Math.cos(azimuth);
+      final double worldYaw = azimuth + roll;
+      final double sinAzimuth = Math.sin(worldYaw);
+      final double cosAzimuth = Math.cos(worldYaw);
       final double sinElevation = Math.sin(elevation);
       final double cosElevation = Math.cos(elevation);
-      final double sinRoll = Math.sin(roll);
-      final double cosRoll = Math.cos(roll);
 
       // Rows of the inverse rotation matrix are the local basis vectors in world space.
-      this.xx =
-        (cosRoll * cosAzimuth - sinRoll * sinAzimuth * sinElevation) / scaleX;
-      this.xy = sinRoll * cosElevation / scaleX;
-      this.xz =
-        (-cosRoll * sinAzimuth - sinRoll * cosAzimuth * sinElevation) / scaleX;
+      this.xx = cosAzimuth / scaleX;
+      this.xy = 0;
+      this.xz = -sinAzimuth / scaleX;
       this.yx = sinAzimuth * cosElevation / scaleY;
       this.yy = sinElevation / scaleY;
       this.yz = cosAzimuth * cosElevation / scaleY;
-      this.zx =
-        (sinRoll * cosAzimuth + cosRoll * sinAzimuth * sinElevation) / scaleZ;
-      this.zy = -cosRoll * cosElevation / scaleZ;
-      this.zz =
-        (-sinRoll * sinAzimuth + cosRoll * cosAzimuth * sinElevation) / scaleZ;
+      this.zx = sinAzimuth * sinElevation / scaleZ;
+      this.zy = -cosElevation / scaleZ;
+      this.zz = cosAzimuth * sinElevation / scaleZ;
     }
 
     double localX(double x, double y, double z) {

@@ -243,14 +243,14 @@ public class RaybeamTest extends HeadlessLxTest {
   }
 
   @Test
-  void rollRotatesTheScaledCrossSectionAroundTheAimedAxis() {
+  void rollRotatesTheAimAroundWorldYAxis() {
     final Raybeam.LocalFrame frame =
       new Raybeam.LocalFrame();
-    frame.update(0, 0, 0, 0, Math.PI / 2, Math.PI / 2, 2, 1, .5);
+    frame.update(0, 0, 0, 0, 0, Math.PI / 2, 2, 1, .5);
 
+    assertEquals(1, frame.localY(1, 0, 0), EPSILON);
+    assertEquals(0, frame.localY(0, 0, 1), EPSILON);
     assertEquals(-.5, frame.localX(0, 0, 1), EPSILON);
-    assertEquals(1, frame.localY(0, 1, 0), EPSILON);
-    assertEquals(2, frame.localZ(1, 0, 0), EPSILON);
   }
 
   @Test
