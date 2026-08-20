@@ -22,8 +22,8 @@ import heronarts.lx.utils.LXUtils;
  * <p>The local Y axis is the axis of {@link Shape#LINE}, {@link Shape#RAY},
  * {@link Shape#CYLINDER}, {@link Shape#TORUS} and {@link Shape#CONE}. Azimuth turns that
  * axis around world Y; elevation aims it from straight down through the horizon to straight
- * up. Roll adds an independent turn around the world vertical Y axis. The orientation basis is
- * computed once per frame, outside the point loop.
+ * up. Azimuth Offset adds a second, independently modulatable turn around world Y. The
+ * orientation basis is computed once per frame, outside the point loop.
  *
  * <p>The pattern iterates {@link #model}, the model selected by the standard LX device view
  * selector. It clears the full output before drawing that view so switching views never leaves
@@ -37,6 +37,7 @@ public class Raybeam extends LXPattern
 
   private static final double TWO_PI = 2 * Math.PI;
   private static final double HALF_PI = Math.PI / 2;
+  private static final double CONE_HALF_SPACE_EPSILON = 1e-12;
 
   public enum Shape {
     POINT("Point") {
@@ -127,6 +128,9 @@ public class Raybeam extends LXPattern
         double x, double y, double z, double radius, double minorRadius,
         double coneSin, double coneCos) {
 
+        if (coneCos <= CONE_HALF_SPACE_EPSILON) {
+          return Math.max(0, -y);
+        }
         final double radial = Math.sqrt(x * x + z * z);
         final double projection = y * coneCos + radial * coneSin;
         if (projection <= 0) {
@@ -140,6 +144,9 @@ public class Raybeam extends LXPattern
         double x, double y, double z, double radius, double minorRadius,
         double coneSin, double coneCos) {
 
+        if (coneCos <= CONE_HALF_SPACE_EPSILON) {
+          return y > 0;
+        }
         final double radial = Math.sqrt(x * x + z * z);
         final double projection = y * coneCos + radial * coneSin;
         return (projection > 0) && (radial * coneCos - y * coneSin < 0);
@@ -259,11 +266,11 @@ public class Raybeam extends LXPattern
     .setPolarity(LXParameter.Polarity.BIPOLAR)
     .setDescription("Vertical aim from -pi/2 to +pi/2 radians");
 
-  public final CompoundParameter roll =
-    new CompoundParameter("Roll", 0)
+  public final CompoundParameter azimuthOffset =
+    new CompoundParameter("Azim Offset", 0)
     .setUnits(LXParameter.Units.PERCENT_NORMALIZED)
     .setWrappable(true)
-    .setDescription("Rotation around world Y, mapping 0-1 to 0-2pi");
+    .setDescription("Additive azimuth offset around world Y, mapping 0-1 to 0-2pi");
 
   public final EnumParameter<Shape> shape =
     new EnumParameter<Shape>("Shape", Shape.LINE)
@@ -311,7 +318,8 @@ public class Raybeam extends LXPattern
     addParameter("originZ", this.originZ);
     addParameter("azimuth", this.azimuth);
     addParameter("elevation", this.elevation);
-    addParameter("roll", this.roll);
+    // Preserve the existing path so locally saved projects continue to load this control.
+    addParameter("roll", this.azimuthOffset);
     addParameter("shape", this.shape);
     addParameter("width", this.width);
     addParameter("falloff", this.falloff);
@@ -342,7 +350,7 @@ public class Raybeam extends LXPattern
     this.frame.update(
       this.originX.getValue(), this.originY.getValue(), this.originZ.getValue(),
       this.azimuth.getValue() * TWO_PI, this.elevation.getValue(),
-      this.roll.getValue() * TWO_PI,
+      this.azimuthOffset.getValue() * TWO_PI,
       this.scaleX.getValue(), this.scaleY.getValue(), this.scaleZ.getValue());
 
     final Shape shape = this.shape.getEnum();
@@ -405,7 +413,7 @@ public class Raybeam extends LXPattern
     addColumn(uiDevice, "Aim",
       newKnob(raybeam.azimuth),
       newKnob(raybeam.elevation),
-      newKnob(raybeam.roll));
+      newKnob(raybeam.azimuthOffset));
 
     addVerticalBreak(ui, uiDevice);
     addColumn(uiDevice, "Shape",
@@ -446,14 +454,14 @@ public class Raybeam extends LXPattern
     private double zz;
 
     void update(double originX, double originY, double originZ,
-      double azimuth, double elevation, double roll,
+      double azimuth, double elevation, double azimuthOffset,
       double scaleX, double scaleY, double scaleZ) {
 
       this.originX = originX;
       this.originY = originY;
       this.originZ = originZ;
 
-      final double worldYaw = azimuth + roll;
+      final double worldYaw = azimuth + azimuthOffset;
       final double sinAzimuth = Math.sin(worldYaw);
       final double cosAzimuth = Math.cos(worldYaw);
       final double sinElevation = Math.sin(elevation);

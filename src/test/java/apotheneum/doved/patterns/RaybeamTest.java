@@ -179,6 +179,10 @@ public class RaybeamTest extends HeadlessLxTest {
       Raybeam.Shape.CONE.distance(x, y, z, RADIUS, MINOR_RADIUS, 1, 0), EPSILON);
     assertEquals(y,
       Raybeam.Shape.CONE.distance(x, -y, z, RADIUS, MINOR_RADIUS, 1, 0), EPSILON);
+    assertEquals(0,
+      Raybeam.Shape.CONE.distance(0, y, 0, RADIUS, MINOR_RADIUS, 1, 0), EPSILON);
+    assertEquals(y,
+      Raybeam.Shape.CONE.distance(0, -y, 0, RADIUS, MINOR_RADIUS, 1, 0), EPSILON);
   }
 
   @Test
@@ -243,14 +247,20 @@ public class RaybeamTest extends HeadlessLxTest {
   }
 
   @Test
-  void rollRotatesTheAimAroundWorldYAxis() {
-    final Raybeam.LocalFrame frame =
+  void azimuthOffsetAddsToAzimuth() {
+    final Raybeam.LocalFrame offsetFrame =
       new Raybeam.LocalFrame();
-    frame.update(0, 0, 0, 0, 0, Math.PI / 2, 2, 1, .5);
+    final Raybeam.LocalFrame combinedFrame =
+      new Raybeam.LocalFrame();
+    offsetFrame.update(0, 0, 0, .2, .3, .4, 2, 1, .5);
+    combinedFrame.update(0, 0, 0, .6, .3, 0, 2, 1, .5);
 
-    assertEquals(1, frame.localY(1, 0, 0), EPSILON);
-    assertEquals(0, frame.localY(0, 0, 1), EPSILON);
-    assertEquals(-.5, frame.localX(0, 0, 1), EPSILON);
+    assertEquals(combinedFrame.localX(.1, .2, .3),
+      offsetFrame.localX(.1, .2, .3), EPSILON);
+    assertEquals(combinedFrame.localY(.1, .2, .3),
+      offsetFrame.localY(.1, .2, .3), EPSILON);
+    assertEquals(combinedFrame.localZ(.1, .2, .3),
+      offsetFrame.localZ(.1, .2, .3), EPSILON);
   }
 
   @Test
@@ -334,6 +344,7 @@ public class RaybeamTest extends HeadlessLxTest {
         assertTrue(pattern.getParameter(path) instanceof CompoundParameter,
           path + " must remain a modulatable CompoundParameter");
       }
+      assertSame(pattern.azimuthOffset, pattern.getParameter("roll"));
     } finally {
       pattern.dispose();
     }

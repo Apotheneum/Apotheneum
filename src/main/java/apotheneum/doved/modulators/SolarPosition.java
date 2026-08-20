@@ -40,7 +40,8 @@ import heronarts.lx.utils.LXUtils;
  *
  * <p>Output parameters are bounded rather than compound: they are modulation sources, not
  * targets. Their normalized values map directly to the corresponding normalized pattern
- * parameters even though angles are displayed in degrees here.
+ * parameters even though angles are displayed in degrees here. Use full positive modulation
+ * depth for exact tracking; reducing the depth intentionally compresses the solar trajectory.
  */
 @LXModulator.Global("Solar Position")
 @LXModulator.Device("Solar Position")
