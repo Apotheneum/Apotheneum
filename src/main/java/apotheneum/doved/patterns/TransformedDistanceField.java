@@ -1,0 +1,329 @@
+package apotheneum.doved.patterns;
+
+import heronarts.lx.LX;
+import heronarts.lx.LXCategory;
+import heronarts.lx.LXComponent;
+import heronarts.lx.color.LXColor;
+import heronarts.lx.model.LXPoint;
+import heronarts.lx.parameter.CompoundParameter;
+import heronarts.lx.parameter.EnumParameter;
+import heronarts.lx.parameter.LXParameter;
+import heronarts.lx.pattern.LXPattern;
+import heronarts.lx.studio.LXStudio.UI;
+import heronarts.lx.studio.ui.device.UIDevice;
+import heronarts.lx.studio.ui.device.UIDeviceControls;
+import heronarts.lx.utils.LXUtils;
+
+/**
+ * Evaluates axis-aligned distance fields after moving each point into a translated,
+ * rotated and scaled local coordinate frame.
+ *
+ * <p>The local Y axis is the axis of {@link Shape#LINE}, {@link Shape#RAY},
+ * {@link Shape#CYLINDER} and {@link Shape#CONE}. Azimuth turns that axis around world Y;
+ * elevation aims it from straight down through the horizon to straight up. The orientation
+ * basis is computed once per frame, outside the point loop.
+ *
+ * <p>The pattern iterates {@link #model}, the model selected by the standard LX device view
+ * selector. It clears the full output before drawing that view so switching views never leaves
+ * pixels from the previous selection behind.
+ */
+@LXCategory("Apotheneum/doved")
+@LXComponent.Name("Transformed Distance Field")
+@LXComponent.Description("Renders translated and aimed 3D distance-field shapes")
+public class TransformedDistanceField extends LXPattern
+  implements UIDeviceControls<TransformedDistanceField> {
+
+  private static final double TWO_PI = 2 * Math.PI;
+  private static final double HALF_PI = Math.PI / 2;
+
+  public enum Shape {
+    POINT("Point") {
+      @Override
+      double distance(double x, double y, double z, double radius) {
+        return length(x, y, z);
+      }
+    },
+    LINE("Line") {
+      @Override
+      double distance(double x, double y, double z, double radius) {
+        return Math.sqrt(x * x + z * z);
+      }
+    },
+    RAY("Ray") {
+      @Override
+      double distance(double x, double y, double z, double radius) {
+        return (y >= 0) ? Math.sqrt(x * x + z * z) : length(x, y, z);
+      }
+    },
+    PLANE("Plane") {
+      @Override
+      double distance(double x, double y, double z, double radius) {
+        return Math.abs(y);
+      }
+    },
+    CYLINDER("Cylinder") {
+      @Override
+      double distance(double x, double y, double z, double radius) {
+        return Math.abs(Math.sqrt(x * x + z * z) - radius);
+      }
+    },
+    SPHERE("Sphere") {
+      @Override
+      double distance(double x, double y, double z, double radius) {
+        return Math.abs(length(x, y, z) - radius);
+      }
+    },
+    CONE("Cone") {
+      @Override
+      double distance(double x, double y, double z, double radius) {
+        final double length = length(x, y, z);
+        if (length == 0) {
+          return 0;
+        }
+        return Math.acos(LXUtils.constrain(y / length, -1, 1));
+      }
+    };
+
+    private final String label;
+
+    Shape(String label) {
+      this.label = label;
+    }
+
+    abstract double distance(double x, double y, double z, double radius);
+
+    private static double length(double x, double y, double z) {
+      return Math.sqrt(x * x + y * y + z * z);
+    }
+
+    @Override
+    public String toString() {
+      return this.label;
+    }
+  }
+
+  public enum Falloff {
+    LINEAR("Linear") {
+      @Override
+      double profile(double normalizedDistance) {
+        return 1 - normalizedDistance;
+      }
+    },
+    EXPONENTIAL("Exponential") {
+      @Override
+      double profile(double normalizedDistance) {
+        final double remaining = 1 - normalizedDistance;
+        return remaining * remaining;
+      }
+    },
+    GAUSSIAN("Gaussian") {
+      private static final double EDGE = Math.exp(-4.5);
+
+      @Override
+      double profile(double normalizedDistance) {
+        return (Math.exp(-4.5 * normalizedDistance * normalizedDistance) - EDGE) / (1 - EDGE);
+      }
+    };
+
+    private final String label;
+
+    Falloff(String label) {
+      this.label = label;
+    }
+
+    abstract double profile(double normalizedDistance);
+
+    double brightness(double distance, double width) {
+      if (distance <= 0) {
+        return 1;
+      }
+      if (distance >= width) {
+        return 0;
+      }
+      return LXUtils.constrain(profile(distance / width), 0, 1);
+    }
+
+    @Override
+    public String toString() {
+      return this.label;
+    }
+  }
+
+  public final CompoundParameter originX = normalized("Origin X", .5,
+    "World X coordinate of the local origin");
+  public final CompoundParameter originY = normalized("Origin Y", .5,
+    "World Y coordinate of the local origin");
+  public final CompoundParameter originZ = normalized("Origin Z", .5,
+    "World Z coordinate of the local origin");
+
+  public final CompoundParameter azimuth =
+    new CompoundParameter("Azimuth", 0)
+    .setUnits(LXParameter.Units.PERCENT_NORMALIZED)
+    .setWrappable(true)
+    .setDescription("Direction around world Y, mapping 0-1 to 0-2pi");
+
+  public final CompoundParameter elevation =
+    new CompoundParameter("Elevation", 0, -HALF_PI, HALF_PI)
+    .setUnits(LXParameter.Units.RADIANS)
+    .setPolarity(LXParameter.Polarity.BIPOLAR)
+    .setDescription("Vertical aim from -pi/2 to +pi/2 radians");
+
+  public final EnumParameter<Shape> shape =
+    new EnumParameter<Shape>("Shape", Shape.LINE)
+    .setDescription("Distance-field shape evaluated in local coordinates");
+
+  public final CompoundParameter width =
+    new CompoundParameter("Width", .1, .001, 1)
+    .setUnits(LXParameter.Units.PERCENT_NORMALIZED)
+    .setDescription("Distance from the shape at which brightness reaches zero");
+
+  public final EnumParameter<Falloff> falloff =
+    new EnumParameter<Falloff>("Falloff", Falloff.LINEAR)
+    .setDescription("Brightness profile between the shape and its width boundary");
+
+  public final CompoundParameter radius =
+    new CompoundParameter("Radius", .25, 0, 1)
+    .setUnits(LXParameter.Units.PERCENT_NORMALIZED)
+    .setDescription("Radius of cylinder and sphere shells");
+
+  public final CompoundParameter scaleX = scale("Scale X");
+  public final CompoundParameter scaleY = scale("Scale Y");
+  public final CompoundParameter scaleZ = scale("Scale Z");
+
+  private final LocalFrame frame = new LocalFrame();
+
+  public TransformedDistanceField(LX lx) {
+    super(lx);
+    addParameter("originX", this.originX);
+    addParameter("originY", this.originY);
+    addParameter("originZ", this.originZ);
+    addParameter("azimuth", this.azimuth);
+    addParameter("elevation", this.elevation);
+    addParameter("shape", this.shape);
+    addParameter("width", this.width);
+    addParameter("falloff", this.falloff);
+    addParameter("radius", this.radius);
+    addParameter("scaleX", this.scaleX);
+    addParameter("scaleY", this.scaleY);
+    addParameter("scaleZ", this.scaleZ);
+  }
+
+  private static CompoundParameter normalized(String label, double value, String description) {
+    return new CompoundParameter(label, value)
+      .setUnits(LXParameter.Units.PERCENT_NORMALIZED)
+      .setPolarity(LXParameter.Polarity.BIPOLAR)
+      .setDescription(description);
+  }
+
+  private static CompoundParameter scale(String label) {
+    return new CompoundParameter(label, 1, .1, 4)
+      .setDescription("Local domain scale; 1 leaves this axis unchanged");
+  }
+
+  @Override
+  protected void run(double deltaMs) {
+    clearColors();
+
+    this.frame.update(
+      this.originX.getValue(), this.originY.getValue(), this.originZ.getValue(),
+      this.azimuth.getValue() * TWO_PI, this.elevation.getValue(),
+      this.scaleX.getValue(), this.scaleY.getValue(), this.scaleZ.getValue());
+
+    final Shape shape = this.shape.getEnum();
+    final Falloff falloff = this.falloff.getEnum();
+    final double radius = this.radius.getValue();
+    final double width = this.width.getValue();
+
+    for (LXPoint point : this.model.points) {
+      final double x = this.frame.localX(point.xn, point.yn, point.zn);
+      final double y = this.frame.localY(point.xn, point.yn, point.zn);
+      final double z = this.frame.localZ(point.xn, point.yn, point.zn);
+      final double distance = shape.distance(x, y, z, radius);
+      this.colors[point.index] = LXColor.grayn(falloff.brightness(distance, width));
+    }
+  }
+
+  @Override
+  public void buildDeviceControls(
+    UI ui, UIDevice uiDevice, TransformedDistanceField distanceField) {
+
+    uiDevice.setLayout(UIDevice.Layout.HORIZONTAL, 6);
+    addColumn(uiDevice, "Origin",
+      newKnob(distanceField.originX),
+      newKnob(distanceField.originY),
+      newKnob(distanceField.originZ));
+
+    addVerticalBreak(ui, uiDevice);
+    addColumn(uiDevice, "Aim",
+      newKnob(distanceField.azimuth),
+      newKnob(distanceField.elevation));
+
+    addVerticalBreak(ui, uiDevice);
+    addColumn(uiDevice, "Shape",
+      newDropMenu(distanceField.shape),
+      newKnob(distanceField.radius),
+      newKnob(distanceField.width));
+
+    addVerticalBreak(ui, uiDevice);
+    addColumn(uiDevice, "Edge",
+      newDropMenu(distanceField.falloff));
+
+    addVerticalBreak(ui, uiDevice);
+    addColumn(uiDevice, "Scale",
+      newKnob(distanceField.scaleX),
+      newKnob(distanceField.scaleY),
+      newKnob(distanceField.scaleZ));
+  }
+
+  /** Precomputed inverse transform from normalized world coordinates into local space. */
+  static final class LocalFrame {
+    private double originX;
+    private double originY;
+    private double originZ;
+    private double xx;
+    private double xz;
+    private double yx;
+    private double yy;
+    private double yz;
+    private double zx;
+    private double zy;
+    private double zz;
+
+    void update(double originX, double originY, double originZ,
+      double azimuth, double elevation, double scaleX, double scaleY, double scaleZ) {
+
+      this.originX = originX;
+      this.originY = originY;
+      this.originZ = originZ;
+
+      final double sinAzimuth = Math.sin(azimuth);
+      final double cosAzimuth = Math.cos(azimuth);
+      final double sinElevation = Math.sin(elevation);
+      final double cosElevation = Math.cos(elevation);
+
+      // Rows of the inverse rotation matrix are the local basis vectors in world space.
+      this.xx = cosAzimuth / scaleX;
+      this.xz = -sinAzimuth / scaleX;
+      this.yx = sinAzimuth * cosElevation / scaleY;
+      this.yy = sinElevation / scaleY;
+      this.yz = cosAzimuth * cosElevation / scaleY;
+      this.zx = sinAzimuth * sinElevation / scaleZ;
+      this.zy = -cosElevation / scaleZ;
+      this.zz = cosAzimuth * sinElevation / scaleZ;
+    }
+
+    double localX(double x, double y, double z) {
+      return this.xx * (x - this.originX) + this.xz * (z - this.originZ);
+    }
+
+    double localY(double x, double y, double z) {
+      return this.yx * (x - this.originX) + this.yy * (y - this.originY)
+        + this.yz * (z - this.originZ);
+    }
+
+    double localZ(double x, double y, double z) {
+      return this.zx * (x - this.originX) + this.zy * (y - this.originY)
+        + this.zz * (z - this.originZ);
+    }
+  }
+}
