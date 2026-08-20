@@ -18,7 +18,6 @@ import heronarts.lx.color.LXColor;
 import heronarts.lx.mixer.LXPatternEngine;
 import heronarts.lx.model.LXModel;
 import heronarts.lx.model.LXNormalizationBounds;
-import heronarts.lx.studio.LXStudio;
 import heronarts.lx.transform.LXMatrix;
 
 /** Draws Raybeam's aim as a fixed-width line in the 3D preview. */
@@ -32,13 +31,16 @@ public class UIRaybeam extends UI3dComponent {
 
   private final Raybeam raybeam;
   private final boolean auxiliary;
-  private final VertexBuffer vertices;
+  private VertexBuffer vertices;
   private final LXMatrix viewTransform = new LXMatrix();
-  private final FloatBuffer viewMatrixBuffer = MemoryUtil.memAllocFloat(16);
+  private FloatBuffer viewMatrixBuffer;
 
-  public UIRaybeam(LXStudio.UI ui, Raybeam raybeam, boolean auxiliary) {
+  public UIRaybeam(Raybeam raybeam, boolean auxiliary) {
     this.raybeam = raybeam;
     this.auxiliary = auxiliary;
+  }
+
+  private void initializeBuffers(heronarts.glx.ui.UI ui) {
     this.vertices = new VertexBuffer(
       ui.lx, 2, VertexDeclaration.Attribute.POSITION) {
       @Override
@@ -47,12 +49,16 @@ public class UIRaybeam extends UI3dComponent {
         putVertex(1, 0, 0);
       }
     };
+    this.viewMatrixBuffer = MemoryUtil.memAllocFloat(16);
   }
 
   @Override
   protected void onDraw(heronarts.glx.ui.UI ui, View view) {
     if (!this.raybeam.showRay.isOn() || !isPatternVisible()) {
       return;
+    }
+    if (this.vertices == null) {
+      initializeBuffers(ui);
     }
 
     final double originX = this.raybeam.originX.getValue();
@@ -133,8 +139,14 @@ public class UIRaybeam extends UI3dComponent {
 
   @Override
   public void dispose() {
-    this.vertices.dispose();
-    MemoryUtil.memFree(this.viewMatrixBuffer);
+    if (this.vertices != null) {
+      this.vertices.dispose();
+      this.vertices = null;
+    }
+    if (this.viewMatrixBuffer != null) {
+      MemoryUtil.memFree(this.viewMatrixBuffer);
+      this.viewMatrixBuffer = null;
+    }
     super.dispose();
   }
 }

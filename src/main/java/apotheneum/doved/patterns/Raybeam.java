@@ -404,7 +404,7 @@ public class Raybeam extends LXPattern
     if (previous != null) {
       previous.dispose(ui);
     }
-    final PreviewOverlays overlays = new PreviewOverlays(ui, raybeam);
+    final PreviewOverlays overlays = new PreviewOverlays(raybeam);
     this.previewOverlays.put(uiDevice, overlays);
     ui.preview.addComponent(overlays.main);
     ui.previewAux.addComponent(overlays.auxiliary);
@@ -474,9 +474,9 @@ public class Raybeam extends LXPattern
     private final UIRaybeam main;
     private final UIRaybeam auxiliary;
 
-    private PreviewOverlays(UI ui, Raybeam raybeam) {
-      this.main = new UIRaybeam(ui, raybeam, false);
-      this.auxiliary = new UIRaybeam(ui, raybeam, true);
+    private PreviewOverlays(Raybeam raybeam) {
+      this.main = new UIRaybeam(raybeam, false);
+      this.auxiliary = new UIRaybeam(raybeam, true);
     }
 
     private void dispose(UI ui) {
