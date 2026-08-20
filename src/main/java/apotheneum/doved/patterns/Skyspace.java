@@ -39,27 +39,27 @@ public class Skyspace extends Raybeam {
   }
 
   public final CompoundParameter rippleAmount =
-    new CompoundParameter("Ripple Amt", .35)
+    new CompoundParameter("Amount", .35)
     .setUnits(LXParameter.Units.PERCENT_NORMALIZED)
     .setDescription("Strength of concentric brightness ripples outside the opening");
 
   public final CompoundParameter rippleSpacing =
-    new CompoundParameter("Ripple Gap", .08, .005, .5)
+    new CompoundParameter("Spacing", .08, .005, .5)
     .setUnits(LXParameter.Units.PERCENT_NORMALIZED)
     .setDescription("Distance between successive ripple crests");
 
   public final CompoundParameter ripplePhase =
-    new CompoundParameter("Ripple Phase", 0)
+    new CompoundParameter("Phase", 0)
     .setUnits(LXParameter.Units.PERCENT_NORMALIZED)
     .setWrappable(true)
     .setDescription("Modulate upward from 0 to 1 to move ripples away from the opening");
 
   public final CompoundParameter rippleSharpness =
-    new CompoundParameter("Ripple Sharp", 1, .25, 4)
+    new CompoundParameter("Sharp", 1, .25, 4)
     .setDescription("Shape of ripple bands; higher values make them narrower");
 
   public final CompoundParameter rippleDecay =
-    new CompoundParameter("Ripple Decay", 1.5, .1, 8)
+    new CompoundParameter("Decay", 1.5, .1, 8)
     .setDescription("How quickly ripple amplitude fades away from the opening");
 
   public Skyspace(LX lx) {
@@ -102,7 +102,7 @@ public class Skyspace extends Raybeam {
       newKnob(skyspace.ripplePhase));
 
     addVerticalBreak(ui, uiDevice);
-    addColumn(uiDevice, "Ripple Shape",
+    addColumn(uiDevice, "Wave",
       newKnob(skyspace.rippleSharpness),
       newKnob(skyspace.rippleDecay));
   }

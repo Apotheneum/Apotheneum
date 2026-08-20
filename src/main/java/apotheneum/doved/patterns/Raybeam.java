@@ -6,6 +6,7 @@ import heronarts.lx.LXCategory;
 import heronarts.lx.LXComponent;
 import heronarts.lx.color.LXColor;
 import heronarts.lx.model.LXPoint;
+import heronarts.lx.parameter.BooleanParameter;
 import heronarts.lx.parameter.CompoundParameter;
 import heronarts.lx.parameter.EnumParameter;
 import heronarts.lx.parameter.LXParameter;
@@ -38,6 +39,7 @@ public class Raybeam extends LXPattern
   private static final double TWO_PI = 2 * Math.PI;
   private static final double HALF_PI = Math.PI / 2;
   private static final double CONE_HALF_SPACE_EPSILON = 1e-12;
+  private static final double DEBUG_RAY_WIDTH = .04;
 
   public enum Shape {
     POINT("Point") {
@@ -276,6 +278,10 @@ public class Raybeam extends LXPattern
     new EnumParameter<Shape>("Shape", Shape.LINE)
     .setDescription("Distance-field shape evaluated in local coordinates");
 
+  public final BooleanParameter showRay =
+    new BooleanParameter("Show Ray", false)
+    .setDescription("Replace the pattern output with a thin ray showing the current origin and aim");
+
   public final CompoundParameter width =
     new CompoundParameter("Width", .1, .001, 1)
     .setUnits(LXParameter.Units.PERCENT_NORMALIZED)
@@ -321,6 +327,7 @@ public class Raybeam extends LXPattern
     // Preserve the existing path so locally saved projects continue to load this control.
     addParameter("roll", this.azimuthOffset);
     addParameter("shape", this.shape);
+    addParameter("showRay", this.showRay);
     addParameter("width", this.width);
     addParameter("falloff", this.falloff);
     addParameter("softness", this.softness);
@@ -362,15 +369,23 @@ public class Raybeam extends LXPattern
     final double coneCos = Math.cos(coneAngle);
     final double width = this.width.getValue();
     final double softness = this.softness.getValue();
+    final boolean showRay = this.showRay.isOn();
     for (LXPoint point : this.model.points) {
       final double x = this.frame.localX(point.xn, point.yn, point.zn);
       final double y = this.frame.localY(point.xn, point.yn, point.zn);
       final double z = this.frame.localZ(point.xn, point.yn, point.zn);
-      final double distance =
-        shape.distance(x, y, z, radius, minorRadius, coneSin, coneCos);
-      final double envelope = falloff.brightness(distance, width, softness);
-      this.colors[point.index] = LXColor.grayn(getBrightness(
-        shape, x, y, z, radius, minorRadius, coneSin, coneCos, distance, envelope));
+      if (showRay) {
+        final double rayDistance =
+          Shape.RAY.distance(x, y, z, radius, minorRadius, coneSin, coneCos);
+        this.colors[point.index] = LXColor.grayn(
+          Falloff.LINEAR.brightness(rayDistance, DEBUG_RAY_WIDTH, 1));
+      } else {
+        final double distance =
+          shape.distance(x, y, z, radius, minorRadius, coneSin, coneCos);
+        final double envelope = falloff.brightness(distance, width, softness);
+        this.colors[point.index] = LXColor.grayn(getBrightness(
+          shape, x, y, z, radius, minorRadius, coneSin, coneCos, distance, envelope));
+      }
     }
   }
 
@@ -417,7 +432,8 @@ public class Raybeam extends LXPattern
 
     addVerticalBreak(ui, uiDevice);
     addColumn(uiDevice, "Shape",
-      newDropMenu(raybeam.shape));
+      newDropMenu(raybeam.shape),
+      newButton(raybeam.showRay));
 
     addVerticalBreak(ui, uiDevice);
     addColumn(uiDevice, "Dimensions",

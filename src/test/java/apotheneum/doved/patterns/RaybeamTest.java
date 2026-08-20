@@ -14,6 +14,7 @@ import heronarts.lx.ModelBuffer;
 import heronarts.lx.color.LXColor;
 import heronarts.lx.model.LXModel;
 import heronarts.lx.model.LXPoint;
+import heronarts.lx.parameter.BooleanParameter;
 import heronarts.lx.parameter.CompoundParameter;
 import heronarts.lx.studio.ui.device.UIDeviceControls;
 
@@ -304,7 +305,7 @@ public class RaybeamTest extends HeadlessLxTest {
   }
 
   @Test
-  void renderUsesTheSelectedModelViewAndClearsEverythingElse() {
+  void renderUsesSelectedViewsAndDebugRayReplacesTheShape() {
     final LX lx = newHeadlessLx();
     final Raybeam pattern = new Raybeam(lx);
     final ModelBuffer buffer = new ModelBuffer(lx);
@@ -314,9 +315,9 @@ public class RaybeamTest extends HeadlessLxTest {
       final LXPoint excluded = lx.getModel().children[1].points[0];
 
       pattern.setBuffer(buffer);
-      pattern.originX.setValue(0);
-      pattern.originY.setValue(0);
-      pattern.originZ.setValue(0);
+      pattern.originX.setValue(selected.xn);
+      pattern.originY.setValue(selected.yn);
+      pattern.originZ.setValue(selected.zn);
       pattern.shape.setValue(Raybeam.Shape.POINT);
       pattern.width.setValue(.1);
       pattern.setModel(selectedView);
@@ -325,6 +326,21 @@ public class RaybeamTest extends HeadlessLxTest {
       assertSame(selectedView, pattern.getModel());
       assertEquals(LXColor.WHITE, buffer.getArray()[selected.index]);
       assertEquals(0, buffer.getArray()[excluded.index]);
+
+      pattern.setModel(lx.getModel());
+      pattern.originX.setValue(0);
+      pattern.originY.setValue(selected.yn);
+      pattern.originZ.setValue(0);
+      pattern.azimuth.setValue(0);
+      pattern.elevation.setValue(0);
+      pattern.azimuthOffset.setValue(0);
+      pattern.shape.setValue(Raybeam.Shape.SPHERE);
+      pattern.radius.setValue(1);
+      pattern.showRay.setValue(true);
+      pattern.loop(0);
+
+      assertEquals(LXColor.WHITE, buffer.getArray()[selected.index]);
+      assertEquals(LXColor.BLACK, buffer.getArray()[excluded.index]);
     } finally {
       pattern.dispose();
       buffer.dispose();
@@ -345,6 +361,7 @@ public class RaybeamTest extends HeadlessLxTest {
           path + " must remain a modulatable CompoundParameter");
       }
       assertSame(pattern.azimuthOffset, pattern.getParameter("roll"));
+      assertTrue(pattern.getParameter("showRay") instanceof BooleanParameter);
     } finally {
       pattern.dispose();
     }
@@ -352,8 +369,8 @@ public class RaybeamTest extends HeadlessLxTest {
 
   @Override
   protected LXModel newModel() {
-    final LXModel selected = new LXModel(List.of(new LXPoint(0, 0, 0)), "selected");
-    final LXModel excluded = new LXModel(List.of(new LXPoint(1, 1, 1)), "excluded");
-    return new LXModel(new LXModel[] { selected, excluded });
+    final LXModel selected = new LXModel(List.of(new LXPoint(0, 0, 1)), "selected");
+    final LXModel excluded = new LXModel(List.of(new LXPoint(1, 0, 0)), "excluded");
+    return new LXModel(new LXModel[] { selected, excluded }).reindexPoints();
   }
 }

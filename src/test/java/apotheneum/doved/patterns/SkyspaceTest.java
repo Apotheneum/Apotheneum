@@ -30,9 +30,25 @@ public class SkyspaceTest extends HeadlessLxTest {
       assertSame(pattern.elevation, pattern.getParameter("elevation"));
       assertSame(pattern.azimuthOffset, pattern.getParameter("roll"));
       assertSame(pattern.shape, pattern.getParameter("shape"));
+      assertSame(pattern.showRay, pattern.getParameter("showRay"));
       assertSame(pattern.scaleX, pattern.getParameter("scaleX"));
       assertSame(pattern.scaleY, pattern.getParameter("scaleY"));
       assertSame(pattern.scaleZ, pattern.getParameter("scaleZ"));
+    } finally {
+      pattern.dispose();
+    }
+  }
+
+  @Test
+  void rippleLabelsUseTheirColumnContext() {
+    final LX lx = newHeadlessLx();
+    final Skyspace pattern = new Skyspace(lx);
+    try {
+      assertEquals("Amount", pattern.rippleAmount.getLabel());
+      assertEquals("Spacing", pattern.rippleSpacing.getLabel());
+      assertEquals("Phase", pattern.ripplePhase.getLabel());
+      assertEquals("Sharp", pattern.rippleSharpness.getLabel());
+      assertEquals("Decay", pattern.rippleDecay.getLabel());
     } finally {
       pattern.dispose();
     }
