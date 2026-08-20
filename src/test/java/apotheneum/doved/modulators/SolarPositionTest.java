@@ -13,7 +13,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import apotheneum.HeadlessLxTest;
-import apotheneum.doved.patterns.TransformedDistanceField;
+import apotheneum.doved.patterns.Raybeam;
 import heronarts.lx.LX;
 import heronarts.lx.modulation.LXCompoundModulation;
 import heronarts.lx.parameter.BoundedParameter;
@@ -196,7 +196,7 @@ public class SolarPositionTest extends HeadlessLxTest {
     configureManualUtc(12);
     this.solarPosition.loop(0);
 
-    final TransformedDistanceField pattern = new TransformedDistanceField(this.lx);
+    final Raybeam pattern = new Raybeam(this.lx);
     this.lx.engine.mixer.addChannel(new LXPattern[] { pattern });
     final BoundedParameter[] sources = {
       this.solarPosition.originX, this.solarPosition.originY, this.solarPosition.originZ,
