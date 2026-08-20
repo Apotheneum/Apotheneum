@@ -1,5 +1,6 @@
 package apotheneum.doved.patterns;
 
+import heronarts.glx.ui.component.UIKnob;
 import heronarts.lx.LX;
 import heronarts.lx.LXCategory;
 import heronarts.lx.LXComponent;
@@ -69,14 +70,14 @@ public class Raybeam extends LXPattern
       @Override
       double distance(
         double x, double y, double z, double radius, double coneSin, double coneCos) {
-        return Math.abs(Math.sqrt(x * x + z * z) - radius);
+        return Math.max(0, Math.sqrt(x * x + z * z) - radius);
       }
     },
     SPHERE("Sphere") {
       @Override
       double distance(
         double x, double y, double z, double radius, double coneSin, double coneCos) {
-        return Math.abs(length(x, y, z) - radius);
+        return Math.max(0, length(x, y, z) - radius);
       }
     },
     CONE("Cone") {
@@ -89,7 +90,7 @@ public class Raybeam extends LXPattern
         if (projection <= 0) {
           return length(x, y, z);
         }
-        return Math.abs(radial * coneCos - y * coneSin);
+        return Math.max(0, radial * coneCos - y * coneSin);
       }
     };
 
@@ -101,6 +102,14 @@ public class Raybeam extends LXPattern
 
     abstract double distance(
       double x, double y, double z, double radius, double coneSin, double coneCos);
+
+    boolean usesRadius() {
+      return (this == CYLINDER) || (this == SPHERE);
+    }
+
+    boolean usesConeAngle() {
+      return this == CONE;
+    }
 
     private static double length(double x, double y, double z) {
       return Math.sqrt(x * x + y * y + z * z);
@@ -194,7 +203,7 @@ public class Raybeam extends LXPattern
   public final CompoundParameter width =
     new CompoundParameter("Width", .1, .001, 1)
     .setUnits(LXParameter.Units.PERCENT_NORMALIZED)
-    .setDescription("Distance from the shape at which brightness reaches zero");
+    .setDescription("Distance outside an open shape or solid boundary where brightness reaches zero");
 
   public final EnumParameter<Falloff> falloff =
     new EnumParameter<Falloff>("Falloff", Falloff.LINEAR)
@@ -203,12 +212,12 @@ public class Raybeam extends LXPattern
   public final CompoundParameter softness =
     new CompoundParameter("Softness", 1)
     .setUnits(LXParameter.Units.PERCENT_NORMALIZED)
-    .setDescription("Fraction of width used to feather the outer edge");
+    .setDescription("Fraction of width used to feather the transition");
 
   public final CompoundParameter radius =
     new CompoundParameter("Radius", .25, 0, 1)
     .setUnits(LXParameter.Units.PERCENT_NORMALIZED)
-    .setDescription("Radius of cylinder and sphere shells");
+    .setDescription("Radius of the filled cylinder and sphere");
 
   public final CompoundParameter coneAngle =
     new CompoundParameter("Cone Angle", Math.PI / 4, 0, HALF_PI)
@@ -282,6 +291,16 @@ public class Raybeam extends LXPattern
   public void buildDeviceControls(
     UI ui, UIDevice uiDevice, Raybeam raybeam) {
 
+    final UIKnob radiusKnob = newKnob(raybeam.radius);
+    radiusKnob.setEnabled(raybeam.shape.getEnum().usesRadius());
+    radiusKnob.addListener(raybeam.shape,
+      parameter -> radiusKnob.setEnabled(raybeam.shape.getEnum().usesRadius()));
+
+    final UIKnob coneAngleKnob = newKnob(raybeam.coneAngle);
+    coneAngleKnob.setEnabled(raybeam.shape.getEnum().usesConeAngle());
+    coneAngleKnob.addListener(raybeam.shape,
+      parameter -> coneAngleKnob.setEnabled(raybeam.shape.getEnum().usesConeAngle()));
+
     uiDevice.setLayout(UIDevice.Layout.HORIZONTAL, 6);
     addColumn(uiDevice, "Origin",
       newKnob(raybeam.originX),
@@ -296,8 +315,8 @@ public class Raybeam extends LXPattern
     addVerticalBreak(ui, uiDevice);
     addColumn(uiDevice, "Shape",
       newDropMenu(raybeam.shape),
-      newKnob(raybeam.radius),
-      newKnob(raybeam.coneAngle));
+      radiusKnob,
+      coneAngleKnob);
 
     addVerticalBreak(ui, uiDevice);
     addColumn(uiDevice, "Edge",

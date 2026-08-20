@@ -73,17 +73,38 @@ public class RaybeamTest extends HeadlessLxTest {
   }
 
   @Test
-  void coneAngleOpensTheSurfaceAwayFromItsAxis() {
+  void cylinderAndSphereFillTheirInteriors() {
+    assertEquals(0,
+      Raybeam.Shape.CYLINDER.distance(0, .4, 0, RADIUS, CONE_SIN, CONE_COS),
+      EPSILON);
+    assertEquals(0,
+      Raybeam.Shape.CYLINDER.distance(RADIUS / 2, -.4, 0, RADIUS, CONE_SIN, CONE_COS),
+      EPSILON);
+    assertEquals(0,
+      Raybeam.Shape.SPHERE.distance(0, 0, 0, RADIUS, CONE_SIN, CONE_COS),
+      EPSILON);
+    assertEquals(0,
+      Raybeam.Shape.SPHERE.distance(RADIUS / 2, 0, 0, RADIUS, CONE_SIN, CONE_COS),
+      EPSILON);
+  }
+
+  @Test
+  void coneFillsItsInteriorAndKeepsItsApex() {
     final double angle = .6;
     final double coneSin = Math.sin(angle);
     final double coneCos = Math.cos(angle);
     assertEquals(0,
       Raybeam.Shape.CONE.distance(
         coneSin, coneCos, 0, RADIUS, coneSin, coneCos), EPSILON);
-    assertEquals(coneSin,
+    assertEquals(0,
       Raybeam.Shape.CONE.distance(0, 1, 0, RADIUS, coneSin, coneCos), EPSILON);
     assertEquals(0,
+      Raybeam.Shape.CONE.distance(
+        coneSin / 2, coneCos, 0, RADIUS, coneSin, coneCos), EPSILON);
+    assertEquals(0,
       Raybeam.Shape.CONE.distance(0, 0, 0, RADIUS, coneSin, coneCos), EPSILON);
+    assertEquals(.25,
+      Raybeam.Shape.CONE.distance(0, -.25, 0, RADIUS, coneSin, coneCos), EPSILON);
   }
 
   @Test
@@ -112,16 +133,31 @@ public class RaybeamTest extends HeadlessLxTest {
   }
 
   @Test
-  void coneLimitsMatchRayAndPlane() {
+  void coneLimitsMatchRayAndHalfSpace() {
     final double x = .2;
     final double y = .4;
     final double z = .1;
     assertEquals(
       Raybeam.Shape.RAY.distance(x, y, z, RADIUS, 0, 1),
       Raybeam.Shape.CONE.distance(x, y, z, RADIUS, 0, 1), EPSILON);
-    assertEquals(
-      Raybeam.Shape.PLANE.distance(x, y, z, RADIUS, 1, 0),
+    assertEquals(0,
       Raybeam.Shape.CONE.distance(x, y, z, RADIUS, 1, 0), EPSILON);
+    assertEquals(y,
+      Raybeam.Shape.CONE.distance(x, -y, z, RADIUS, 1, 0), EPSILON);
+  }
+
+  @Test
+  void shapeSpecificControlsRemainRelevantOnlyForTheirShapes() {
+    assertTrue(Raybeam.Shape.CYLINDER.usesRadius());
+    assertTrue(Raybeam.Shape.SPHERE.usesRadius());
+    assertTrue(Raybeam.Shape.CONE.usesConeAngle());
+
+    for (Raybeam.Shape shape : Raybeam.Shape.values()) {
+      assertEquals(
+        (shape == Raybeam.Shape.CYLINDER) || (shape == Raybeam.Shape.SPHERE),
+        shape.usesRadius());
+      assertEquals(shape == Raybeam.Shape.CONE, shape.usesConeAngle());
+    }
   }
 
   @Test
