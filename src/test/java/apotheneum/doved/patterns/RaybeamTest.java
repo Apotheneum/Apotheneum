@@ -23,6 +23,8 @@ public class RaybeamTest extends HeadlessLxTest {
   private static final double RADIUS = .25;
   private static final double WIDTH = .1;
   private static final double CONE_ANGLE = Math.PI / 4;
+  private static final double CONE_SIN = Math.sin(CONE_ANGLE);
+  private static final double CONE_COS = Math.cos(CONE_ANGLE);
 
   @Test
   void everyShapeIsFullOnItsSurfaceAndDarkAtWidth() {
@@ -39,10 +41,10 @@ public class RaybeamTest extends HeadlessLxTest {
     assertSurface(Raybeam.Shape.SPHERE,
       RADIUS, 0, 0, RADIUS + WIDTH, 0, 0);
 
-    final double coneX = Math.sin(CONE_ANGLE);
-    final double coneY = Math.cos(CONE_ANGLE);
-    final double darkConeX = Math.sin(CONE_ANGLE + WIDTH);
-    final double darkConeY = Math.cos(CONE_ANGLE + WIDTH);
+    final double coneX = CONE_SIN;
+    final double coneY = CONE_COS;
+    final double darkConeX = CONE_SIN + WIDTH * CONE_COS;
+    final double darkConeY = CONE_COS - WIDTH * CONE_SIN;
     assertSurface(Raybeam.Shape.CONE,
       coneX, coneY, 0, darkConeX, darkConeY, 0);
   }
@@ -50,8 +52,10 @@ public class RaybeamTest extends HeadlessLxTest {
   private static void assertSurface(Raybeam.Shape shape,
     double onX, double onY, double onZ, double darkX, double darkY, double darkZ) {
 
-    final double onDistance = shape.distance(onX, onY, onZ, RADIUS, CONE_ANGLE);
-    final double darkDistance = shape.distance(darkX, darkY, darkZ, RADIUS, CONE_ANGLE);
+    final double onDistance =
+      shape.distance(onX, onY, onZ, RADIUS, CONE_SIN, CONE_COS);
+    final double darkDistance =
+      shape.distance(darkX, darkY, darkZ, RADIUS, CONE_SIN, CONE_COS);
     assertEquals(1,
       Raybeam.Falloff.LINEAR.brightness(onDistance, WIDTH, 1), EPSILON,
       shape + " should be full brightness on its surface");
@@ -63,21 +67,61 @@ public class RaybeamTest extends HeadlessLxTest {
   @Test
   void rayIsCappedBehindItsOriginWhileLineContinues() {
     assertEquals(0,
-      Raybeam.Shape.LINE.distance(0, -.4, 0, RADIUS, CONE_ANGLE), EPSILON);
+      Raybeam.Shape.LINE.distance(0, -.4, 0, RADIUS, CONE_SIN, CONE_COS), EPSILON);
     assertEquals(.4,
-      Raybeam.Shape.RAY.distance(0, -.4, 0, RADIUS, CONE_ANGLE), EPSILON);
+      Raybeam.Shape.RAY.distance(0, -.4, 0, RADIUS, CONE_SIN, CONE_COS), EPSILON);
   }
 
   @Test
   void coneAngleOpensTheSurfaceAwayFromItsAxis() {
     final double angle = .6;
+    final double coneSin = Math.sin(angle);
+    final double coneCos = Math.cos(angle);
     assertEquals(0,
       Raybeam.Shape.CONE.distance(
-        Math.sin(angle), Math.cos(angle), 0, RADIUS, angle), EPSILON);
-    assertEquals(angle,
-      Raybeam.Shape.CONE.distance(0, 1, 0, RADIUS, angle), EPSILON);
+        coneSin, coneCos, 0, RADIUS, coneSin, coneCos), EPSILON);
+    assertEquals(coneSin,
+      Raybeam.Shape.CONE.distance(0, 1, 0, RADIUS, coneSin, coneCos), EPSILON);
     assertEquals(0,
-      Raybeam.Shape.CONE.distance(0, 0, 0, RADIUS, angle), EPSILON);
+      Raybeam.Shape.CONE.distance(0, 0, 0, RADIUS, coneSin, coneCos), EPSILON);
+  }
+
+  @Test
+  void coneUsesConstantLinearThicknessAlongItsSurface() {
+    assertConeNormalDistance(.2, WIDTH);
+    assertConeNormalDistance(.8, WIDTH);
+  }
+
+  @Test
+  void coneIsRotationallySymmetricAroundItsAxis() {
+    final double radial = .5;
+    final double axial = .4;
+    final double expected = Raybeam.Shape.CONE.distance(
+      radial, axial, 0, RADIUS, CONE_SIN, CONE_COS);
+    assertEquals(expected,
+      Raybeam.Shape.CONE.distance(.3, axial, .4, RADIUS, CONE_SIN, CONE_COS),
+      EPSILON);
+  }
+
+  private static void assertConeNormalDistance(double alongSurface, double normalDistance) {
+    final double radial = alongSurface * CONE_SIN + normalDistance * CONE_COS;
+    final double axial = alongSurface * CONE_COS - normalDistance * CONE_SIN;
+    assertEquals(normalDistance,
+      Raybeam.Shape.CONE.distance(
+        radial, axial, 0, RADIUS, CONE_SIN, CONE_COS), EPSILON);
+  }
+
+  @Test
+  void coneLimitsMatchRayAndPlane() {
+    final double x = .2;
+    final double y = .4;
+    final double z = .1;
+    assertEquals(
+      Raybeam.Shape.RAY.distance(x, y, z, RADIUS, 0, 1),
+      Raybeam.Shape.CONE.distance(x, y, z, RADIUS, 0, 1), EPSILON);
+    assertEquals(
+      Raybeam.Shape.PLANE.distance(x, y, z, RADIUS, 1, 0),
+      Raybeam.Shape.CONE.distance(x, y, z, RADIUS, 1, 0), EPSILON);
   }
 
   @Test
@@ -104,7 +148,8 @@ public class RaybeamTest extends HeadlessLxTest {
     final double localY = frame.localY(.2, .8, .7);
     final double planeDistance =
       Raybeam.Shape.PLANE.distance(
-        frame.localX(.2, .8, .7), localY, frame.localZ(.2, .8, .7), 0, CONE_ANGLE);
+        frame.localX(.2, .8, .7), localY, frame.localZ(.2, .8, .7),
+        0, CONE_SIN, CONE_COS);
 
     // Orbox Y is abs(y) - radius before its outer abs; at radius zero this is abs(y).
     assertEquals(Math.abs(.8 - .5), planeDistance, EPSILON);

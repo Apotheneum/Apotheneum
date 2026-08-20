@@ -39,48 +39,57 @@ public class Raybeam extends LXPattern
   public enum Shape {
     POINT("Point") {
       @Override
-      double distance(double x, double y, double z, double radius, double coneAngle) {
+      double distance(
+        double x, double y, double z, double radius, double coneSin, double coneCos) {
         return length(x, y, z);
       }
     },
     LINE("Line") {
       @Override
-      double distance(double x, double y, double z, double radius, double coneAngle) {
+      double distance(
+        double x, double y, double z, double radius, double coneSin, double coneCos) {
         return Math.sqrt(x * x + z * z);
       }
     },
     RAY("Ray") {
       @Override
-      double distance(double x, double y, double z, double radius, double coneAngle) {
+      double distance(
+        double x, double y, double z, double radius, double coneSin, double coneCos) {
         return (y >= 0) ? Math.sqrt(x * x + z * z) : length(x, y, z);
       }
     },
     PLANE("Plane") {
       @Override
-      double distance(double x, double y, double z, double radius, double coneAngle) {
+      double distance(
+        double x, double y, double z, double radius, double coneSin, double coneCos) {
         return Math.abs(y);
       }
     },
     CYLINDER("Cylinder") {
       @Override
-      double distance(double x, double y, double z, double radius, double coneAngle) {
+      double distance(
+        double x, double y, double z, double radius, double coneSin, double coneCos) {
         return Math.abs(Math.sqrt(x * x + z * z) - radius);
       }
     },
     SPHERE("Sphere") {
       @Override
-      double distance(double x, double y, double z, double radius, double coneAngle) {
+      double distance(
+        double x, double y, double z, double radius, double coneSin, double coneCos) {
         return Math.abs(length(x, y, z) - radius);
       }
     },
     CONE("Cone") {
       @Override
-      double distance(double x, double y, double z, double radius, double coneAngle) {
-        final double length = length(x, y, z);
-        if (length == 0) {
-          return 0;
+      double distance(
+        double x, double y, double z, double radius, double coneSin, double coneCos) {
+
+        final double radial = Math.sqrt(x * x + z * z);
+        final double projection = y * coneCos + radial * coneSin;
+        if (projection <= 0) {
+          return length(x, y, z);
         }
-        return Math.abs(Math.acos(LXUtils.constrain(y / length, -1, 1)) - coneAngle);
+        return Math.abs(radial * coneCos - y * coneSin);
       }
     };
 
@@ -91,7 +100,7 @@ public class Raybeam extends LXPattern
     }
 
     abstract double distance(
-      double x, double y, double z, double radius, double coneAngle);
+      double x, double y, double z, double radius, double coneSin, double coneCos);
 
     private static double length(double x, double y, double z) {
       return Math.sqrt(x * x + y * y + z * z);
@@ -254,6 +263,8 @@ public class Raybeam extends LXPattern
     final Falloff falloff = this.falloff.getEnum();
     final double radius = this.radius.getValue();
     final double coneAngle = this.coneAngle.getValue();
+    final double coneSin = Math.sin(coneAngle);
+    final double coneCos = Math.cos(coneAngle);
     final double width = this.width.getValue();
     final double softness = this.softness.getValue();
 
@@ -261,7 +272,7 @@ public class Raybeam extends LXPattern
       final double x = this.frame.localX(point.xn, point.yn, point.zn);
       final double y = this.frame.localY(point.xn, point.yn, point.zn);
       final double z = this.frame.localZ(point.xn, point.yn, point.zn);
-      final double distance = shape.distance(x, y, z, radius, coneAngle);
+      final double distance = shape.distance(x, y, z, radius, coneSin, coneCos);
       this.colors[point.index] = LXColor.grayn(
         falloff.brightness(distance, width, softness));
     }
