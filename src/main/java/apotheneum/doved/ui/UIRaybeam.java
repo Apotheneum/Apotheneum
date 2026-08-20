@@ -61,6 +61,10 @@ public class UIRaybeam extends UI3dComponent {
       initializeBuffers(ui);
     }
 
+    final LXNormalizationBounds bounds =
+      this.raybeam.getModelView().getNormalizationBounds();
+    final Raybeam.CoordinateMode coordinateMode = this.raybeam.coordinateMode.getEnum();
+    final double maximumRange = Raybeam.CoordinateMode.maximumRange(bounds);
     final double originX = this.raybeam.originX.getValue();
     final double originY = this.raybeam.originY.getValue();
     final double originZ = this.raybeam.originZ.getValue();
@@ -68,14 +72,15 @@ public class UIRaybeam extends UI3dComponent {
       (this.raybeam.azimuth.getValue() + this.raybeam.azimuthOffset.getValue()) * TWO_PI;
     final double elevation = this.raybeam.elevation.getValue();
     final double cosElevation = Math.cos(elevation);
-    final double directionX = Math.sin(azimuth) * cosElevation;
-    final double directionY = Math.sin(elevation);
-    final double directionZ = Math.cos(azimuth) * cosElevation;
+    final double directionX = coordinateMode.normalizedDirection(
+      Math.sin(azimuth) * cosElevation, bounds.xRange, maximumRange);
+    final double directionY = coordinateMode.normalizedDirection(
+      Math.sin(elevation), bounds.yRange, maximumRange);
+    final double directionZ = coordinateMode.normalizedDirection(
+      Math.cos(azimuth) * cosElevation, bounds.zRange, maximumRange);
     final double length = rayExitDistance(
       originX, originY, originZ, directionX, directionY, directionZ);
 
-    final LXNormalizationBounds bounds =
-      this.raybeam.getModelView().getNormalizationBounds();
     final LXModel orientation = bounds.getOrientation();
     if (orientation != null) {
       this.viewTransform.set(orientation.transform);

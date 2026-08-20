@@ -9,6 +9,7 @@ import heronarts.lx.LX;
 import heronarts.lx.LXCategory;
 import heronarts.lx.LXComponent;
 import heronarts.lx.color.LXColor;
+import heronarts.lx.model.LXNormalizationBounds;
 import heronarts.lx.model.LXPoint;
 import heronarts.lx.parameter.BooleanParameter;
 import heronarts.lx.parameter.CompoundParameter;
@@ -29,6 +30,8 @@ import heronarts.lx.utils.LXUtils;
  * axis around world Y; elevation aims it from straight down through the horizon to straight
  * up. Azimuth Offset adds a second, independently modulatable turn around world Y. The
  * orientation basis is computed once per frame, outside the point loop.
+ * Coordinate mode may preserve the selected view's historical per-axis normalization or
+ * use one physical scale for all axes so angles and round shapes remain geometrically true.
  *
  * <p>The pattern iterates {@link #model}, the model selected by the standard LX device view
  * selector. It clears the full output before drawing that view so switching views never leaves
@@ -252,12 +255,51 @@ public class Raybeam extends LXPattern
     }
   }
 
+  public enum CoordinateMode {
+    PER_AXIS("Per Axis") {
+      @Override
+      public double axisScale(double axisRange, double maximumRange) {
+        return 1;
+      }
+    },
+    ISOTROPIC("Isotropic") {
+      @Override
+      public double axisScale(double axisRange, double maximumRange) {
+        return (maximumRange > 0) ? axisRange / maximumRange : 1;
+      }
+    };
+
+    private final String label;
+
+    CoordinateMode(String label) {
+      this.label = label;
+    }
+
+    public abstract double axisScale(double axisRange, double maximumRange);
+
+    public double normalizedDirection(
+      double direction, double axisRange, double maximumRange) {
+
+      final double axisScale = axisScale(axisRange, maximumRange);
+      return (axisScale > 0) ? direction / axisScale : 0;
+    }
+
+    public static double maximumRange(LXNormalizationBounds bounds) {
+      return Math.max(bounds.xRange, Math.max(bounds.yRange, bounds.zRange));
+    }
+
+    @Override
+    public String toString() {
+      return this.label;
+    }
+  }
+
   public final CompoundParameter originX = normalized("X", .5,
-    "World X coordinate of the local origin");
+    "X coordinate of the local origin within the selected view");
   public final CompoundParameter originY = normalized("Y", .5,
-    "World Y coordinate of the local origin");
+    "Y coordinate of the local origin within the selected view");
   public final CompoundParameter originZ = normalized("Z", .5,
-    "World Z coordinate of the local origin");
+    "Z coordinate of the local origin within the selected view");
 
   public final CompoundParameter azimuth =
     new CompoundParameter("Azimuth", 0)
@@ -284,6 +326,11 @@ public class Raybeam extends LXPattern
   public final BooleanParameter showRay =
     new BooleanParameter("Show Ray", false)
     .setDescription("Draw a red origin-and-aim line in the 3D preview");
+
+  public final EnumParameter<CoordinateMode> coordinateMode =
+    new EnumParameter<CoordinateMode>("Coords", CoordinateMode.PER_AXIS)
+    .setDescription(
+      "Per Axis preserves normalized views; Isotropic preserves physical angles and proportions");
 
   public final CompoundParameter width =
     new CompoundParameter("Width", .1, .001, 1)
@@ -333,6 +380,7 @@ public class Raybeam extends LXPattern
     addParameter("roll", this.azimuthOffset);
     addParameter("shape", this.shape);
     addParameter("showRay", this.showRay);
+    addParameter("coordinateMode", this.coordinateMode);
     addParameter("width", this.width);
     addParameter("falloff", this.falloff);
     addParameter("softness", this.softness);
@@ -363,7 +411,8 @@ public class Raybeam extends LXPattern
       this.originX.getValue(), this.originY.getValue(), this.originZ.getValue(),
       this.azimuth.getValue() * TWO_PI, this.elevation.getValue(),
       this.azimuthOffset.getValue() * TWO_PI,
-      this.scaleX.getValue(), this.scaleY.getValue(), this.scaleZ.getValue());
+      this.scaleX.getValue(), this.scaleY.getValue(), this.scaleZ.getValue(),
+      getModelView().getNormalizationBounds(), this.coordinateMode.getEnum());
 
     final Shape shape = this.shape.getEnum();
     final Falloff falloff = this.falloff.getEnum();
@@ -442,6 +491,10 @@ public class Raybeam extends LXPattern
       newButton(raybeam.showRay));
 
     addVerticalBreak(ui, uiDevice);
+    addColumn(uiDevice, "Space",
+      newDropMenu(raybeam.coordinateMode));
+
+    addVerticalBreak(ui, uiDevice);
     addColumn(uiDevice, "Dimensions",
       radiusKnob,
       minorRadiusKnob,
@@ -487,7 +540,7 @@ public class Raybeam extends LXPattern
     }
   }
 
-  /** Precomputed inverse transform from normalized world coordinates into local space. */
+  /** Precomputed inverse transform from normalized view coordinates into local space. */
   static final class LocalFrame {
     private double originX;
     private double originY;
@@ -506,6 +559,28 @@ public class Raybeam extends LXPattern
       double azimuth, double elevation, double azimuthOffset,
       double scaleX, double scaleY, double scaleZ) {
 
+      update(originX, originY, originZ, azimuth, elevation, azimuthOffset,
+        scaleX, scaleY, scaleZ, 1, 1, 1);
+    }
+
+    void update(double originX, double originY, double originZ,
+      double azimuth, double elevation, double azimuthOffset,
+      double scaleX, double scaleY, double scaleZ,
+      LXNormalizationBounds bounds, CoordinateMode coordinateMode) {
+
+      final double maximumRange = CoordinateMode.maximumRange(bounds);
+      update(originX, originY, originZ, azimuth, elevation, azimuthOffset,
+        scaleX, scaleY, scaleZ,
+        coordinateMode.axisScale(bounds.xRange, maximumRange),
+        coordinateMode.axisScale(bounds.yRange, maximumRange),
+        coordinateMode.axisScale(bounds.zRange, maximumRange));
+    }
+
+    private void update(double originX, double originY, double originZ,
+      double azimuth, double elevation, double azimuthOffset,
+      double scaleX, double scaleY, double scaleZ,
+      double coordinateScaleX, double coordinateScaleY, double coordinateScaleZ) {
+
       this.originX = originX;
       this.originY = originY;
       this.originZ = originZ;
@@ -517,15 +592,15 @@ public class Raybeam extends LXPattern
       final double cosElevation = Math.cos(elevation);
 
       // Rows of the inverse rotation matrix are the local basis vectors in world space.
-      this.xx = cosAzimuth / scaleX;
+      this.xx = cosAzimuth * coordinateScaleX / scaleX;
       this.xy = 0;
-      this.xz = -sinAzimuth / scaleX;
-      this.yx = sinAzimuth * cosElevation / scaleY;
-      this.yy = sinElevation / scaleY;
-      this.yz = cosAzimuth * cosElevation / scaleY;
-      this.zx = sinAzimuth * sinElevation / scaleZ;
-      this.zy = -cosElevation / scaleZ;
-      this.zz = cosAzimuth * sinElevation / scaleZ;
+      this.xz = -sinAzimuth * coordinateScaleZ / scaleX;
+      this.yx = sinAzimuth * cosElevation * coordinateScaleX / scaleY;
+      this.yy = sinElevation * coordinateScaleY / scaleY;
+      this.yz = cosAzimuth * cosElevation * coordinateScaleZ / scaleY;
+      this.zx = sinAzimuth * sinElevation * coordinateScaleX / scaleZ;
+      this.zy = -cosElevation * coordinateScaleY / scaleZ;
+      this.zz = cosAzimuth * sinElevation * coordinateScaleZ / scaleZ;
     }
 
     double localX(double x, double y, double z) {

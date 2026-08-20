@@ -13,6 +13,7 @@ import heronarts.lx.LX;
 import heronarts.lx.ModelBuffer;
 import heronarts.lx.color.LXColor;
 import heronarts.lx.model.LXModel;
+import heronarts.lx.model.LXNormalizationBounds;
 import heronarts.lx.model.LXPoint;
 import heronarts.lx.parameter.BooleanParameter;
 import heronarts.lx.parameter.CompoundParameter;
@@ -248,6 +249,59 @@ public class RaybeamTest extends HeadlessLxTest {
   }
 
   @Test
+  void isotropicCoordinatesPreservePhysicalDistancesAcrossUnequalAxes() {
+    final LXNormalizationBounds bounds = new LXNormalizationBounds();
+    bounds.xRange = 4;
+    bounds.yRange = 2;
+    bounds.zRange = 1;
+
+    final Raybeam.LocalFrame perAxis = new Raybeam.LocalFrame();
+    final Raybeam.LocalFrame isotropic = new Raybeam.LocalFrame();
+    perAxis.update(0, 0, 0, 0, Math.PI / 2, 0, 1, 1, 1,
+      bounds, Raybeam.CoordinateMode.PER_AXIS);
+    isotropic.update(0, 0, 0, 0, Math.PI / 2, 0, 1, 1, 1,
+      bounds, Raybeam.CoordinateMode.ISOTROPIC);
+
+    assertEquals(.25, perAxis.localX(.25, 0, 0), EPSILON);
+    assertEquals(.5, perAxis.localY(0, .5, 0), EPSILON);
+    assertEquals(1, perAxis.localZ(0, 0, 1), EPSILON);
+
+    assertEquals(.25, isotropic.localX(.25, 0, 0), EPSILON);
+    assertEquals(.25, isotropic.localY(0, .5, 0), EPSILON);
+    assertEquals(.25, isotropic.localZ(0, 0, 1), EPSILON);
+  }
+
+  @Test
+  void isotropicCoordinatesKeepPhysicalElevationTrue() {
+    final LXNormalizationBounds bounds = new LXNormalizationBounds();
+    bounds.xRange = 4;
+    bounds.yRange = 2;
+    bounds.zRange = 4;
+
+    final Raybeam.LocalFrame frame = new Raybeam.LocalFrame();
+    frame.update(0, 0, 0, 0, Math.PI / 4, 0, 1, 1, 1,
+      bounds, Raybeam.CoordinateMode.ISOTROPIC);
+
+    // Normalized offsets (.5 Y, .25 Z) are equal one-unit physical displacements.
+    assertEquals(0, frame.localZ(0, .5, .25), EPSILON);
+    assertTrue(frame.localY(0, .5, .25) > 0);
+  }
+
+  @Test
+  void isotropicPreviewDirectionCompensatesForViewAspectRatio() {
+    final double maximumRange = 4;
+    assertEquals(1,
+      Raybeam.CoordinateMode.ISOTROPIC.normalizedDirection(1, 4, maximumRange),
+      EPSILON);
+    assertEquals(2,
+      Raybeam.CoordinateMode.ISOTROPIC.normalizedDirection(1, 2, maximumRange),
+      EPSILON);
+    assertEquals(1,
+      Raybeam.CoordinateMode.PER_AXIS.normalizedDirection(1, 2, maximumRange),
+      EPSILON);
+  }
+
+  @Test
   void azimuthOffsetAddsToAzimuth() {
     final Raybeam.LocalFrame offsetFrame =
       new Raybeam.LocalFrame();
@@ -362,6 +416,8 @@ public class RaybeamTest extends HeadlessLxTest {
       }
       assertSame(pattern.azimuthOffset, pattern.getParameter("roll"));
       assertTrue(pattern.getParameter("showRay") instanceof BooleanParameter);
+      assertSame(pattern.coordinateMode, pattern.getParameter("coordinateMode"));
+      assertEquals(Raybeam.CoordinateMode.PER_AXIS, pattern.coordinateMode.getEnum());
     } finally {
       pattern.dispose();
     }

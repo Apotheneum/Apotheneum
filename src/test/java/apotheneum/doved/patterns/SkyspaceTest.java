@@ -31,6 +31,7 @@ public class SkyspaceTest extends HeadlessLxTest {
       assertSame(pattern.azimuthOffset, pattern.getParameter("roll"));
       assertSame(pattern.shape, pattern.getParameter("shape"));
       assertSame(pattern.showRay, pattern.getParameter("showRay"));
+      assertSame(pattern.coordinateMode, pattern.getParameter("coordinateMode"));
       assertSame(pattern.scaleX, pattern.getParameter("scaleX"));
       assertSame(pattern.scaleY, pattern.getParameter("scaleY"));
       assertSame(pattern.scaleZ, pattern.getParameter("scaleZ"));
