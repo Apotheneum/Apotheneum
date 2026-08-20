@@ -41,49 +41,67 @@ public class Raybeam extends LXPattern
     POINT("Point") {
       @Override
       double distance(
-        double x, double y, double z, double radius, double coneSin, double coneCos) {
+        double x, double y, double z, double radius, double minorRadius,
+        double coneSin, double coneCos) {
         return length(x, y, z);
       }
     },
     LINE("Line") {
       @Override
       double distance(
-        double x, double y, double z, double radius, double coneSin, double coneCos) {
+        double x, double y, double z, double radius, double minorRadius,
+        double coneSin, double coneCos) {
         return Math.sqrt(x * x + z * z);
       }
     },
     RAY("Ray") {
       @Override
       double distance(
-        double x, double y, double z, double radius, double coneSin, double coneCos) {
+        double x, double y, double z, double radius, double minorRadius,
+        double coneSin, double coneCos) {
         return (y >= 0) ? Math.sqrt(x * x + z * z) : length(x, y, z);
       }
     },
     PLANE("Plane") {
       @Override
       double distance(
-        double x, double y, double z, double radius, double coneSin, double coneCos) {
+        double x, double y, double z, double radius, double minorRadius,
+        double coneSin, double coneCos) {
         return Math.abs(y);
       }
     },
     CYLINDER("Cylinder") {
       @Override
       double distance(
-        double x, double y, double z, double radius, double coneSin, double coneCos) {
+        double x, double y, double z, double radius, double minorRadius,
+        double coneSin, double coneCos) {
         return Math.max(0, Math.sqrt(x * x + z * z) - radius);
       }
     },
     SPHERE("Sphere") {
       @Override
       double distance(
-        double x, double y, double z, double radius, double coneSin, double coneCos) {
+        double x, double y, double z, double radius, double minorRadius,
+        double coneSin, double coneCos) {
         return Math.max(0, length(x, y, z) - radius);
+      }
+    },
+    TORUS("Torus") {
+      @Override
+      double distance(
+        double x, double y, double z, double radius, double minorRadius,
+        double coneSin, double coneCos) {
+
+        final double radialOffset = Math.sqrt(x * x + z * z) - radius;
+        final double centerlineDistance = Math.sqrt(radialOffset * radialOffset + y * y);
+        return Math.max(0, centerlineDistance - minorRadius);
       }
     },
     CONE("Cone") {
       @Override
       double distance(
-        double x, double y, double z, double radius, double coneSin, double coneCos) {
+        double x, double y, double z, double radius, double minorRadius,
+        double coneSin, double coneCos) {
 
         final double radial = Math.sqrt(x * x + z * z);
         final double projection = y * coneCos + radial * coneSin;
@@ -101,10 +119,15 @@ public class Raybeam extends LXPattern
     }
 
     abstract double distance(
-      double x, double y, double z, double radius, double coneSin, double coneCos);
+      double x, double y, double z, double radius, double minorRadius,
+      double coneSin, double coneCos);
 
     boolean usesRadius() {
-      return (this == CYLINDER) || (this == SPHERE);
+      return (this == CYLINDER) || (this == SPHERE) || (this == TORUS);
+    }
+
+    boolean usesMinorRadius() {
+      return this == TORUS;
     }
 
     boolean usesConeAngle() {
@@ -217,7 +240,12 @@ public class Raybeam extends LXPattern
   public final CompoundParameter radius =
     new CompoundParameter("Radius", .25, 0, 1)
     .setUnits(LXParameter.Units.PERCENT_NORMALIZED)
-    .setDescription("Radius of the filled cylinder and sphere");
+    .setDescription("Radius of the cylinder and sphere, or torus major radius");
+
+  public final CompoundParameter minorRadius =
+    new CompoundParameter("Minor Radius", .08, 0, 1)
+    .setUnits(LXParameter.Units.PERCENT_NORMALIZED)
+    .setDescription("Radius of the torus tube around its major ring");
 
   public final CompoundParameter coneAngle =
     new CompoundParameter("Cone Angle", Math.PI / 4, 0, HALF_PI)
@@ -242,6 +270,7 @@ public class Raybeam extends LXPattern
     addParameter("falloff", this.falloff);
     addParameter("softness", this.softness);
     addParameter("radius", this.radius);
+    addParameter("minorRadius", this.minorRadius);
     addParameter("coneAngle", this.coneAngle);
     addParameter("scaleX", this.scaleX);
     addParameter("scaleY", this.scaleY);
@@ -271,6 +300,7 @@ public class Raybeam extends LXPattern
     final Shape shape = this.shape.getEnum();
     final Falloff falloff = this.falloff.getEnum();
     final double radius = this.radius.getValue();
+    final double minorRadius = this.minorRadius.getValue();
     final double coneAngle = this.coneAngle.getValue();
     final double coneSin = Math.sin(coneAngle);
     final double coneCos = Math.cos(coneAngle);
@@ -281,7 +311,8 @@ public class Raybeam extends LXPattern
       final double x = this.frame.localX(point.xn, point.yn, point.zn);
       final double y = this.frame.localY(point.xn, point.yn, point.zn);
       final double z = this.frame.localZ(point.xn, point.yn, point.zn);
-      final double distance = shape.distance(x, y, z, radius, coneSin, coneCos);
+      final double distance =
+        shape.distance(x, y, z, radius, minorRadius, coneSin, coneCos);
       this.colors[point.index] = LXColor.grayn(
         falloff.brightness(distance, width, softness));
     }
@@ -295,6 +326,11 @@ public class Raybeam extends LXPattern
     radiusKnob.setEnabled(raybeam.shape.getEnum().usesRadius());
     radiusKnob.addListener(raybeam.shape,
       parameter -> radiusKnob.setEnabled(raybeam.shape.getEnum().usesRadius()));
+
+    final UIKnob minorRadiusKnob = newKnob(raybeam.minorRadius);
+    minorRadiusKnob.setEnabled(raybeam.shape.getEnum().usesMinorRadius());
+    minorRadiusKnob.addListener(raybeam.shape,
+      parameter -> minorRadiusKnob.setEnabled(raybeam.shape.getEnum().usesMinorRadius()));
 
     final UIKnob coneAngleKnob = newKnob(raybeam.coneAngle);
     coneAngleKnob.setEnabled(raybeam.shape.getEnum().usesConeAngle());
@@ -314,8 +350,12 @@ public class Raybeam extends LXPattern
 
     addVerticalBreak(ui, uiDevice);
     addColumn(uiDevice, "Shape",
-      newDropMenu(raybeam.shape),
+      newDropMenu(raybeam.shape));
+
+    addVerticalBreak(ui, uiDevice);
+    addColumn(uiDevice, "Dimensions",
       radiusKnob,
+      minorRadiusKnob,
       coneAngleKnob);
 
     addVerticalBreak(ui, uiDevice);

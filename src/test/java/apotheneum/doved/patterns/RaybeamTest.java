@@ -21,6 +21,7 @@ public class RaybeamTest extends HeadlessLxTest {
 
   private static final double EPSILON = 1e-9;
   private static final double RADIUS = .25;
+  private static final double MINOR_RADIUS = .08;
   private static final double WIDTH = .1;
   private static final double CONE_ANGLE = Math.PI / 4;
   private static final double CONE_SIN = Math.sin(CONE_ANGLE);
@@ -40,6 +41,9 @@ public class RaybeamTest extends HeadlessLxTest {
       RADIUS, .4, 0, RADIUS + WIDTH, .4, 0);
     assertSurface(Raybeam.Shape.SPHERE,
       RADIUS, 0, 0, RADIUS + WIDTH, 0, 0);
+    assertSurface(Raybeam.Shape.TORUS,
+      RADIUS + MINOR_RADIUS, 0, 0,
+      RADIUS + MINOR_RADIUS + WIDTH, 0, 0);
 
     final double coneX = CONE_SIN;
     final double coneY = CONE_COS;
@@ -53,9 +57,9 @@ public class RaybeamTest extends HeadlessLxTest {
     double onX, double onY, double onZ, double darkX, double darkY, double darkZ) {
 
     final double onDistance =
-      shape.distance(onX, onY, onZ, RADIUS, CONE_SIN, CONE_COS);
+      shape.distance(onX, onY, onZ, RADIUS, MINOR_RADIUS, CONE_SIN, CONE_COS);
     final double darkDistance =
-      shape.distance(darkX, darkY, darkZ, RADIUS, CONE_SIN, CONE_COS);
+      shape.distance(darkX, darkY, darkZ, RADIUS, MINOR_RADIUS, CONE_SIN, CONE_COS);
     assertEquals(1,
       Raybeam.Falloff.LINEAR.brightness(onDistance, WIDTH, 1), EPSILON,
       shape + " should be full brightness on its surface");
@@ -67,24 +71,51 @@ public class RaybeamTest extends HeadlessLxTest {
   @Test
   void rayIsCappedBehindItsOriginWhileLineContinues() {
     assertEquals(0,
-      Raybeam.Shape.LINE.distance(0, -.4, 0, RADIUS, CONE_SIN, CONE_COS), EPSILON);
+      Raybeam.Shape.LINE.distance(
+        0, -.4, 0, RADIUS, MINOR_RADIUS, CONE_SIN, CONE_COS), EPSILON);
     assertEquals(.4,
-      Raybeam.Shape.RAY.distance(0, -.4, 0, RADIUS, CONE_SIN, CONE_COS), EPSILON);
+      Raybeam.Shape.RAY.distance(
+        0, -.4, 0, RADIUS, MINOR_RADIUS, CONE_SIN, CONE_COS), EPSILON);
   }
 
   @Test
   void cylinderAndSphereFillTheirInteriors() {
     assertEquals(0,
-      Raybeam.Shape.CYLINDER.distance(0, .4, 0, RADIUS, CONE_SIN, CONE_COS),
+      Raybeam.Shape.CYLINDER.distance(
+        0, .4, 0, RADIUS, MINOR_RADIUS, CONE_SIN, CONE_COS),
       EPSILON);
     assertEquals(0,
-      Raybeam.Shape.CYLINDER.distance(RADIUS / 2, -.4, 0, RADIUS, CONE_SIN, CONE_COS),
+      Raybeam.Shape.CYLINDER.distance(
+        RADIUS / 2, -.4, 0, RADIUS, MINOR_RADIUS, CONE_SIN, CONE_COS),
       EPSILON);
     assertEquals(0,
-      Raybeam.Shape.SPHERE.distance(0, 0, 0, RADIUS, CONE_SIN, CONE_COS),
+      Raybeam.Shape.SPHERE.distance(
+        0, 0, 0, RADIUS, MINOR_RADIUS, CONE_SIN, CONE_COS),
       EPSILON);
     assertEquals(0,
-      Raybeam.Shape.SPHERE.distance(RADIUS / 2, 0, 0, RADIUS, CONE_SIN, CONE_COS),
+      Raybeam.Shape.SPHERE.distance(
+        RADIUS / 2, 0, 0, RADIUS, MINOR_RADIUS, CONE_SIN, CONE_COS),
+      EPSILON);
+  }
+
+  @Test
+  void torusFillsItsTubeAndLeavesItsCenterHole() {
+    assertEquals(0,
+      Raybeam.Shape.TORUS.distance(
+        RADIUS, 0, 0, RADIUS, MINOR_RADIUS, CONE_SIN, CONE_COS),
+      EPSILON);
+    assertEquals(0,
+      Raybeam.Shape.TORUS.distance(
+        RADIUS + MINOR_RADIUS / 2, 0, 0,
+        RADIUS, MINOR_RADIUS, CONE_SIN, CONE_COS),
+      EPSILON);
+    assertEquals(RADIUS - MINOR_RADIUS,
+      Raybeam.Shape.TORUS.distance(
+        0, 0, 0, RADIUS, MINOR_RADIUS, CONE_SIN, CONE_COS),
+      EPSILON);
+    assertEquals(0,
+      Raybeam.Shape.TORUS.distance(
+        .3, 0, .4, .5, MINOR_RADIUS, CONE_SIN, CONE_COS),
       EPSILON);
   }
 
@@ -95,16 +126,19 @@ public class RaybeamTest extends HeadlessLxTest {
     final double coneCos = Math.cos(angle);
     assertEquals(0,
       Raybeam.Shape.CONE.distance(
-        coneSin, coneCos, 0, RADIUS, coneSin, coneCos), EPSILON);
-    assertEquals(0,
-      Raybeam.Shape.CONE.distance(0, 1, 0, RADIUS, coneSin, coneCos), EPSILON);
+        coneSin, coneCos, 0, RADIUS, MINOR_RADIUS, coneSin, coneCos), EPSILON);
     assertEquals(0,
       Raybeam.Shape.CONE.distance(
-        coneSin / 2, coneCos, 0, RADIUS, coneSin, coneCos), EPSILON);
+        0, 1, 0, RADIUS, MINOR_RADIUS, coneSin, coneCos), EPSILON);
     assertEquals(0,
-      Raybeam.Shape.CONE.distance(0, 0, 0, RADIUS, coneSin, coneCos), EPSILON);
+      Raybeam.Shape.CONE.distance(
+        coneSin / 2, coneCos, 0, RADIUS, MINOR_RADIUS, coneSin, coneCos), EPSILON);
+    assertEquals(0,
+      Raybeam.Shape.CONE.distance(
+        0, 0, 0, RADIUS, MINOR_RADIUS, coneSin, coneCos), EPSILON);
     assertEquals(.25,
-      Raybeam.Shape.CONE.distance(0, -.25, 0, RADIUS, coneSin, coneCos), EPSILON);
+      Raybeam.Shape.CONE.distance(
+        0, -.25, 0, RADIUS, MINOR_RADIUS, coneSin, coneCos), EPSILON);
   }
 
   @Test
@@ -118,9 +152,10 @@ public class RaybeamTest extends HeadlessLxTest {
     final double radial = .5;
     final double axial = .4;
     final double expected = Raybeam.Shape.CONE.distance(
-      radial, axial, 0, RADIUS, CONE_SIN, CONE_COS);
+      radial, axial, 0, RADIUS, MINOR_RADIUS, CONE_SIN, CONE_COS);
     assertEquals(expected,
-      Raybeam.Shape.CONE.distance(.3, axial, .4, RADIUS, CONE_SIN, CONE_COS),
+      Raybeam.Shape.CONE.distance(
+        .3, axial, .4, RADIUS, MINOR_RADIUS, CONE_SIN, CONE_COS),
       EPSILON);
   }
 
@@ -129,7 +164,7 @@ public class RaybeamTest extends HeadlessLxTest {
     final double axial = alongSurface * CONE_COS - normalDistance * CONE_SIN;
     assertEquals(normalDistance,
       Raybeam.Shape.CONE.distance(
-        radial, axial, 0, RADIUS, CONE_SIN, CONE_COS), EPSILON);
+        radial, axial, 0, RADIUS, MINOR_RADIUS, CONE_SIN, CONE_COS), EPSILON);
   }
 
   @Test
@@ -138,24 +173,29 @@ public class RaybeamTest extends HeadlessLxTest {
     final double y = .4;
     final double z = .1;
     assertEquals(
-      Raybeam.Shape.RAY.distance(x, y, z, RADIUS, 0, 1),
-      Raybeam.Shape.CONE.distance(x, y, z, RADIUS, 0, 1), EPSILON);
+      Raybeam.Shape.RAY.distance(x, y, z, RADIUS, MINOR_RADIUS, 0, 1),
+      Raybeam.Shape.CONE.distance(x, y, z, RADIUS, MINOR_RADIUS, 0, 1), EPSILON);
     assertEquals(0,
-      Raybeam.Shape.CONE.distance(x, y, z, RADIUS, 1, 0), EPSILON);
+      Raybeam.Shape.CONE.distance(x, y, z, RADIUS, MINOR_RADIUS, 1, 0), EPSILON);
     assertEquals(y,
-      Raybeam.Shape.CONE.distance(x, -y, z, RADIUS, 1, 0), EPSILON);
+      Raybeam.Shape.CONE.distance(x, -y, z, RADIUS, MINOR_RADIUS, 1, 0), EPSILON);
   }
 
   @Test
   void shapeSpecificControlsRemainRelevantOnlyForTheirShapes() {
     assertTrue(Raybeam.Shape.CYLINDER.usesRadius());
     assertTrue(Raybeam.Shape.SPHERE.usesRadius());
+    assertTrue(Raybeam.Shape.TORUS.usesRadius());
+    assertTrue(Raybeam.Shape.TORUS.usesMinorRadius());
     assertTrue(Raybeam.Shape.CONE.usesConeAngle());
 
     for (Raybeam.Shape shape : Raybeam.Shape.values()) {
       assertEquals(
-        (shape == Raybeam.Shape.CYLINDER) || (shape == Raybeam.Shape.SPHERE),
+        (shape == Raybeam.Shape.CYLINDER)
+          || (shape == Raybeam.Shape.SPHERE)
+          || (shape == Raybeam.Shape.TORUS),
         shape.usesRadius());
+      assertEquals(shape == Raybeam.Shape.TORUS, shape.usesMinorRadius());
       assertEquals(shape == Raybeam.Shape.CONE, shape.usesConeAngle());
     }
   }
@@ -185,7 +225,7 @@ public class RaybeamTest extends HeadlessLxTest {
     final double planeDistance =
       Raybeam.Shape.PLANE.distance(
         frame.localX(.2, .8, .7), localY, frame.localZ(.2, .8, .7),
-        0, CONE_SIN, CONE_COS);
+        0, MINOR_RADIUS, CONE_SIN, CONE_COS);
 
     // Orbox Y is abs(y) - radius before its outer abs; at radius zero this is abs(y).
     assertEquals(Math.abs(.8 - .5), planeDistance, EPSILON);
@@ -277,7 +317,7 @@ public class RaybeamTest extends HeadlessLxTest {
     try {
       final String[] paths = {
         "originX", "originY", "originZ", "azimuth", "elevation", "width", "radius",
-        "softness", "coneAngle", "scaleX", "scaleY", "scaleZ"
+        "minorRadius", "softness", "coneAngle", "scaleX", "scaleY", "scaleZ"
       };
       for (String path : paths) {
         assertTrue(pattern.getParameter(path) instanceof CompoundParameter,
