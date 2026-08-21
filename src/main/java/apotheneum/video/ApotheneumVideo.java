@@ -73,4 +73,18 @@ public class ApotheneumVideo extends LXComponent {
     addParameter("maskDoor", this.maskDoor);
   }
 
+  // Not a parameter: it's not user-facing state, just the port the raw video
+  // server actually bound, published here so the (studio-only) UI plugin can
+  // read it without holding a reference to the core plugin instance.
+  private volatile int port = -1;
+
+  /** The port the raw video TCP server is actually listening on, or -1 before it starts. */
+  int getPort() {
+    return this.port;
+  }
+
+  void setPort(int port) {
+    this.port = port;
+  }
+
 }

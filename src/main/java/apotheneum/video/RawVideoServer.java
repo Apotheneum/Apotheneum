@@ -84,6 +84,11 @@ final class RawVideoServer {
     ApotheneumVideoPlugin.log("streaming raw rgb24 on tcp://localhost:" + this.server.getLocalPort());
   }
 
+  /** The port actually bound — matches {@link #DEFAULT_PORT} unless overridden by system property. */
+  int getPort() {
+    return this.server.getLocalPort();
+  }
+
   void stop() {
     this.running = false;
     try {

@@ -24,19 +24,27 @@ import heronarts.lx.LXPlugin;
  * ones. It is deliberately not an {@link heronarts.lx.output.LXOutput}: LX
  * disables outputs on every project load, which would black the stream out
  * mid-show.
+ *
+ * <p>This is a plain {@link LXPlugin} — no studio/glx dependency — so the
+ * server keeps running in a headless runtime that has no {@code glxstudio} on
+ * its classpath. The left-pane control panel that points a display at this
+ * stream is a separate studio-only plugin, {@link ApotheneumVideoUIPlugin},
+ * so a missing glx class can never take this one down with it.
  */
 @LXPlugin.Name("Apotheneum Video Output")
 public class ApotheneumVideoPlugin implements LXPlugin {
 
   private RawVideoServer server = null;
+  private ApotheneumVideo config = null;
 
   @Override
   public void initialize(LX lx) {
     Apotheneum.initialize(lx);
-    final ApotheneumVideo config = new ApotheneumVideo(lx);
-    lx.engine.registerComponent(ApotheneumVideo.PATH, config);
-    this.server = new RawVideoServer(lx, config);
+    this.config = new ApotheneumVideo(lx);
+    lx.engine.registerComponent(ApotheneumVideo.PATH, this.config);
+    this.server = new RawVideoServer(lx, this.config);
     this.server.start();
+    this.config.setPort(this.server.getPort());
   }
 
   @Override
