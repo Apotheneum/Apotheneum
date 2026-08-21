@@ -142,17 +142,19 @@ public final class RenderSpike {
 
       resetOutputDirectory();
       final Path temporaryFramesRoot = mediaPath.resolve("render-frames");
+      final List<WrittenArtifact> writtenArtifacts = new ArrayList<>();
       if (!effects.isEmpty()) {
         LX.log("RenderSpike variant=bypass");
       }
-      renderVariant(lx, pattern, "bypass", "", temporaryFramesRoot);
+      renderVariant(lx, pattern, "bypass", "", temporaryFramesRoot, writtenArtifacts);
       if (!effects.isEmpty()) {
         setEffectsEnabled(effects, true);
-        renderVariant(lx, pattern, "effects", "-effects", temporaryFramesRoot);
+        renderVariant(lx, pattern, "effects", "-effects", temporaryFramesRoot, writtenArtifacts);
       }
 
       LX.log("RenderSpike outputDirectory=" + OUTPUT_DIRECTORY.toAbsolutePath());
       LX.log("RenderSpike outputEnabled=" + lx.engine.output.enabled.isOn());
+      logArtifactHandoff(writtenArtifacts, !effects.isEmpty());
     } finally {
       try {
         if (lx != null) {
@@ -169,7 +171,8 @@ public final class RenderSpike {
     LXPattern pattern,
     String variant,
     String fileSuffix,
-    Path temporaryFramesRoot
+    Path temporaryFramesRoot,
+    List<WrittenArtifact> writtenArtifacts
   ) throws IOException, InterruptedException {
     if (!fileSuffix.isEmpty()) {
       LX.log("RenderSpike variant=" + variant);
@@ -204,7 +207,7 @@ public final class RenderSpike {
     LX.log("RenderSpike drivenSurfaces=" + surfaceNames(drivenSurfaces));
     logSkippedSurfaces(pattern, availableSurfaces, drivenSurfaces, peakNonBlackFractions, variant);
     for (RenderSurface surface : drivenSurfaces) {
-      writeSurfaceArtifacts(surface, gifFrames, fileSuffix, temporaryFramesRoot);
+      writeSurfaceArtifacts(surface, gifFrames, variant, fileSuffix, temporaryFramesRoot, writtenArtifacts);
     }
 
     final double meanFrameMs = totalFrameNanos / 1_000_000. / ENGINE_FRAME_COUNT;
@@ -594,6 +597,9 @@ public final class RenderSpike {
   private record ActiveRegion(double x, double y, double z, double radius) {
   }
 
+  private record WrittenArtifact(Path path, String variant) {
+  }
+
   private static String surfaceNames(EnumSet<RenderSurface> surfaces) {
     final StringBuilder names = new StringBuilder();
     for (RenderSurface surface : surfaces) {
@@ -630,8 +636,10 @@ public final class RenderSpike {
   private static void writeSurfaceArtifacts(
     RenderSurface surface,
     List<int[]> gifFrames,
+    String variant,
     String fileSuffix,
-    Path temporaryFramesRoot
+    Path temporaryFramesRoot,
+    List<WrittenArtifact> writtenArtifacts
   ) throws IOException, InterruptedException {
     final Path frameDirectory =
       Files.createDirectories(temporaryFramesRoot.resolve(surface.fileStem + fileSuffix));
@@ -654,12 +662,39 @@ public final class RenderSpike {
     final Path gifPath = OUTPUT_DIRECTORY.resolve(surface.fileStem + fileSuffix + ".gif");
     assembleGif(frameDirectory, gifPath);
     logOutput(gifPath, firstFrame.getWidth(), firstFrame.getHeight());
+    writtenArtifacts.add(new WrittenArtifact(gifPath.toAbsolutePath(), variant));
 
     final BufferedImage contactSheet = buildContactSheet(sampledFrames);
     final Path contactPath = OUTPUT_DIRECTORY.resolve(surface.fileStem + fileSuffix + "-contact.png");
     writePng(contactSheet, contactPath);
     logOutput(contactPath, contactSheet.getWidth(), contactSheet.getHeight());
+    writtenArtifacts.add(new WrittenArtifact(contactPath.toAbsolutePath(), variant));
     deleteTree(frameDirectory);
+  }
+
+  private static void logArtifactHandoff(List<WrittenArtifact> writtenArtifacts, boolean hasEffects) {
+    LX.log("Renders ready to attach:");
+    if (!hasEffects) {
+      for (WrittenArtifact artifact : writtenArtifacts) {
+        LX.log("  " + artifact.path);
+      }
+      return;
+    }
+    logArtifactVariant(writtenArtifacts, "bypass", "Effects bypassed:");
+    logArtifactVariant(writtenArtifacts, "effects", "Effects applied:");
+  }
+
+  private static void logArtifactVariant(
+    List<WrittenArtifact> writtenArtifacts,
+    String variant,
+    String label
+  ) {
+    LX.log("  " + label);
+    for (WrittenArtifact artifact : writtenArtifacts) {
+      if (artifact.variant.equals(variant)) {
+        LX.log("    " + artifact.path);
+      }
+    }
   }
 
   private static BufferedImage renderSurface(RenderSurface surface, int[] colors) {
