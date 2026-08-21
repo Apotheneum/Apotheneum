@@ -4,6 +4,8 @@ Project context for AI coding assistants working in this repository — Claude C
 
 **Edit this file, not `CLAUDE.md`.** Claude Code reads `CLAUDE.md` rather than `AGENTS.md`, so `CLAUDE.md` is a one-line `@AGENTS.md` import that expands this file into context at launch. There is nothing to keep in sync. `scripts/check-agent-instructions.sh` verifies the import is intact.
 
+**Any change to a pattern, effect or modulator ends with a render — read [docs/headless-rendering.md](docs/headless-rendering.md) before you start.** It renders against the real installation geometry with no Chromatik running and no jar installed, producing stills and an animated GIF per surface. **An effect or modulator has no output of its own** — host it on a known pattern and render the comparison (effect off vs on; modulator wired to a named parameter). The doc's "Effects and modulators need a host" section covers this; rendering one standalone shows nothing. Attach the render to the PR: it is the only way a reviewer sees what the change actually looks like, and looking at the output costs fewer tokens than reading the code that produced it. The doc also covers which surfaces to render for which pattern, and the five things that reliably break the render — including that output is enabled by default and the fixture carries real Art-Net addresses for the installation.
+
 **Before writing or reviewing LX code, read [docs/lx-coding-guidelines.md](docs/lx-coding-guidelines.md)** — LX idioms distilled from `@mcslee`'s reviews on this repo plus conventions read out of the LX source (no render-loop allocation, enums over magic constants, framework helpers, logging, plugin/component lifecycle). It ends with a review checklist to use alongside `/code-review`. This file covers the Apotheneum-specific geometry, base classes and UI rules.
 
 ## Debugging & Logs
@@ -35,6 +37,11 @@ mvn -Ptests test
 `maven.test.skip` defaults to true, which skips test *compilation* as well, so
 `mvn compile` and `mvn -Pinstall install` neither build nor run the suite. If you
 add tests and they appear not to run, you almost certainly omitted `-Ptests`.
+
+**A pattern change is not done until it has been rendered.** `mvn -Ptests test-compile exec:exec`
+writes stills, a contact sheet and a GIF per surface to `target/spike/`. Check the cheap numbers
+first — non-black fraction, mean brightness, ms/frame — and look at an image only once those pass.
+See [docs/headless-rendering.md](docs/headless-rendering.md).
 
 Tests live under `src/test/java`. Extend
 [`HeadlessLxTest`](src/test/java/apotheneum/HeadlessLxTest.java) for anything

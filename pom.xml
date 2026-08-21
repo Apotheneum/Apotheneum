@@ -10,6 +10,9 @@
     <properties>
         <maven.compiler.release>21</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <pattern>apotheneum.doved.patterns.Fireflies</pattern>
+        <params></params>
+        <effects></effects>
 
         <lx.version>1.2.2</lx.version>
         <maven-assembly-plugin.version>3.1.0</maven-assembly-plugin.version>
@@ -121,6 +124,30 @@
             <properties>
                 <maven.test.skip>false</maven.test.skip>
             </properties>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>exec-maven-plugin</artifactId>
+                        <version>${exec-maven-plugin.version}</version>
+                        <configuration>
+                            <!-- Fork so the spike's JVM-start timing is meaningful and LX's
+                                 device threads cannot keep Maven's own JVM alive. -->
+                            <executable>${java.home}/bin/java</executable>
+                            <classpathScope>test</classpathScope>
+                            <arguments>
+                                <argument>-Djava.awt.headless=true</argument>
+                                <argument>-classpath</argument>
+                                <classpath />
+                                <argument>apotheneum.render.RenderSpike</argument>
+                                <argument>${pattern}</argument>
+                                <argument>params=${params}</argument>
+                                <argument>effects=${effects}</argument>
+                            </arguments>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
         </profile>
         <profile>
             <id>install</id>
