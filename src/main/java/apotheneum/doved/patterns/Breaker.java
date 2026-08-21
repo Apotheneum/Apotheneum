@@ -1,0 +1,598 @@
+package apotheneum.doved.patterns;
+
+import java.util.Arrays;
+
+import apotheneum.Apotheneum;
+import apotheneum.ApotheneumPattern;
+import heronarts.lx.LX;
+import heronarts.lx.LXCategory;
+import heronarts.lx.LXComponent;
+import heronarts.lx.color.LXColor;
+import heronarts.lx.model.LXPoint;
+import heronarts.lx.parameter.BooleanParameter;
+import heronarts.lx.parameter.CompoundParameter;
+import heronarts.lx.parameter.TriggerParameter;
+import heronarts.lx.studio.LXStudio.UI;
+import heronarts.lx.studio.ui.device.UIDevice;
+import heronarts.lx.studio.ui.device.UIDeviceControls;
+import heronarts.lx.utils.LXUtils;
+
+/**
+ * A local, triggered spilling breaker rendered as a single-valued height field.
+ *
+ * <p>The event deliberately stops at stage 1: its crest never detaches from the
+ * water surface and it does not form an overhang or barrel. A long back and a
+ * short face provide the spatial asymmetry, while the event timing provides a
+ * slow steepen, fast slump, and long wash.
+ *
+ * <p>Requested break height is capped at 85% of the LED rows between the base
+ * waterline and the ceiling, with half a row reserved for the antialiased crest.
+ * This makes the wave progressively smaller near the ceiling instead of clipping
+ * or pretending that height can keep rising when no headroom remains.
+ */
+@LXCategory("Apotheneum/doved")
+@LXComponent.Name("Breaker")
+@LXComponent.Description("A local spilling wave that steepens, breaks, and washes out")
+public class Breaker extends ApotheneumPattern implements UIDeviceControls<Breaker> {
+
+  static final double APPROACH_SECONDS = 2.2;
+  static final double COLLAPSE_SECONDS = .35;
+  static final double WASH_SECONDS = 2.25;
+  static final double EVENT_SECONDS = APPROACH_SECONDS + COLLAPSE_SECONDS + WASH_SECONDS;
+
+  private static final int CUBE_RING_LENGTH = 4 * Apotheneum.GRID_WIDTH;
+  private static final double BACK_FRACTION = .78;
+  private static final double INITIAL_FACE_FRACTION = .34;
+  private static final double BREAKING_FACE_FRACTION = .22;
+  private static final double COLLAPSED_FACE_FRACTION = .16;
+  private static final double APPROACH_TRAVEL = -.075;
+  private static final double THROW_TRAVEL = .026;
+  private static final double WASH_TRAVEL = .042;
+  private static final double FOAM_DECAY_RATE = 2.25;
+  private static final double FOAM_GRAVITY_ROWS = 18;
+  private static final int FOAM_POOL_SIZE = 192;
+
+  public final CompoundParameter level =
+    new CompoundParameter("Level", .3, .08, .9)
+    .setUnits(CompoundParameter.Units.PERCENT_NORMALIZED)
+    .setDescription("Base waterline height in world space");
+
+  public final CompoundParameter breakHeight =
+    new CompoundParameter("Height", 14, 4, 22)
+    .setDescription("Requested crest height in LED rows, capped by available headroom");
+
+  public final CompoundParameter eventWidth =
+    new CompoundParameter("Width", 50, 36, 64)
+    .setDescription("Local event width measured in cube-ring columns");
+
+  public final CompoundParameter breakAzimuth =
+    new CompoundParameter("Azimuth", 0, 0, 360)
+    .setUnits(CompoundParameter.Units.DEGREES)
+    .setWrappable(true)
+    .setDescription("Azimuth where the crest slumps");
+
+  public final BooleanParameter snapToFaces =
+    new BooleanParameter("Face Snap", true)
+    .setDescription("Snap the break azimuth to the nearest cube-face centre");
+
+  public final CompoundParameter pace =
+    new CompoundParameter("Pace", 1, .6, 1.6)
+    .setDescription("Playback rate of the break event");
+
+  public final CompoundParameter foamAmount =
+    new CompoundParameter("Foam", .8, 0, 1)
+    .setUnits(CompoundParameter.Units.PERCENT_NORMALIZED)
+    .setDescription("Density and brightness of the collapse foam burst");
+
+  public final TriggerParameter breakWave =
+    new TriggerParameter("Break", this::triggerBreak)
+    .setDescription("Launch or restart the breaker at the selected azimuth");
+
+  private final OceanField.GeometryCache geometry = new OceanField.GeometryCache();
+  private final FoamParticle[] foamParticles = new FoamParticle[FOAM_POOL_SIZE];
+  private final int[] foamFeedback;
+
+  private boolean eventActive;
+  private boolean resetFoam;
+  private double eventSeconds;
+  private double breakCenterS;
+  private double texturePhase;
+  private double foamSpawnAccumulator;
+  private int foamPoolCursor;
+  private int foamSerial;
+
+  public Breaker(LX lx) {
+    super(lx);
+    // LX assigns the pattern's own colors buffer when it joins a channel, but
+    // the model is already available here because ApotheneumPattern initialized
+    // it in super(lx). Size the independent feedback buffer from that model.
+    this.foamFeedback = new int[lx.getModel().size];
+    for (int i = 0; i < this.foamParticles.length; ++i) {
+      this.foamParticles[i] = new FoamParticle();
+    }
+
+    addParameter("level", this.level);
+    addParameter("breakHeight", this.breakHeight);
+    addParameter("eventWidth", this.eventWidth);
+    addParameter("breakAzimuth", this.breakAzimuth);
+    addParameter("snapToFaces", this.snapToFaces);
+    addParameter("pace", this.pace);
+    addParameter("foamAmount", this.foamAmount);
+    addParameter("break", this.breakWave);
+  }
+
+  private void triggerBreak() {
+    this.breakCenterS = resolvedBreakS(
+      this.breakAzimuth.getValue() / 360.,
+      this.snapToFaces.isOn()
+    );
+    this.eventSeconds = 0;
+    this.eventActive = true;
+    this.resetFoam = true;
+  }
+
+  @Override
+  protected void render(double deltaMs) {
+    setColors(LXColor.BLACK);
+    this.geometry.update();
+
+    final double deltaSeconds = Math.max(0, deltaMs) * .001;
+    if (this.resetFoam) {
+      clearFoam();
+      this.resetFoam = false;
+    }
+    final double foamDecay = feedbackDecay(FOAM_DECAY_RATE, deltaSeconds);
+
+    this.texturePhase = (this.texturePhase + deltaSeconds * .72) % LX.TWO_PI;
+    if (this.eventActive) {
+      this.eventSeconds += deltaSeconds * this.pace.getValue();
+      if (this.eventSeconds >= EVENT_SECONDS) {
+        this.eventSeconds = EVENT_SECONDS;
+        this.eventActive = false;
+      }
+    }
+
+    final double baseSurfaceY = OceanField.surfaceY(
+      this.level.getValue(),
+      this.geometry.floorY(),
+      this.geometry.ceilingY(),
+      this.geometry.rowPitch()
+    );
+    final double requestedHeightRows = effectiveBreakHeightRows(
+      this.breakHeight.getValue(),
+      baseSurfaceY,
+      this.geometry.ceilingY(),
+      this.geometry.rowPitch()
+    );
+    final double heightEnvelope = this.eventActive ? heightEnvelope(this.eventSeconds) : 0;
+    final double widthS = this.eventWidth.getValue() / CUBE_RING_LENGTH;
+    final double faceFraction = this.eventActive
+      ? faceFraction(this.eventSeconds)
+      : BREAKING_FACE_FRACTION;
+    final double crestS = profileCrestS(
+      this.breakCenterS,
+      widthS,
+      faceFraction,
+      this.eventActive ? crestOffset(this.eventSeconds) : WASH_TRAVEL
+    );
+
+    updateFoam(deltaSeconds, baseSurfaceY, crestS, widthS);
+
+    renderOrientation(
+      Apotheneum.cube.exterior,
+      baseSurfaceY,
+      requestedHeightRows * heightEnvelope,
+      heightEnvelope,
+      crestS,
+      widthS,
+      faceFraction,
+      OceanField.CUBE_S_OFFSET,
+      foamDecay
+    );
+    renderOrientation(
+      Apotheneum.cylinder.exterior,
+      baseSurfaceY,
+      requestedHeightRows * heightEnvelope,
+      heightEnvelope,
+      crestS,
+      widthS,
+      faceFraction,
+      0,
+      foamDecay
+    );
+
+    renderFoamOrientation(Apotheneum.cube.exterior, OceanField.CUBE_S_OFFSET);
+    renderFoamOrientation(Apotheneum.cylinder.exterior, 0);
+    compositeFoam(Apotheneum.cube.exterior);
+    compositeFoam(Apotheneum.cylinder.exterior);
+    copyExterior();
+  }
+
+  private void renderOrientation(
+      Apotheneum.Orientation orientation,
+      double baseSurfaceY,
+      double heightRows,
+      double eventAmount,
+      double crestS,
+      double widthS,
+      double faceFraction,
+      double columnOffset,
+      double foamDecay) {
+    final int ringLength = orientation.columns().length;
+    final double verticalRows =
+      (this.geometry.ceilingY() - this.geometry.floorY()) / this.geometry.rowPitch() + 1;
+
+    int columnIndex = 0;
+    for (Apotheneum.Column column : orientation.columns()) {
+      final double s = OceanField.arcLength(columnIndex, columnOffset, ringLength);
+      final double distance = signedArcDistance(s, crestS);
+      final double profile = spatialProfile(distance, widthS, faceFraction);
+      final double surfaceY = baseSurfaceY + this.geometry.rowPitch() * heightRows * profile;
+      final double normalizedDistance = distance / widthS;
+      final double crestMask = eventAmount * (
+        1 - OceanField.smoothstep(.018, .065, Math.abs(normalizedDistance))
+      );
+      final boolean onBack = normalizedDistance < 0 && normalizedDistance > -BACK_FRACTION;
+      final boolean onFace = normalizedDistance >= 0 && normalizedDistance < faceFraction;
+      final double backTexture = .72 + .11 * Math.sin(LX.TWO_PI * 11 * s + this.texturePhase)
+        + .07 * Math.sin(LX.TWO_PI * 17 * s - 1.31 * this.texturePhase);
+      final int available = orientation.available(columnIndex++);
+
+      for (int row = 0; row < available; ++row) {
+        final LXPoint point = column.points[row];
+        final int pointIndex = point.index;
+        if (this.foamFeedback[pointIndex] != LXColor.BLACK) {
+          this.foamFeedback[pointIndex] = LXColor.scaleBrightness(
+            this.foamFeedback[pointIndex],
+            (float) foamDecay
+          );
+        }
+        final double signedRows = (surfaceY - point.y) / this.geometry.rowPitch();
+        final double coverage = OceanField.waterCoverage(signedRows);
+        final double crestLine = crestMask * (
+          1 - OceanField.smoothstep(.42, 1.08, Math.abs(signedRows))
+        );
+        if (coverage <= 0 && crestLine <= 0) {
+          continue;
+        }
+
+        final double depth = LXUtils.clamp(signedRows / verticalRows, 0, 1);
+        int color = LXColor.lerp(
+          OceanField.SURFACE_COLOR,
+          OceanField.DEEP_COLOR,
+          (float) Math.sqrt(depth)
+        );
+        double brightness = coverage * (.9 - .58 * Math.sqrt(depth));
+        if (onBack) {
+          brightness *= LXUtils.lerp(
+            .64,
+            LXUtils.clamp(backTexture, .48, .9),
+            eventAmount
+          );
+        } else if (onFace) {
+          final double faceShadow = OceanField.smoothstep(.6, 8, signedRows);
+          brightness *= LXUtils.lerp(
+            .64,
+            LXUtils.lerp(.4, .68, faceShadow),
+            eventAmount
+          );
+        } else {
+          brightness *= .64;
+        }
+
+        // A narrow, high-contrast seam immediately below the crest is the
+        // stage-1 remnant of a barrel. It never changes the surface topology.
+        final double seam = crestMask
+          * OceanField.smoothstep(.72, 1.12, signedRows)
+          * (1 - OceanField.smoothstep(2.05, 2.48, signedRows));
+        brightness *= LXUtils.lerp(1, .1, seam);
+        color = LXColor.scaleBrightness(
+          color,
+          (float) LXUtils.clamp(brightness, 0, 1)
+        );
+
+        if (crestLine > 0) {
+          color = LXColor.lightest(
+            color,
+            LXColor.scaleBrightness(
+              OceanField.MENISCUS_COLOR,
+              (float) LXUtils.clamp(.45 + .55 * crestLine, 0, 1)
+            )
+          );
+        }
+        this.colors[pointIndex] = color;
+      }
+    }
+  }
+
+  private void updateFoam(double deltaSeconds, double baseSurfaceY, double crestS, double widthS) {
+    final double pitch = this.geometry.rowPitch();
+    for (FoamParticle particle : this.foamParticles) {
+      if (!particle.active) {
+        continue;
+      }
+      particle.age += deltaSeconds;
+      if (particle.age >= particle.life || particle.y < baseSurfaceY - 2.5 * pitch) {
+        particle.active = false;
+        continue;
+      }
+      particle.s += particle.velocityS * deltaSeconds;
+      particle.y += particle.velocityY * deltaSeconds;
+      particle.velocityY -= FOAM_GRAVITY_ROWS * pitch * deltaSeconds;
+    }
+
+    if (!this.eventActive) {
+      return;
+    }
+    final double burst = foamBurst(this.eventSeconds) * this.foamAmount.getValue();
+    this.foamSpawnAccumulator += burst * 150 * deltaSeconds;
+    while (this.foamSpawnAccumulator >= 1) {
+      spawnFoam(baseSurfaceY, crestS, widthS);
+      this.foamSpawnAccumulator -= 1;
+    }
+  }
+
+  private void spawnFoam(double baseSurfaceY, double crestS, double widthS) {
+    FoamParticle particle = null;
+    for (int i = 0; i < this.foamParticles.length; ++i) {
+      final int index = (this.foamPoolCursor + i) % this.foamParticles.length;
+      if (!this.foamParticles[index].active) {
+        particle = this.foamParticles[index];
+        this.foamPoolCursor = (index + 1) % this.foamParticles.length;
+        break;
+      }
+    }
+    if (particle == null) {
+      return;
+    }
+
+    final int serial = ++this.foamSerial;
+    final double lateral = random01(serial, 0x2c1b3c6d) - .5;
+    final double lift = random01(serial, 0x6d2b79f5);
+    particle.active = true;
+    particle.age = 0;
+    particle.life = .9 + .8 * random01(serial, 0x1b873593);
+    particle.s = crestS + widthS * (.09 + .34 * lateral);
+    particle.y = baseSurfaceY + this.geometry.rowPitch() * (.35 + 1.2 * lift);
+    particle.velocityS = .006 + .024 * random01(serial, 0x51ed270b);
+    particle.velocityY = this.geometry.rowPitch() * (1.5 + 3 * random01(serial, 0x7f4a7c15));
+    particle.brightness = .55 + .45 * random01(serial, 0x165667b1);
+  }
+
+  private void renderFoamOrientation(Apotheneum.Orientation orientation, double columnOffset) {
+    final int ringLength = orientation.columns().length;
+    for (FoamParticle particle : this.foamParticles) {
+      if (!particle.active) {
+        continue;
+      }
+      final double wrappedS = particle.s - Math.floor(particle.s);
+      double columnPosition = wrappedS * ringLength + columnOffset;
+      columnPosition -= Math.floor(columnPosition / ringLength) * ringLength;
+      final int column0 = (int) Math.floor(columnPosition);
+      final int column1 = (column0 + 1) % ringLength;
+      final double columnFraction = columnPosition - column0;
+
+      final double rowPosition = (this.geometry.ceilingY() - particle.y) / this.geometry.rowPitch();
+      final int row0 = (int) Math.floor(rowPosition);
+      final int row1 = row0 + 1;
+      final double rowFraction = rowPosition - row0;
+      final double lifeFade = Math.sin(Math.PI * particle.age / particle.life);
+      final double brightness = particle.brightness * this.foamAmount.getValue()
+        * Math.sqrt(Math.max(0, lifeFade));
+
+      addFoamPixel(orientation, column0, row0, brightness * (1 - columnFraction) * (1 - rowFraction));
+      addFoamPixel(orientation, column1, row0, brightness * columnFraction * (1 - rowFraction));
+      addFoamPixel(orientation, column0, row1, brightness * (1 - columnFraction) * rowFraction);
+      addFoamPixel(orientation, column1, row1, brightness * columnFraction * rowFraction);
+    }
+  }
+
+  private void addFoamPixel(
+      Apotheneum.Orientation orientation,
+      int columnIndex,
+      int row,
+      double brightness) {
+    if (brightness <= .01 || !OceanField.isAvailableCell(row, orientation.available(columnIndex))) {
+      return;
+    }
+    final int pointIndex = orientation.columns()[columnIndex].points[row].index;
+    final int foamColor = LXColor.scaleBrightness(
+      OceanField.MENISCUS_COLOR,
+      (float) LXUtils.clamp(brightness, 0, 1)
+    );
+    this.foamFeedback[pointIndex] = LXColor.blend(
+      this.foamFeedback[pointIndex],
+      foamColor,
+      LXColor.Blend.ADD
+    );
+  }
+
+  private void compositeFoam(Apotheneum.Orientation orientation) {
+    int columnIndex = 0;
+    for (Apotheneum.Column column : orientation.columns()) {
+      final int available = orientation.available(columnIndex++);
+      for (int row = 0; row < available; ++row) {
+        final int pointIndex = column.points[row].index;
+        this.colors[pointIndex] = LXColor.lightest(
+          this.colors[pointIndex],
+          this.foamFeedback[pointIndex]
+        );
+      }
+    }
+  }
+
+  private void clearFoam() {
+    Arrays.fill(this.foamFeedback, LXColor.BLACK);
+    for (FoamParticle particle : this.foamParticles) {
+      particle.active = false;
+    }
+    this.foamSpawnAccumulator = 0;
+    this.foamPoolCursor = 0;
+  }
+
+  static double resolvedBreakS(double requestedS, boolean snapToFaces) {
+    final double resolved = snapToFaces ? Math.round(requestedS * 4) / 4. : requestedS;
+    return resolved - Math.floor(resolved);
+  }
+
+  static double signedArcDistance(double s, double center) {
+    double distance = s - center;
+    distance -= Math.floor(distance + .5);
+    return distance;
+  }
+
+  static double spatialProfile(double distance, double width, double faceFraction) {
+    if (width <= 0 || faceFraction <= 0) {
+      return 0;
+    }
+    final double x = distance / width;
+    if (x < -BACK_FRACTION || x > faceFraction) {
+      return 0;
+    }
+    if (x < 0) {
+      final double t = (x + BACK_FRACTION) / BACK_FRACTION;
+      return smootherstep(t);
+    }
+    final double t = x / faceFraction;
+    return 1 - smootherstep(t);
+  }
+
+  static double profileCrestS(
+      double footprintCenterS,
+      double width,
+      double faceFraction,
+      double motionOffset) {
+    // The selected azimuth is the footprint centre, not the asymmetric
+    // profile's crest. At peak steepness BACK_FRACTION + faceFraction = 1,
+    // putting the support at centre +/- width/2 and keeping a 50-column wave
+    // within the selected 50-column cube face.
+    return footprintCenterS + .5 * (BACK_FRACTION - faceFraction) * width + motionOffset;
+  }
+
+  static double heightEnvelope(double seconds) {
+    if (seconds <= 0 || seconds >= EVENT_SECONDS) {
+      return 0;
+    }
+    if (seconds < APPROACH_SECONDS) {
+      return .12 + .88 * smootherstep(seconds / APPROACH_SECONDS);
+    }
+    if (seconds < APPROACH_SECONDS + COLLAPSE_SECONDS) {
+      final double t = (seconds - APPROACH_SECONDS) / COLLAPSE_SECONDS;
+      return LXUtils.lerp(1, .22, smootherstep(t));
+    }
+    final double t = (seconds - APPROACH_SECONDS - COLLAPSE_SECONDS) / WASH_SECONDS;
+    return .22 * (1 - smootherstep(t));
+  }
+
+  static double faceFraction(double seconds) {
+    if (seconds <= 0) {
+      return INITIAL_FACE_FRACTION;
+    }
+    if (seconds < APPROACH_SECONDS) {
+      final double steepen = smootherstep(Math.min(1, seconds / (APPROACH_SECONDS * .86)));
+      return LXUtils.lerp(INITIAL_FACE_FRACTION, BREAKING_FACE_FRACTION, steepen);
+    }
+    if (seconds < APPROACH_SECONDS + COLLAPSE_SECONDS) {
+      final double t = (seconds - APPROACH_SECONDS) / COLLAPSE_SECONDS;
+      return LXUtils.lerp(BREAKING_FACE_FRACTION, COLLAPSED_FACE_FRACTION, smootherstep(t));
+    }
+    final double t = Math.min(1,
+      (seconds - APPROACH_SECONDS - COLLAPSE_SECONDS) / (WASH_SECONDS * .55));
+    return LXUtils.lerp(COLLAPSED_FACE_FRACTION, INITIAL_FACE_FRACTION, smootherstep(t));
+  }
+
+  static double crestOffset(double seconds) {
+    if (seconds <= 0) {
+      return APPROACH_TRAVEL;
+    }
+    if (seconds < APPROACH_SECONDS) {
+      final double t = Math.min(1, seconds / (APPROACH_SECONDS * .93));
+      return LXUtils.lerp(APPROACH_TRAVEL, 0, easeOutCubic(t));
+    }
+    if (seconds < APPROACH_SECONDS + COLLAPSE_SECONDS) {
+      final double t = (seconds - APPROACH_SECONDS) / COLLAPSE_SECONDS;
+      return LXUtils.lerp(0, THROW_TRAVEL, easeOutCubic(t));
+    }
+    final double t = Math.min(1,
+      (seconds - APPROACH_SECONDS - COLLAPSE_SECONDS) / (WASH_SECONDS * .7));
+    return LXUtils.lerp(THROW_TRAVEL, WASH_TRAVEL, smootherstep(t));
+  }
+
+  static double foamBurst(double seconds) {
+    final double start = APPROACH_SECONDS - .08;
+    final double end = APPROACH_SECONDS + COLLAPSE_SECONDS + .28;
+    if (seconds <= start || seconds >= end) {
+      return 0;
+    }
+    final double t = (seconds - start) / (end - start);
+    return Math.sin(Math.PI * t) * Math.sin(Math.PI * t);
+  }
+
+  static double effectiveBreakHeightRows(
+      double requestedRows,
+      double baseSurfaceY,
+      double ceilingY,
+      double rowPitch) {
+    if (rowPitch <= 0) {
+      return 0;
+    }
+    final double headroomRows = Math.max(0, (ceilingY - baseSurfaceY) / rowPitch - .5);
+    return Math.min(Math.max(0, requestedRows), .85 * headroomRows);
+  }
+
+  static double feedbackDecay(double lambda, double deltaSeconds) {
+    return Math.exp(-Math.max(0, lambda) * Math.max(0, deltaSeconds));
+  }
+
+  private static double smootherstep(double value) {
+    final double t = LXUtils.clamp(value, 0, 1);
+    return t * t * t * (t * (t * 6 - 15) + 10);
+  }
+
+  private static double easeOutCubic(double value) {
+    final double t = LXUtils.clamp(value, 0, 1);
+    final double inverse = 1 - t;
+    return 1 - inverse * inverse * inverse;
+  }
+
+  private static double random01(int serial, int salt) {
+    return OceanField.hash01(serial * 0x1f123bb5 ^ salt);
+  }
+
+  @Override
+  public void buildDeviceControls(UI ui, UIDevice uiDevice, Breaker breaker) {
+    uiDevice.setLayout(UIDevice.Layout.HORIZONTAL, 2);
+
+    addColumn(uiDevice, "Water",
+      newKnob(breaker.level),
+      newKnob(breaker.breakHeight),
+      newKnob(breaker.eventWidth)
+    ).setChildSpacing(6);
+
+    addVerticalBreak(ui, uiDevice);
+
+    addColumn(uiDevice, "Crash",
+      newButton(breaker.breakWave).setTriggerable(true),
+      newKnob(breaker.breakAzimuth),
+      newButton(breaker.snapToFaces)
+    ).setChildSpacing(6);
+
+    addVerticalBreak(ui, uiDevice);
+
+    addColumn(uiDevice, "Motion",
+      newKnob(breaker.pace),
+      newKnob(breaker.foamAmount)
+    ).setChildSpacing(6);
+  }
+
+  private static final class FoamParticle {
+    boolean active;
+    double s;
+    double y;
+    double velocityS;
+    double velocityY;
+    double age;
+    double life;
+    double brightness;
+  }
+}
