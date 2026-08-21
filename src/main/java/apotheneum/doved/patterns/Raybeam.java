@@ -36,6 +36,16 @@ import heronarts.lx.utils.LXUtils;
  * <p>The pattern iterates {@link #model}, the model selected by the standard LX device view
  * selector. It clears the full output before drawing that view so switching views never leaves
  * pixels from the previous selection behind.
+ *
+ * <p>The model is hollow. It carries the cube and cylinder shell surfaces only, with no points
+ * filling the volume between them, so a solid shape centered in a view lights nothing until it
+ * grows large enough to reach a wall. Measured in the headless renderer, the nearest model point
+ * to the normalized center sits roughly .36 away, which means a centered {@link Shape#SPHERE} at
+ * radius .3 with width .05 renders completely black. That is correct, not a fault in the shape
+ * or a bug to chase. It applies to every solid volume -- {@link Shape#CYLINDER},
+ * {@link Shape#SPHERE}, {@link Shape#TORUS} and {@link Shape#CONE} -- and the exact threshold
+ * moves with the selected view's bounds and with {@link CoordinateMode}. Translating the origin
+ * toward a surface reaches the geometry just as well as enlarging the shape does.
  */
 @LXCategory("Apotheneum/doved")
 @LXComponent.Name("Raybeam")
