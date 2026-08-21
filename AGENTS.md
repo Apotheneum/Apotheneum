@@ -24,7 +24,21 @@ Apotheneum is a visual, sonic and haptic instrument for immersive LED art instal
 - **Install**: `mvn -Pinstall install` - Builds and installs the package to ~/Chromatik/Packages
 - **Quick Install**: `./update.command` - Convenience script that runs `mvn install`
 
-**IMPORTANT**: Always use `mvn -Pinstall install` instead of `mvn compile` when working on patterns, as this updates the Chromatik code and makes changes available in the lighting system.
+**Install only when something needs the jar.** `mvn -Pinstall install` writes
+`~/Chromatik/Packages/apotheneum-2.0.0-SNAPSHOT.jar` — one path keyed on
+artifactId and version, not on branch or worktree. Every checkout and every
+worktree writes that same file, so an install silently replaces whatever another
+session installed. This repo routinely has dozens of live worktrees.
+
+Install when a running Chromatik has to pick the change up — you are about to try
+it in the app, or you are handing it to someone who will. Say so when you do, since
+you are taking the shared jar.
+
+**Agents doing headless work: do not install.** Compiling, running the tests and
+rendering a pattern all work from the build tree and need no installed package —
+`docs/headless-rendering.md` renders with no Chromatik running and no jar
+installed. `mvn compile` or `mvn -Ptests test` is the right check there. Installing
+as a "did it build" step buys nothing and costs another session its package.
 
 ### Testing
 
