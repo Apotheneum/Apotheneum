@@ -38,13 +38,42 @@ jobs:
           # nothing to review.
           fetch-depth: 0
 
+      # The review plugin is fetched at run time, so without a pin the reviewer's
+      # behaviour changes with no commit here — an upstream edit to the command
+      # silently rewrites what "passing review" means. plugin_marketplaces
+      # validates URLs against ^https://.+\.git$, so a #ref suffix is rejected;
+      # local paths are accepted, so the pin is our own clone at a fixed SHA.
+      #
+      # The name in .claude-plugin/marketplace.json has to change: Claude Code
+      # reserves 'claude-code-plugins' for GitHub sources in the anthropics org
+      # and refuses a local copy claiming it. The plugin's own name is what the
+      # slash command is namespaced by, so /code-review:code-review is unaffected.
+      #
+      # To update: bump MARKETPLACE_REF and read the diff of
+      # plugins/code-review/commands/code-review.md between the two SHAs.
+      - name: Pin the review plugin marketplace
+        env:
+          MARKETPLACE_REF: 8a8e81d098cbd0fae4ee5b9c853542945fe87016
+          MARKETPLACE_DIR: ${{ runner.temp }}/review-plugin-marketplace
+        run: |
+          set -euo pipefail
+          git clone --filter=blob:none --no-checkout \
+            https://github.com/anthropics/claude-code.git "$MARKETPLACE_DIR"
+          git -C "$MARKETPLACE_DIR" sparse-checkout set --cone \
+            .claude-plugin plugins/code-review
+          git -C "$MARKETPLACE_DIR" checkout --detach "$MARKETPLACE_REF"
+          manifest="$MARKETPLACE_DIR/.claude-plugin/marketplace.json"
+          jq '.name = "pinned-claude-code-plugins"' "$manifest" > "$manifest.tmp"
+          mv "$manifest.tmp" "$manifest"
+          echo "Pinned review plugin marketplace at $MARKETPLACE_REF"
+
       - name: Run Claude Code Review
         id: claude-review
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          plugin_marketplaces: 'https://github.com/anthropics/claude-code.git'
-          plugins: 'code-review@claude-code-plugins'
+          plugin_marketplaces: ${{ runner.temp }}/review-plugin-marketplace
+          plugins: 'code-review@pinned-claude-code-plugins'
           prompt: '/code-review:code-review --comment ${{ github.repository }}/pull/${{ github.event.pull_request.number }}'
           # --allowedTools is a whitelist, not an addition: what is listed here is
           # the only thing the reviewer can call, and there is no prompt to fall
@@ -65,6 +94,13 @@ jobs:
           #                 "no issues found" summary when the review comes up clean.
           #   git         - diff scoping, history context, and the full SHA that
           #                 permalinks in inline comments require.
+          #   ls/cat/find/git status - what the review subagents reach for to orient
+          #                 themselves. Denying them does not stop the review, it just
+          #                 makes it worse: 173 denials across the 29 runs since the
+          #                 last fix were almost all `find . -name CLAUDE.md`, `ls`,
+          #                 and `git status`. All are read-only and none can reach the
+          #                 network, so they add nothing to the exfiltration surface
+          #                 that Read/Grep/Glob already cover.
           #
           # Bash is scoped to those read-only git/gh verbs rather than opened up
           # wholesale: this job reads PR-authored content while holding
@@ -77,13 +113,19 @@ jobs:
           # goes in claude_args rather than prompt so the slash command above still
           # parses as a command.
           claude_args: >-
-            --allowedTools "Task,Agent,TodoWrite,Read,Grep,Glob,Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(git blame:*),Bash(git rev-parse:*),Bash(git merge-base:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr list:*),Bash(gh pr comment:*),Bash(gh issue view:*),Bash(gh issue list:*),Bash(gh search:*),mcp__github_inline_comment__create_inline_comment"
+            --allowedTools "Task,Agent,TodoWrite,Read,Grep,Glob,Bash(ls:*),Bash(cat:*),Bash(find:*),Bash(git status:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(git blame:*),Bash(git rev-parse:*),Bash(git merge-base:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr list:*),Bash(gh pr comment:*),Bash(gh issue view:*),Bash(gh issue list:*),Bash(gh search:*),mcp__github_inline_comment__create_inline_comment"
             --append-system-prompt "Before reviewing, read docs/lx-coding-guidelines.md
             and apply its Part 3 review checklist alongside the standard review
             criteria. It records LX idioms specific to this repo that a general review
             will miss: no allocation in the render loop, enums carrying behavior
             instead of magic constants or string maps, framework helpers over
             reinvention, symmetric listener and plugin lifecycle, and staying within
-            model bounds including the door cutouts."
+            model bounds including the door cutouts.
+            When you publish the review summary with gh pr comment, write the comment
+            text inline as a single literal --body argument. The permission system
+            refuses any Bash command it cannot analyse statically, so command
+            substitution, heredocs and output redirection are all denied under the
+            Bash(gh pr comment:*) rule. A clean review has no other way to publish, so
+            a command built by any of those means ends the run having posted nothing."
           # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
           # or https://code.claude.com/docs/en/cli-reference for available options
