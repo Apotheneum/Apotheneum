@@ -33,3 +33,5 @@ hs_err_pid*
 # Claude Code local tool settings (personal, not shared project config)
 .claude/
 
+# Render output is review evidence, not documentation. See docs/headless-rendering.md
+docs/renders/

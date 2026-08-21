@@ -62,10 +62,41 @@ surface that contains a lit usable pixel during the run. For example,
 `cube-exterior.gif` and `cube-exterior-contact.png`. The per-frame PNGs used to
 assemble each GIF live in a temporary directory and are removed afterwards.
 
-Sample output — Fireflies on the cube exterior, 150 frames at 30fps, rendered with no
-Chromatik running:
+## Renders are never committed
 
-![Fireflies on the cube exterior](renders/fireflies-cube-exterior.gif)
+The GIFs and contact sheets are evidence for one review conversation. They are not
+documentation, and they do not belong in the repository — a few hundred KB per pattern
+PR, kept forever, for images nobody opens again after the merge.
+
+`target/` is already gitignored, so leaving the output where the renderer writes it is
+the correct and easiest thing to do. Do not copy it anywhere else in the tree.
+
+At the end of a successful run, after the statistics, the renderer prints the absolute
+path of every artifact it wrote so the files can be dragged straight into the PR
+description or a comment:
+
+```
+Renders ready to attach:
+  /abs/path/to/target/spike/cube-exterior.gif
+  /abs/path/to/target/spike/cube-exterior-contact.png
+```
+
+Skipped surfaces are omitted. When effects are requested, the block groups the files
+under `Effects bypassed` and `Effects applied` headings so the comparison is
+unambiguous.
+
+Dragging a file into a GitHub comment box uploads it to GitHub's own attachment host and
+inlines it, with no commit involved. That upload is browser-only — there is no `gh`
+command and no public API for it — which is exactly why the renderer hands off the paths
+rather than an agent trying to get the images into the PR itself. Committing them into
+`docs/` to work around the missing API is the thing this section exists to prevent.
+
+If you have your own upload capability — object storage, an image host, anything that
+returns a stable public URL — using it and linking the result is strictly better than
+handing over paths, and equally acceptable here. What is not acceptable is putting the
+files in the repository. Do not make such a capability a prerequisite: it is personal
+tooling, and the handoff above has to keep working for anyone without it, including
+contributors from a fork.
 
 ## Effects and modulators need a host
 
@@ -212,6 +243,9 @@ Established facts, verified 2026-08-20/21. Don't re-derive them.
 
 - **Never run `mvn -Pinstall install`.** It copies a jar into `~/Chromatik/Packages`,
   which is shared by every worktree and by the live rig. Plain `mvn -Ptests …` only.
+- **Never commit render output.** It goes to `target/spike/`, which is gitignored. The
+  renderer prints the paths for a human to attach; see "Renders are never committed"
+  above.
 - **Never substitute a simplified or synthetic model** to make a render succeed. A
   fake model that renders defeats the entire purpose — the point is to see the pattern
   on the real geometry. If the fixture won't load, stop and report where.
