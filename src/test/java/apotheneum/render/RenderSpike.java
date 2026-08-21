@@ -25,6 +25,7 @@ import apotheneum.Apotheneum;
 import heronarts.lx.LX;
 import heronarts.lx.LXEngine;
 import heronarts.lx.color.LXColor;
+import heronarts.lx.color.LXDynamicColor;
 import heronarts.lx.effect.LXEffect;
 import heronarts.lx.model.LXPoint;
 import heronarts.lx.mixer.LXChannel;
@@ -93,6 +94,7 @@ public final class RenderSpike {
     final Class<? extends LXPattern> patternClass = resolvePatternClass(args);
     final String parameterAssignments = optionalArgument(args, 1, "params=");
     final List<Class<? extends LXEffect>> effectClasses = resolveEffectClasses(args);
+    final String paletteAssignments = optionalArgument(args, 3, "palette=");
     preflightFfmpeg();
 
     final long jvmStartMillis = ManagementFactory.getRuntimeMXBean().getStartTime();
@@ -122,6 +124,8 @@ public final class RenderSpike {
       if (!Apotheneum.exists) {
         throw new IllegalStateException("Apotheneum.exists was false after loading the real fixture");
       }
+
+      applyPalette(lx, paletteAssignments);
 
       final int pointCount = lx.getModel().size;
       final long startupAndParseMs = System.currentTimeMillis() - jvmStartMillis;
@@ -216,10 +220,10 @@ public final class RenderSpike {
   }
 
   private static Class<? extends LXPattern> resolvePatternClass(String[] args) {
-    if (args.length > 3) {
+    if (args.length > 4) {
       throw new IllegalArgumentException(
         "Usage: RenderSpike [fully-qualified LXPattern class] [name=value,name=value] " +
-        "[fully-qualified LXEffect class,...]"
+        "[fully-qualified LXEffect class,...] [hue,saturation,brightness;...]"
       );
     }
     final String className = (args.length == 0 || args[0].isBlank()) ? DEFAULT_PATTERN_CLASS_NAME : args[0];
@@ -316,6 +320,55 @@ public final class RenderSpike {
     for (LXEffect effect : effects) {
       effect.enabled.setValue(enabled);
     }
+  }
+
+  /**
+   * Sets project palette swatch stops from a {@code h,s,b;h,s,b} spec so that
+   * palette-driven patterns can be reviewed headlessly. Stops beyond the swatch's
+   * current size are appended.
+   */
+  private static void applyPalette(LX lx, String assignments) {
+    if (assignments.isBlank()) {
+      LX.log("RenderSpike palette=(project default)");
+      return;
+    }
+    final String[] stops = assignments.split(";", -1);
+    final List<String> resolved = new ArrayList<>();
+    for (int i = 0; i < stops.length; ++i) {
+      final String[] hsb = stops[i].split(",", -1);
+      if (hsb.length != 3) {
+        throw new IllegalArgumentException(
+          "Invalid palette stop '" + stops[i] + "'; expected hue,saturation,brightness"
+        );
+      }
+      final double hue = parsePaletteComponent(stops[i], hsb[0], 360);
+      final double saturation = parsePaletteComponent(stops[i], hsb[1], 100);
+      final double brightness = parsePaletteComponent(stops[i], hsb[2], 100);
+      while (lx.engine.palette.swatch.colors.size() <= i) {
+        lx.engine.palette.swatch.addColor();
+      }
+      final LXDynamicColor color = lx.engine.palette.swatch.colors.get(i);
+      color.primary.hue.setValue(hue);
+      color.primary.saturation.setValue(saturation);
+      color.primary.brightness.setValue(brightness);
+      resolved.add(hue + "/" + saturation + "/" + brightness);
+    }
+    LX.log("RenderSpike palette=" + String.join(";", resolved));
+  }
+
+  private static double parsePaletteComponent(String stop, String raw, double maximum) {
+    final double value;
+    try {
+      value = Double.parseDouble(raw.strip());
+    } catch (NumberFormatException nfe) {
+      throw new IllegalArgumentException("Invalid palette stop '" + stop + "': " + raw, nfe);
+    }
+    if (value < 0 || value > maximum) {
+      throw new IllegalArgumentException(
+        "Palette component " + value + " in '" + stop + "' out of range 0.." + maximum
+      );
+    }
+    return value;
   }
 
   private static void applyParameters(LXPattern pattern, String assignments) {
