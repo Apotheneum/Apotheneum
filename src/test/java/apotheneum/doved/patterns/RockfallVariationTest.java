@@ -128,6 +128,14 @@ public class RockfallVariationTest {
   }
 
   @Test
+  void waterTrailDecayIsFrameRateIndependent() {
+    final double oneFrameAt30Fps = Rockfall.waterTrailDecay(1. / 30);
+    final double twoFramesAt60Fps = Math.pow(Rockfall.waterTrailDecay(1. / 60), 2);
+    assertEquals(oneFrameAt30Fps, twoFramesAt60Fps, 1e-12);
+    assertTrue(oneFrameAt30Fps > 0 && oneFrameAt30Fps < 1);
+  }
+
+  @Test
   void everyPrefixOfVerticalPlacementStaysSpread() {
     // The defect this guards: a count-dependent stratification of (i + r) / N leaves the
     // first M rocks bunched into the lowest M/N of the world once the count drops to M,

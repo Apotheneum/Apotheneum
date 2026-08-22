@@ -84,6 +84,8 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
   private static final int SPRAY_ATTEMPTS_PER_SURFACE = 600;
   private static final int TRAIL_SAMPLES_PER_CELL = 3;
   private static final double MAX_SWEEP_STEP_ROWS = .5;
+  private static final double WATER_TRAIL_HALF_LIFE_SECONDS = .045;
+  private static final double WATER_TRAIL_CUTOFF = .025;
   private static final String RENDER_SEED_PROPERTY = "apotheneum.rockfall.seed";
   private static final double COLOR_BRIGHTNESS_MODULATION = .45;
   private static final double COLOR_SATURATION_MODULATION = .3;
@@ -658,9 +660,7 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
     this.rockColor.update();
     this.waterColor.update();
     Arrays.fill(this.rockIntensity, 0);
-    Arrays.fill(this.waterIntensity, 0);
-    Arrays.fill(this.waterSpeedTotal, 0);
-    Arrays.fill(this.waterSampleWeight, 0);
+    decayWaterTrails(dt);
     setApotheneumColor(LXColor.BLACK);
 
     updateRocks(dt);
@@ -679,6 +679,26 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
       renderRocks(surface.orientation);
       writeColorOutput(surface.orientation);
     }
+  }
+
+  private void decayWaterTrails(double dt) {
+    final double decay = waterTrailDecay(dt);
+    for (int i = 0; i < this.waterIntensity.length; ++i) {
+      final double intensity = this.waterIntensity[i] * decay;
+      if (intensity < WATER_TRAIL_CUTOFF) {
+        this.waterIntensity[i] = 0;
+        this.waterSpeedTotal[i] = 0;
+        this.waterSampleWeight[i] = 0;
+      } else {
+        this.waterIntensity[i] = intensity;
+        this.waterSpeedTotal[i] *= decay;
+        this.waterSampleWeight[i] *= decay;
+      }
+    }
+  }
+
+  static double waterTrailDecay(double dt) {
+    return Math.pow(.5, dt / WATER_TRAIL_HALF_LIFE_SECONDS);
   }
 
   private void rebuildRockRowIndex() {
@@ -785,6 +805,11 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
             final double penetration = -d / gradientMagnitude;
             droplet.s += normalS * penetration;
             droplet.h += normalH * penetration;
+            // Projection repairs numerical penetration; it is not physical travel.
+            // Starting the visible trail after the repair avoids drawing a bright
+            // horizontal streak when the nearest sampled SDF normal changes.
+            droplet.previousS = droplet.s;
+            droplet.previousH = droplet.h;
           }
         } else {
           droplet.vs = slide * droplet.bias;
