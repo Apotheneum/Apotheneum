@@ -35,3 +35,7 @@ hs_err_pid*
 
 # Render output is review evidence, not documentation. See docs/headless-rendering.md
 docs/renders/
+
+# Wrangler local cache, created if you run `wrangler` (e.g. to publish renders to your
+# own object storage) with this repo as cwd. See docs/headless-rendering.md.
+.wrangler/

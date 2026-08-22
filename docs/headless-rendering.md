@@ -71,6 +71,40 @@ PR, kept forever, for images nobody opens again after the merge.
 `target/` is already gitignored, so leaving the output where the renderer writes it is
 the correct and easiest thing to do. Do not copy it anywhere else in the tree.
 
+### Recommended (optional): publish to your own storage and link
+
+If you have your own object storage that returns a stable public URL, uploading a
+render there and linking the result in the PR is better than handing over local
+paths — and it's the only handoff here that works from a cloud or remote session.
+
+This is personal tooling, not a repository requirement. There is no supported
+in-repo script for it; contributors without their own storage use the local
+handoff below, and that must keep working for everyone, including contributors
+from a fork.
+
+As one example, publishing a GIF to a Cloudflare R2 bucket with Wrangler looks
+like:
+
+```bash
+wrangler r2 object put my-bucket/apotheneum/cube-exterior.gif \
+  --file=target/spike/cube-exterior.gif --remote
+```
+
+`--remote` is required — without it Wrangler writes to a local simulated bucket
+instead of R2. See the
+[full R2 Wrangler command reference](https://developers.cloudflare.com/r2/reference/wrangler-commands/)
+for making the bucket public and other providers' equivalents.
+
+Cloudflare MCP servers cannot publish these files. The Workers Bindings server exposes
+only bucket-level R2 tools: `r2_buckets_list`, `r2_bucket_create`, `r2_bucket_get` and
+`r2_bucket_delete`. It has no object-put or public-URL tool, and authenticating it does
+not add one. Publishing uses the Wrangler CLI, not MCP.
+
+### Default for local sessions: hand off the printed paths
+
+This path needs no setup and works for anyone, including contributors from a fork, but
+only when the agent and human share a filesystem.
+
 At the end of a successful run, after the statistics, the renderer prints the absolute
 path of every artifact it wrote so the files can be dragged straight into the PR
 description or a comment:
@@ -91,12 +125,10 @@ command and no public API for it — which is exactly why the renderer hands off
 rather than an agent trying to get the images into the PR itself. Committing them into
 `docs/` to work around the missing API is the thing this section exists to prevent.
 
-If you have your own upload capability — object storage, an image host, anything that
-returns a stable public URL — using it and linking the result is strictly better than
-handing over paths, and equally acceptable here. What is not acceptable is putting the
-files in the repository. Do not make such a capability a prerequisite: it is personal
-tooling, and the handoff above has to keep working for anyone without it, including
-contributors from a fork.
+In a cloud or remote session, these paths name a filesystem the human cannot reach. The
+agent must publish through the optional path above or say plainly in the PR that renders
+could not be attached and why. Never commit them as a workaround: a stated gap is
+recoverable; a committed binary is permanent.
 
 ## Effects and modulators need a host
 
@@ -272,5 +304,8 @@ render is well under a second of engine time.
 
 ## Known gaps
 
+- **A remote session with no publishing set up cannot attach renders.** The printed paths
+  name a filesystem the reviewer cannot reach. Say so in the PR and fall back to the
+  numeric statistics; never commit the files instead.
 - **No before/after diff.** Comparing two renders of the same pattern across a change
   is done by eye today.
