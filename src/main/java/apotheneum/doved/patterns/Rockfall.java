@@ -52,7 +52,8 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
   private static final int ROCK_HARD_CAP = 700;
   private static final double DEFAULT_ROCK_SCALE = .2;
   private static final double ROCK_SPACING_CONSTANT = DEFAULT_ROCK_COUNT;
-  private static final double ROCK_COVERAGE_BUDGET = 48.3;
+  private static final double ROCK_COVERAGE_BUDGET = 90;
+  private static final double ROCK_ROW_WORK_BUDGET = 110;
   private static final double MIN_ROCK_SCALE = .05;
   private static final double MAX_ROCK_SCALE = 2;
   private static final int BASE_CUBE_DROPLET_COUNT = 2200;
@@ -463,12 +464,17 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
     double scale,
     double spacing,
     int hardCap,
-    double coverageBudget
+    double coverageBudget,
+    double rowWorkBudget
   ) {
     final double spacingCount = ROCK_SPACING_CONSTANT / (spacing * spacing);
     final double coverageCount = coverageBudget / (scale * scale);
+    // Sampling cost follows candidates per row, approximately count * scale,
+    // while visual coverage follows count * scale^2. Keep these as separate
+    // budgets so large rocks are not starved to protect the tiny-rock regime.
+    final double rowWorkCount = rowWorkBudget / scale;
     return LXUtils.constrain(
-      (int) Math.round(Math.min(spacingCount, coverageCount)),
+      (int) Math.round(Math.min(spacingCount, Math.min(coverageCount, rowWorkCount))),
       0,
       hardCap
     );
@@ -483,7 +489,8 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
       this.rockScale.getValue(),
       this.rockSpacing.getValue(),
       ROCK_HARD_CAP,
-      ROCK_COVERAGE_BUDGET
+      ROCK_COVERAGE_BUDGET,
+      ROCK_ROW_WORK_BUDGET
     ));
   }
 

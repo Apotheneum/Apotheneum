@@ -85,20 +85,29 @@ public class RockfallVariationTest {
 
   @Test
   void spacingCountIsIndependentOfScaleBelowCoverageClamp() {
-    assertEquals(55, Rockfall.derivedRockCount(.2, 1, 700, 50));
-    assertEquals(55, Rockfall.derivedRockCount(.8, 1, 700, 50));
+    assertEquals(55, Rockfall.derivedRockCount(.2, 1, 700, 50, 110));
+    assertEquals(55, Rockfall.derivedRockCount(.8, 1, 700, 50, 110));
   }
 
   @Test
   void coverageClampAndHardCapBoundExtremeCounts() {
-    assertEquals(700, Rockfall.derivedRockCount(.05, .15, 700, 50));
-    assertEquals(22, Rockfall.derivedRockCount(1.5, 1, 700, 50));
+    assertEquals(700, Rockfall.derivedRockCount(.05, .15, 700, 50, 110));
+    assertEquals(22, Rockfall.derivedRockCount(1.5, 1, 700, 50, 110));
     assertEquals(25, Rockfall.derivedRockCount(
       1.3378378905705177,
       1.4832396974191326,
       700,
-      48.3
+      48.3,
+      110
     ));
+  }
+
+  @Test
+  void rowWorkBudgetBoundsTinyDenseRocksWithoutStarvingLargeRocks() {
+    assertEquals(306, Rockfall.derivedRockCount(.36, .15, 700, 90, 110));
+    assertEquals(90, Rockfall.derivedRockCount(1, .15, 700, 90, 110));
+    assertEquals(23, Rockfall.derivedRockCount(2, .15, 700, 90, 110));
+    assertEquals(6, Rockfall.derivedRockCount(2, 3, 700, 90, 110));
   }
 
   @Test
