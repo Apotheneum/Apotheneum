@@ -72,6 +72,8 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
   private static final double FINE_NOISE_ROWS_JAGGED = .3;
   private static final double COARSE_NOISE_AMOUNT_MAX = .56;
   private static final double FINE_NOISE_AMOUNT_MAX = .26;
+  // The farthest secondary lobe reaches just under 1.3 radii before noise.
+  private static final double ROCK_SHAPE_EXTENT_FACTOR = 1.3;
   private static final double SMOOTH_MIN_FACTOR = .18;
   private static final double GRADIENT_EPSILON = 1e-5;
   private static final double CROWN_EPSILON = .08;
@@ -497,7 +499,19 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
   }
 
   private double verticalExtent(Rock rock) {
-    return effectiveRadius(rock) * 1.5 + Math.max(this.contactBand, this.currentRimWidth);
+    return conservativeRockExtent(
+      effectiveRadius(rock),
+      this.coarseNoiseAmount,
+      this.fineNoiseAmount
+    ) + Math.max(this.contactBand, this.currentRimWidth);
+  }
+
+  static double conservativeRockExtent(
+    double radius,
+    double coarseNoiseAmount,
+    double fineNoiseAmount
+  ) {
+    return radius * (ROCK_SHAPE_EXTENT_FACTOR + coarseNoiseAmount + fineNoiseAmount);
   }
 
   private void setActiveRockCount(int requestedCount) {
@@ -663,17 +677,25 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
     decayWaterTrails(dt);
     setApotheneumColor(LXColor.BLACK);
 
-    updateRocks(dt);
-    rebuildRockRowIndex();
-    sampleSdfField();
-    if (this.sprayPending) {
-      for (SurfaceWater surface : this.surfaceWaters) {
-        sprayFromUndersides(surface);
+    final int simulationSteps = rockMotionSubstepCount(
+      this.rockSpeed.getValue() + this.lurchVelocity,
+      dt,
+      this.worldRowHeight
+    );
+    final double stepDt = dt / simulationSteps;
+    for (int step = 0; step < simulationSteps; ++step) {
+      updateRocks(stepDt);
+      rebuildRockRowIndex();
+      sampleSdfField();
+      if (this.sprayPending) {
+        for (SurfaceWater surface : this.surfaceWaters) {
+          sprayFromUndersides(surface);
+        }
+        this.sprayPending = false;
       }
-      this.sprayPending = false;
-    }
-    for (SurfaceWater surface : this.surfaceWaters) {
-      updateWater(surface, dt);
+      for (SurfaceWater surface : this.surfaceWaters) {
+        updateWater(surface, stepDt);
+      }
     }
     for (SurfaceWater surface : this.surfaceWaters) {
       renderRocks(surface.orientation);
@@ -699,6 +721,16 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
 
   static double waterTrailDecay(double dt) {
     return Math.pow(.5, dt / WATER_TRAIL_HALF_LIFE_SECONDS);
+  }
+
+  static int rockMotionSubstepCount(double velocity, double dt, double worldRowHeight) {
+    if (worldRowHeight <= 0) {
+      return 1;
+    }
+    return Math.max(
+      1,
+      (int) Math.ceil(Math.abs(velocity) * dt / worldRowHeight / MAX_SWEEP_STEP_ROWS)
+    );
   }
 
   private void rebuildRockRowIndex() {
@@ -1171,19 +1203,50 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
   }
 
   private double projectRockCenterS(Apotheneum.Orientation orientation, Rock rock) {
-    int closestColumn = 0;
+    final LXPoint[] ring = orientation.ring(0).points;
+    double closestS = 0;
     double closestDistanceSquared = Double.POSITIVE_INFINITY;
-    for (int x = 0; x < orientation.width(); ++x) {
-      final LXPoint point = orientation.point(x, 0);
-      final double dx = point.x - rock.centerX;
-      final double dz = point.z - rock.centerZ;
+    for (int x = 0; x < ring.length; ++x) {
+      final LXPoint from = ring[x];
+      final LXPoint to = ring[(x + 1) % ring.length];
+      final double amount = segmentProjectionAmount(
+        from.x,
+        from.z,
+        to.x,
+        to.z,
+        rock.centerX,
+        rock.centerZ
+      );
+      final double dx = LXUtils.lerp(from.x, to.x, amount) - rock.centerX;
+      final double dz = LXUtils.lerp(from.z, to.z, amount) - rock.centerZ;
       final double distanceSquared = dx * dx + dz * dz;
       if (distanceSquared < closestDistanceSquared) {
-        closestColumn = x;
+        closestS = x + amount;
         closestDistanceSquared = distanceSquared;
       }
     }
-    return closestColumn;
+    return wrap(closestS, orientation.width());
+  }
+
+  static double segmentProjectionAmount(
+    double fromX,
+    double fromZ,
+    double toX,
+    double toZ,
+    double pointX,
+    double pointZ
+  ) {
+    final double segmentX = toX - fromX;
+    final double segmentZ = toZ - fromZ;
+    final double lengthSquared = segmentX * segmentX + segmentZ * segmentZ;
+    if (lengthSquared == 0) {
+      return 0;
+    }
+    return LXUtils.clamp(
+      ((pointX - fromX) * segmentX + (pointZ - fromZ) * segmentZ) / lengthSquared,
+      0,
+      1
+    );
   }
 
   private double sdf(SurfaceWater surface, double s, double y) {
@@ -1203,9 +1266,14 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
     // worldRowHeight makes a rock the same apparent row size on every surface.
     final double scale = this.currentRockScale;
     final double radius = rock.baseRadius * scale;
-    final double maximumExtent = radius * 1.5;
+    final double maximumExtent = conservativeRockExtent(
+      radius,
+      this.coarseNoiseAmount,
+      this.fineNoiseAmount
+    );
     final double dy = y - rock.worldY;
-    if (Math.abs(dy) > maximumExtent + this.contactBand) {
+    final double rejectRadius = maximumExtent + Math.max(this.contactBand, this.currentRimWidth);
+    if (Math.abs(dy) > rejectRadius) {
       return Double.POSITIVE_INFINITY;
     }
     final double dx = wrappedDelta(
@@ -1213,7 +1281,6 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
       s,
       surface.orientation.width()
     ) * this.worldRowHeight;
-    final double rejectRadius = maximumExtent + this.contactBand;
     if (dx * dx + dy * dy > rejectRadius * rejectRadius) {
       return Double.POSITIVE_INFINITY;
     }

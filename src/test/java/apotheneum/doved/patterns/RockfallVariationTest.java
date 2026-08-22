@@ -136,6 +136,27 @@ public class RockfallVariationTest {
   }
 
   @Test
+  void noisyCompoundRockExtentIncludesLobesAndMaximumDisplacement() {
+    assertEquals(13, Rockfall.conservativeRockExtent(10, 0, 0), 1e-12);
+    assertEquals(21.2, Rockfall.conservativeRockExtent(10, .56, .26), 1e-12);
+  }
+
+  @Test
+  void centerProjectionPreservesFractionalPositionAlongSegment() {
+    assertEquals(.25, Rockfall.segmentProjectionAmount(0, 0, 4, 0, 1, 2), 1e-12);
+    assertEquals(0, Rockfall.segmentProjectionAmount(0, 0, 4, 0, -2, 0), 1e-12);
+    assertEquals(1, Rockfall.segmentProjectionAmount(0, 0, 4, 0, 7, 0), 1e-12);
+    assertEquals(0, Rockfall.segmentProjectionAmount(2, 3, 2, 3, 7, 9), 1e-12);
+  }
+
+  @Test
+  void movingRocksSubstepAtTheSameHalfRowIntervalAsDroplets() {
+    assertEquals(1, Rockfall.rockMotionSubstepCount(0, .05, 1));
+    assertEquals(3, Rockfall.rockMotionSubstepCount(90, 1. / 60, 1));
+    assertEquals(24, Rockfall.rockMotionSubstepCount(235, .05, 1));
+  }
+
+  @Test
   void everyPrefixOfVerticalPlacementStaysSpread() {
     // The defect this guards: a count-dependent stratification of (i + r) / N leaves the
     // first M rocks bunched into the lowest M/N of the world once the count drops to M,
