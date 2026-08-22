@@ -356,14 +356,14 @@ public final class RenderSpike {
     LX.log("RenderSpike palette=" + String.join(";", resolved));
   }
 
-  private static double parsePaletteComponent(String stop, String raw, double maximum) {
+  static double parsePaletteComponent(String stop, String raw, double maximum) {
     final double value;
     try {
       value = Double.parseDouble(raw.strip());
     } catch (NumberFormatException nfe) {
       throw new IllegalArgumentException("Invalid palette stop '" + stop + "': " + raw, nfe);
     }
-    if (value < 0 || value > maximum) {
+    if (!Double.isFinite(value) || value < 0 || value > maximum) {
       throw new IllegalArgumentException(
         "Palette component " + value + " in '" + stop + "' out of range 0.." + maximum
       );

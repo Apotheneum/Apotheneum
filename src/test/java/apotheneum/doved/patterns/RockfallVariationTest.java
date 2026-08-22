@@ -157,6 +157,13 @@ public class RockfallVariationTest {
   }
 
   @Test
+  void offSurfaceRowsExtrapolateInsteadOfClampingToTheEdge() {
+    assertEquals(110, Rockfall.extrapolatedRowWorldY(100, 10, 10, -1), 1e-12);
+    assertEquals(0, Rockfall.extrapolatedRowWorldY(100, 10, 10, 10), 1e-12);
+    assertEquals(7, Rockfall.extrapolatedRowWorldY(7, 7, 1, -5), 1e-12);
+  }
+
+  @Test
   void everyPrefixOfVerticalPlacementStaysSpread() {
     // The defect this guards: a count-dependent stratification of (i + r) / N leaves the
     // first M rocks bunched into the lowest M/N of the world once the count drops to M,

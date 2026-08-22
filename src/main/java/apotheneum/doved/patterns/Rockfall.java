@@ -795,7 +795,7 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
       droplet.previousS = droplet.s;
       droplet.previousH = droplet.h;
 
-      final double d = surfaceSdf(surface.orientation, droplet.s, droplet.h);
+      final double d = surfaceSdf(surface, droplet.s, droplet.h);
       if (d < this.contactBand) {
         final Rock contactRock = closestRock(surface, droplet.s, droplet.h);
         if (contactRock != null) {
@@ -805,12 +805,12 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
           droplet.convergenceRemainingRows = 0;
         }
         final double gradS = .5 * (
-          surfaceSdf(surface.orientation, droplet.s + 1, droplet.h) -
-          surfaceSdf(surface.orientation, droplet.s - 1, droplet.h)
+          surfaceSdf(surface, droplet.s + 1, droplet.h) -
+          surfaceSdf(surface, droplet.s - 1, droplet.h)
         );
         final double gradH = .5 * (
-          surfaceSdf(surface.orientation, droplet.s, droplet.h + 1) -
-          surfaceSdf(surface.orientation, droplet.s, droplet.h - 1)
+          surfaceSdf(surface, droplet.s, droplet.h + 1) -
+          surfaceSdf(surface, droplet.s, droplet.h - 1)
         );
         final double gradientMagnitude = Math.hypot(gradS, gradH);
         if (gradientMagnitude > GRADIENT_EPSILON) {
@@ -874,7 +874,7 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
       final double ds = droplet.vs * dt;
       final double dh = droplet.vh * dt;
       final double contactAmount = d < this.contactBand ? -1 : firstSweptContact(
-        surface.orientation,
+        surface,
         droplet.s,
         droplet.h,
         ds,
@@ -920,7 +920,7 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
   }
 
   private double firstSweptContact(
-    Apotheneum.Orientation orientation,
+    SurfaceWater surface,
     double s,
     double h,
     double ds,
@@ -929,7 +929,7 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
     final int samples = sweepSampleCount(ds, dh);
     for (int sample = 1; sample <= samples; ++sample) {
       final double amount = (double) sample / samples;
-      if (surfaceSdf(orientation, s + ds * amount, h + dh * amount) < this.contactBand) {
+      if (surfaceSdf(surface, s + ds * amount, h + dh * amount) < this.contactBand) {
         return amount;
       }
     }
@@ -965,17 +965,17 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
       if (h >= surface.orientation.available(column)) {
         continue;
       }
-      final double d = surfaceSdf(surface.orientation, s, h);
+      final double d = surfaceSdf(surface, s, h);
       if (Math.abs(d) > this.contactBand) {
         continue;
       }
       final double gradS = .5 * (
-        surfaceSdf(surface.orientation, s + 1, h) -
-        surfaceSdf(surface.orientation, s - 1, h)
+        surfaceSdf(surface, s + 1, h) -
+        surfaceSdf(surface, s - 1, h)
       );
       final double gradH = .5 * (
-        surfaceSdf(surface.orientation, s, h + 1) -
-        surfaceSdf(surface.orientation, s, h - 1)
+        surfaceSdf(surface, s, h + 1) -
+        surfaceSdf(surface, s, h - 1)
       );
       final double gradientMagnitude = Math.hypot(gradS, gradH);
       if (gradientMagnitude < GRADIENT_EPSILON) {
@@ -1175,25 +1175,55 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
     );
   }
 
-  private double surfaceSdf(Apotheneum.Orientation orientation, double s, double h) {
+  private double surfaceSdf(SurfaceWater surface, double s, double h) {
+    final Apotheneum.Orientation orientation = surface.orientation;
     final int x = wrappedColumn(s, orientation.width());
-    final int y = Math.max(0, Math.min(orientation.height() - 1, (int) Math.round(h)));
-    final LXPoint point = orientation.point(x, y);
-    return this.sdfField[point.index];
+    if (h >= 0 && h <= orientation.height() - 1) {
+      final LXPoint point = orientation.point(x, (int) Math.round(h));
+      return this.sdfField[point.index];
+    }
+    return sdf(surface, s, surfaceWorldY(orientation, x, h));
+  }
+
+  private static double surfaceWorldY(
+    Apotheneum.Orientation orientation,
+    int x,
+    double h
+  ) {
+    if (h >= 0 && h <= orientation.height() - 1) {
+      return orientation.point(x, (int) Math.round(h)).y;
+    }
+    return extrapolatedRowWorldY(
+      orientation.point(x, 0).y,
+      orientation.point(x, orientation.height() - 1).y,
+      orientation.height(),
+      h
+    );
+  }
+
+  static double extrapolatedRowWorldY(
+    double firstRowY,
+    double lastRowY,
+    int height,
+    double h
+  ) {
+    if (height <= 1) {
+      return firstRowY;
+    }
+    return LXUtils.lerp(firstRowY, lastRowY, h / (height - 1));
   }
 
   private Rock closestRock(SurfaceWater surface, double s, double h) {
     final Apotheneum.Orientation orientation = surface.orientation;
     final int x = wrappedColumn(s, orientation.width());
-    final int y = Math.max(0, Math.min(orientation.height() - 1, (int) Math.round(h)));
-    final LXPoint point = orientation.point(x, y);
+    final double worldY = surfaceWorldY(orientation, x, h);
     Rock closest = null;
     double closestDistance = Double.POSITIVE_INFINITY;
-    final int row = Math.max(0, Math.min(Apotheneum.GRID_HEIGHT - 1, worldRow(point.y)));
+    final int row = Math.max(0, Math.min(Apotheneum.GRID_HEIGHT - 1, worldRow(worldY)));
     final int candidateCount = this.rockCountByRow[row];
     for (int i = 0; i < candidateCount; ++i) {
       final Rock rock = this.rocks[this.rockIndicesByRow[row][i]];
-      final double distance = rockSdf(rock, surface, x, point.y);
+      final double distance = rockSdf(rock, surface, x, worldY);
       if (distance < closestDistance) {
         closest = rock;
         closestDistance = distance;
