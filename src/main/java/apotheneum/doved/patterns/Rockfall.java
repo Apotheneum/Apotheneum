@@ -31,6 +31,7 @@ import heronarts.lx.LXCategory;
 import heronarts.lx.LXComponent;
 import heronarts.lx.color.LXColor;
 import heronarts.lx.color.LXDynamicColor;
+import heronarts.lx.model.LXModel;
 import heronarts.lx.model.LXPoint;
 import heronarts.lx.osc.LXOscComponent;
 import heronarts.lx.parameter.CompoundParameter;
@@ -81,6 +82,7 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
   private static final double SPRAY_SPEED = 26;
   private static final int SPRAY_ATTEMPTS_PER_SURFACE = 600;
   private static final int TRAIL_SAMPLES_PER_CELL = 3;
+  private static final double MAX_SWEEP_STEP_ROWS = .5;
   private static final String RENDER_SEED_PROPERTY = "apotheneum.rockfall.seed";
   private static final double COLOR_BRIGHTNESS_MODULATION = .45;
   private static final double COLOR_SATURATION_MODULATION = .3;
@@ -261,23 +263,24 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
 
   private final Random random = createRandom();
   private Rock[] rocks = new Rock[0];
-  private final SurfaceWater[] surfaceWaters;
+  private SurfaceWater[] surfaceWaters = new SurfaceWater[0];
   private int[][] rockIndicesByRow = new int[Apotheneum.GRID_HEIGHT][0];
   private final int[] rockCountByRow = new int[Apotheneum.GRID_HEIGHT];
-  private final double[] rockIntensity;
-  private final double[] rockPhysics;
-  private final double[] waterIntensity;
-  private final double[] waterSpeedTotal;
-  private final double[] waterSampleWeight;
-  private final double[] sdfField;
-  private final double worldCenterX;
-  private final double worldCenterZ;
-  private final double worldYMin;
-  private final double worldYMax;
-  private final double worldRowHeight;
-  private final double rockRadiusMin;
-  private final double rockRadiusMax;
-  private final double rockCenterRadius;
+  private double[] rockIntensity = new double[0];
+  private double[] rockPhysics = new double[0];
+  private double[] waterIntensity = new double[0];
+  private double[] waterSpeedTotal = new double[0];
+  private double[] waterSampleWeight = new double[0];
+  private double[] sdfField = new double[0];
+  private LXModel geometryModel;
+  private double worldCenterX;
+  private double worldCenterZ;
+  private double worldYMin;
+  private double worldYMax;
+  private double worldRowHeight;
+  private double rockRadiusMin;
+  private double rockRadiusMax;
+  private double rockCenterRadius;
   private int activeRockCount = 0;
   private double currentRockScale = DEFAULT_ROCK_SCALE;
   private double contactBand;
@@ -319,12 +322,22 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
     addParameter("rim", this.rim);
     addParameter("rimWidth", this.rimWidth);
 
-    this.rockIntensity = new double[lx.getModel().size];
-    this.rockPhysics = new double[lx.getModel().size];
-    this.waterIntensity = new double[lx.getModel().size];
-    this.waterSpeedTotal = new double[lx.getModel().size];
-    this.waterSampleWeight = new double[lx.getModel().size];
-    this.sdfField = new double[lx.getModel().size];
+    if (Apotheneum.exists) {
+      initializeGeometry();
+    }
+    this.rockSpacing.addListener(this.rockGeometryListener);
+    this.rockScale.addListener(this.rockGeometryListener);
+    this.waterDensity.addListener(this.waterDensityListener);
+  }
+
+  private void initializeGeometry() {
+    this.geometryModel = this.lx.getModel();
+    this.rockIntensity = new double[this.geometryModel.size];
+    this.rockPhysics = new double[this.geometryModel.size];
+    this.waterIntensity = new double[this.geometryModel.size];
+    this.waterSpeedTotal = new double[this.geometryModel.size];
+    this.waterSampleWeight = new double[this.geometryModel.size];
+    this.sdfField = new double[this.geometryModel.size];
     int surfaceCount = 0;
     for (Apotheneum.Orientation orientation : Apotheneum.cube.orientations()) {
       if (orientation != null) {
@@ -386,12 +399,13 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
     this.rockRadiusMax = this.worldRowHeight * ROCK_RADIUS_MAX_ROWS;
     this.rockCenterRadius = calculateRockCenterRadius();
 
+    this.rocks = new Rock[0];
+    this.rockIndicesByRow = new int[Apotheneum.GRID_HEIGHT][0];
+    this.activeRockCount = 0;
+    this.lastVariationPhase = Double.NaN;
     updateDerivedValues();
     updateActiveRockCount();
     setWaterDensity(this.waterDensity.getValuei());
-    this.rockSpacing.addListener(this.rockGeometryListener);
-    this.rockScale.addListener(this.rockGeometryListener);
-    this.waterDensity.addListener(this.waterDensityListener);
   }
 
   private static Random createRandom() {
@@ -465,6 +479,9 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
   }
 
   private void updateActiveRockCount() {
+    if (!Apotheneum.exists || this.geometryModel != this.lx.getModel()) {
+      return;
+    }
     updateDerivedValues();
     setActiveRockCount(derivedRockCount(
       this.rockScale.getValue(),
@@ -513,6 +530,9 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
   }
 
   private void setWaterDensity(int densityPercent) {
+    if (!Apotheneum.exists || this.geometryModel != this.lx.getModel()) {
+      return;
+    }
     for (SurfaceWater surface : this.surfaceWaters) {
       final int requestedCount = (int) Math.round(surface.baseCount * densityPercent * .01);
       ensureDropletCapacity(surface, requestedCount);
@@ -630,6 +650,9 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
 
   @Override
   protected void render(double deltaMs) {
+    if (this.geometryModel != this.lx.getModel()) {
+      initializeGeometry();
+    }
     final double dt = Math.min(MAX_DELTA_SECONDS, deltaMs * .001);
     updateDerivedValues();
     updateRockProperties();
@@ -792,8 +815,18 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
 
       droplet.vs = LXUtils.clamp(droplet.vs, -maxLateralSpeed, maxLateralSpeed);
 
-      droplet.s = wrap(droplet.s + droplet.vs * dt, surface.orientation.width());
-      droplet.h += droplet.vh * dt;
+      final double ds = droplet.vs * dt;
+      final double dh = droplet.vh * dt;
+      final double contactAmount = d < this.contactBand ? -1 : firstSweptContact(
+        surface.orientation,
+        droplet.s,
+        droplet.h,
+        ds,
+        dh
+      );
+      final double movementAmount = contactAmount < 0 ? 1 : contactAmount;
+      droplet.s = wrap(droplet.s + ds * movementAmount, surface.orientation.width());
+      droplet.h += dh * movementAmount;
       droplet.convergenceRemainingRows = Math.max(
         0,
         droplet.convergenceRemainingRows - Math.max(0, droplet.h - droplet.previousH)
@@ -828,6 +861,27 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
       MAX_LATERAL_SLIDE_MULTIPLIER * slide,
       MAX_LATERAL_FREE_FALL_FRACTION * achievable
     );
+  }
+
+  private double firstSweptContact(
+    Apotheneum.Orientation orientation,
+    double s,
+    double h,
+    double ds,
+    double dh
+  ) {
+    final int samples = sweepSampleCount(ds, dh);
+    for (int sample = 1; sample <= samples; ++sample) {
+      final double amount = (double) sample / samples;
+      if (surfaceSdf(orientation, s + ds * amount, h + dh * amount) < this.contactBand) {
+        return amount;
+      }
+    }
+    return -1;
+  }
+
+  static int sweepSampleCount(double ds, double dh) {
+    return Math.max(1, (int) Math.ceil(Math.hypot(ds, dh) / MAX_SWEEP_STEP_ROWS));
   }
 
 

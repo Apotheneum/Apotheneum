@@ -110,6 +110,14 @@ public class RockfallVariationTest {
       1e-9
     );
   }
+
+  @Test
+  void fastDropletMovesAreSweptAtSubpixelIntervals() {
+    assertEquals(1, Rockfall.sweepSampleCount(0, 0));
+    assertEquals(22, Rockfall.sweepSampleCount(0, 11));
+    assertEquals(10, Rockfall.sweepSampleCount(3, 4));
+  }
+
   @Test
   void everyPrefixOfVerticalPlacementStaysSpread() {
     // The defect this guards: a count-dependent stratification of (i + r) / N leaves the
