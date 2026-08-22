@@ -18,12 +18,17 @@ import heronarts.lx.studio.ui.device.UIDeviceControls;
 import heronarts.lx.utils.LXUtils;
 
 /**
- * A local, triggered spilling breaker rendered as a single-valued height field.
+ * A local, travelling, triggered spilling breaker rendered as a single-valued
+ * height field.
  *
  * <p>The event deliberately stops at stage 1: its crest never detaches from the
  * water surface and it does not form an overhang or barrel. A long back and a
  * short face provide the spatial asymmetry, while the event timing provides a
  * slow steepen, fast slump, and long wash.
+ *
+ * <p>Each trigger starts one bounded event. The local footprint travels until
+ * the wash envelope reaches zero, then remains idle rather than lapping
+ * continuously; retriggering restarts it at the selected launch azimuth.
  *
  * <p>Requested break height is capped at 85% of the LED rows between the base
  * waterline and the ceiling, with half a row reserved for the antialiased crest.
@@ -32,7 +37,7 @@ import heronarts.lx.utils.LXUtils;
  */
 @LXCategory("Apotheneum/doved")
 @LXComponent.Name("Breaker")
-@LXComponent.Description("A local spilling wave that steepens, breaks, and washes out")
+@LXComponent.Description("A local spilling wave that travels, breaks, and leaves whitewater")
 public class Breaker extends ApotheneumPattern implements UIDeviceControls<Breaker> {
 
   static final double APPROACH_SECONDS = 2.2;
@@ -48,6 +53,7 @@ public class Breaker extends ApotheneumPattern implements UIDeviceControls<Break
   private static final double APPROACH_TRAVEL = -.075;
   private static final double THROW_TRAVEL = .026;
   private static final double WASH_TRAVEL = .042;
+  private static final double PEEL_DELAY_FRACTION = .45;
   private static final double FOAM_DECAY_RATE = 2.25;
   private static final double FOAM_GRAVITY_ROWS = 18;
   private static final int FOAM_POOL_SIZE = 192;
@@ -69,15 +75,19 @@ public class Breaker extends ApotheneumPattern implements UIDeviceControls<Break
     new CompoundParameter("Azimuth", 0, 0, 360)
     .setUnits(CompoundParameter.Units.DEGREES)
     .setWrappable(true)
-    .setDescription("Azimuth where the crest slumps");
+    .setDescription("Launch azimuth where the travelling breaker starts");
 
   public final BooleanParameter snapToFaces =
     new BooleanParameter("Face Snap", true)
-    .setDescription("Snap the break azimuth to the nearest cube-face centre");
+    .setDescription("Snap the launch azimuth to the nearest cube-face centre");
+
+  public final CompoundParameter travelSpeed =
+    new CompoundParameter("Travel", .14, .04, .32)
+    .setDescription("Footprint travel speed in ring laps per second");
 
   public final CompoundParameter pace =
     new CompoundParameter("Pace", 1, .6, 1.6)
-    .setDescription("Playback rate of the break event");
+    .setDescription("Playback rate of the shape envelope; travel stays in real-time laps per second");
 
   public final CompoundParameter foamAmount =
     new CompoundParameter("Foam", .8, 0, 1)
@@ -116,6 +126,7 @@ public class Breaker extends ApotheneumPattern implements UIDeviceControls<Break
     addParameter("eventWidth", this.eventWidth);
     addParameter("breakAzimuth", this.breakAzimuth);
     addParameter("snapToFaces", this.snapToFaces);
+    addParameter("travelSpeed", this.travelSpeed);
     addParameter("pace", this.pace);
     addParameter("foamAmount", this.foamAmount);
     addParameter("break", this.breakWave);
@@ -146,6 +157,11 @@ public class Breaker extends ApotheneumPattern implements UIDeviceControls<Break
     this.texturePhase = (this.texturePhase + deltaSeconds * .72) % LX.TWO_PI;
     if (this.eventActive) {
       this.eventSeconds += deltaSeconds * this.pace.getValue();
+      this.breakCenterS = advanceRingPosition(
+        this.breakCenterS,
+        this.travelSpeed.getValue(),
+        deltaSeconds
+      );
       if (this.eventSeconds >= EVENT_SECONDS) {
         this.eventSeconds = EVENT_SECONDS;
         this.eventActive = false;
@@ -164,7 +180,6 @@ public class Breaker extends ApotheneumPattern implements UIDeviceControls<Break
       this.geometry.ceilingY(),
       this.geometry.rowPitch()
     );
-    final double heightEnvelope = this.eventActive ? heightEnvelope(this.eventSeconds) : 0;
     final double widthS = this.eventWidth.getValue() / CUBE_RING_LENGTH;
     final double faceFraction = this.eventActive
       ? faceFraction(this.eventSeconds)
@@ -181,8 +196,8 @@ public class Breaker extends ApotheneumPattern implements UIDeviceControls<Break
     renderOrientation(
       Apotheneum.cube.exterior,
       baseSurfaceY,
-      requestedHeightRows * heightEnvelope,
-      heightEnvelope,
+      requestedHeightRows,
+      this.eventSeconds,
       crestS,
       widthS,
       faceFraction,
@@ -192,8 +207,8 @@ public class Breaker extends ApotheneumPattern implements UIDeviceControls<Break
     renderOrientation(
       Apotheneum.cylinder.exterior,
       baseSurfaceY,
-      requestedHeightRows * heightEnvelope,
-      heightEnvelope,
+      requestedHeightRows,
+      this.eventSeconds,
       crestS,
       widthS,
       faceFraction,
@@ -212,7 +227,7 @@ public class Breaker extends ApotheneumPattern implements UIDeviceControls<Break
       Apotheneum.Orientation orientation,
       double baseSurfaceY,
       double heightRows,
-      double eventAmount,
+      double eventSeconds,
       double crestS,
       double widthS,
       double faceFraction,
@@ -227,8 +242,10 @@ public class Breaker extends ApotheneumPattern implements UIDeviceControls<Break
       final double s = OceanField.arcLength(columnIndex, columnOffset, ringLength);
       final double distance = signedArcDistance(s, crestS);
       final double profile = spatialProfile(distance, widthS, faceFraction);
-      final double surfaceY = baseSurfaceY + this.geometry.rowPitch() * heightRows * profile;
       final double normalizedDistance = distance / widthS;
+      final double eventAmount = peeledHeightEnvelope(eventSeconds, normalizedDistance);
+      final double surfaceY = baseSurfaceY
+        + this.geometry.rowPitch() * heightRows * eventAmount * profile;
       final double crestMask = eventAmount * (
         1 - OceanField.smoothstep(.018, .065, Math.abs(normalizedDistance))
       );
@@ -316,7 +333,7 @@ public class Breaker extends ApotheneumPattern implements UIDeviceControls<Break
         particle.active = false;
         continue;
       }
-      particle.s += particle.velocityS * deltaSeconds;
+      particle.s = advanceRingPosition(particle.s, particle.velocityS, deltaSeconds);
       particle.y += particle.velocityY * deltaSeconds;
       particle.velocityY -= FOAM_GRAVITY_ROWS * pitch * deltaSeconds;
     }
@@ -327,12 +344,16 @@ public class Breaker extends ApotheneumPattern implements UIDeviceControls<Break
     final double burst = foamBurst(this.eventSeconds) * this.foamAmount.getValue();
     this.foamSpawnAccumulator += burst * 150 * deltaSeconds;
     while (this.foamSpawnAccumulator >= 1) {
-      spawnFoam(baseSurfaceY, crestS, widthS);
+      spawnFoam(baseSurfaceY, crestS, widthS, faceFraction(this.eventSeconds));
       this.foamSpawnAccumulator -= 1;
     }
   }
 
-  private void spawnFoam(double baseSurfaceY, double crestS, double widthS) {
+  private void spawnFoam(
+      double baseSurfaceY,
+      double crestS,
+      double widthS,
+      double faceFraction) {
     FoamParticle particle = null;
     for (int i = 0; i < this.foamParticles.length; ++i) {
       final int index = (this.foamPoolCursor + i) % this.foamParticles.length;
@@ -352,7 +373,10 @@ public class Breaker extends ApotheneumPattern implements UIDeviceControls<Break
     particle.active = true;
     particle.age = 0;
     particle.life = .9 + .8 * random01(serial, 0x1b873593);
-    particle.s = crestS + widthS * (.09 + .34 * lateral);
+    particle.s = wrapRingPosition(
+      crestS + peelOffset(this.eventSeconds, widthS, faceFraction)
+        + .12 * widthS * lateral
+    );
     particle.y = baseSurfaceY + this.geometry.rowPitch() * (.35 + 1.2 * lift);
     particle.velocityS = .006 + .024 * random01(serial, 0x51ed270b);
     particle.velocityY = this.geometry.rowPitch() * (1.5 + 3 * random01(serial, 0x7f4a7c15));
@@ -441,6 +465,14 @@ public class Breaker extends ApotheneumPattern implements UIDeviceControls<Break
     return distance;
   }
 
+  static double advanceRingPosition(double positionS, double lapsPerSecond, double seconds) {
+    return wrapRingPosition(positionS + lapsPerSecond * Math.max(0, seconds));
+  }
+
+  static double wrapRingPosition(double positionS) {
+    return positionS - Math.floor(positionS);
+  }
+
   static double spatialProfile(double distance, double width, double faceFraction) {
     if (width <= 0 || faceFraction <= 0) {
       return 0;
@@ -482,6 +514,41 @@ public class Breaker extends ApotheneumPattern implements UIDeviceControls<Break
     }
     final double t = (seconds - APPROACH_SECONDS - COLLAPSE_SECONDS) / WASH_SECONDS;
     return .22 * (1 - smootherstep(t));
+  }
+
+  static double peeledHeightEnvelope(double seconds, double normalizedDistance) {
+    if (seconds < APPROACH_SECONDS ||
+        seconds >= APPROACH_SECONDS + COLLAPSE_SECONDS) {
+      return heightEnvelope(seconds);
+    }
+    final double footprintPosition = LXUtils.clamp(
+      (normalizedDistance + BACK_FRACTION) /
+        (BACK_FRACTION + BREAKING_FACE_FRACTION),
+      0,
+      1
+    );
+    final double collapseProgress =
+      (seconds - APPROACH_SECONDS) / COLLAPSE_SECONDS;
+    final double localProgress = LXUtils.clamp(
+      (collapseProgress - PEEL_DELAY_FRACTION * footprintPosition) /
+        (1 - PEEL_DELAY_FRACTION),
+      0,
+      1
+    );
+    return LXUtils.lerp(1, .22, smootherstep(localProgress));
+  }
+
+  static double peelOffset(double seconds, double width, double faceFraction) {
+    final double progress = LXUtils.clamp(
+      (seconds - APPROACH_SECONDS) / COLLAPSE_SECONDS,
+      0,
+      1
+    );
+    return width * LXUtils.lerp(
+      -BACK_FRACTION,
+      faceFraction,
+      smootherstep(progress)
+    );
   }
 
   static double faceFraction(double seconds) {
@@ -581,6 +648,7 @@ public class Breaker extends ApotheneumPattern implements UIDeviceControls<Break
 
     addColumn(uiDevice, "Motion",
       newKnob(breaker.pace),
+      newKnob(breaker.travelSpeed),
       newKnob(breaker.foamAmount)
     ).setChildSpacing(6);
   }

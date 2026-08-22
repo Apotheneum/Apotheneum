@@ -42,6 +42,28 @@ class BreakerTest {
   }
 
   @Test
+  void travellingFootprintWrapsAcrossTheArcLengthSeam() {
+    final double launchS = .97;
+    final double centerS = Breaker.advanceRingPosition(launchS, .16, .5);
+
+    assertEquals(.05, centerS, EPSILON);
+    assertEquals(.02, Breaker.signedArcDistance(.07, centerS), EPSILON);
+    assertEquals(-.02, Breaker.signedArcDistance(.03, centerS), EPSILON);
+  }
+
+  @Test
+  void foamDriftsInRingSpaceInsteadOfFollowingTheFootprint() {
+    final double birthS = .99;
+    final double foamS = Breaker.advanceRingPosition(birthS, .02, .5);
+    final double footprintS = Breaker.advanceRingPosition(birthS, .16, .5);
+
+    assertEquals(0, foamS, EPSILON, "foam drift should wrap across the seam");
+    assertEquals(.07, footprintS, EPSILON);
+    assertEquals(-.07, Breaker.signedArcDistance(foamS, footprintS), EPSILON,
+      "foam should remain behind the faster travelling footprint");
+  }
+
+  @Test
   void faceCenteredFootprintStaysWithinOneFaceAtPeak() {
     final double faceWidth = .25;
     final double faceFraction = .22;
@@ -70,6 +92,35 @@ class BreakerTest {
     assertTrue(Breaker.APPROACH_SECONDS > 5 * Breaker.COLLAPSE_SECONDS);
     assertTrue(Breaker.WASH_SECONDS > 5 * Breaker.COLLAPSE_SECONDS);
     assertEquals(0, Breaker.heightEnvelope(Breaker.EVENT_SECONDS), EPSILON);
+  }
+
+  @Test
+  void collapsePeelsFromBackToFrontInsideTheExistingWindow() {
+    final double halfway = Breaker.APPROACH_SECONDS + .5 * Breaker.COLLAPSE_SECONDS;
+    final double back = Breaker.peeledHeightEnvelope(halfway, -.78);
+    final double front = Breaker.peeledHeightEnvelope(halfway, .22);
+
+    assertTrue(back < front, "the trailing edge should collapse before the leading edge");
+    assertEquals(1, Breaker.peeledHeightEnvelope(Breaker.APPROACH_SECONDS, .22), EPSILON);
+    assertEquals(.22, Breaker.peeledHeightEnvelope(
+      Breaker.APPROACH_SECONDS + Breaker.COLLAPSE_SECONDS,
+      -.78
+    ), EPSILON);
+  }
+
+  @Test
+  void foamBirthPositionPeelsInTheDirectionOfTravel() {
+    final double width = .25;
+    final double start = Breaker.peelOffset(Breaker.APPROACH_SECONDS, width, .22);
+    final double end = Breaker.peelOffset(
+      Breaker.APPROACH_SECONDS + Breaker.COLLAPSE_SECONDS,
+      width,
+      .16
+    );
+
+    assertEquals(-.78 * width, start, EPSILON);
+    assertEquals(.16 * width, end, EPSILON);
+    assertTrue(end > start);
   }
 
   @Test
