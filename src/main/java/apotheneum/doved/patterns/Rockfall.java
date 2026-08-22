@@ -239,6 +239,8 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
     private double h;
     private double previousS;
     private double previousH;
+    private double trailStartS;
+    private double trailStartH;
     private double vs;
     private double vh;
     private double bias;
@@ -676,6 +678,7 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
     Arrays.fill(this.rockIntensity, 0);
     decayWaterTrails(dt);
     setApotheneumColor(LXColor.BLACK);
+    beginWaterTrails();
 
     final int simulationSteps = rockMotionSubstepCount(
       this.rockSpeed.getValue() + this.lurchVelocity,
@@ -697,6 +700,7 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
         updateWater(surface, stepDt);
       }
     }
+    renderWaterTrails();
     for (SurfaceWater surface : this.surfaceWaters) {
       renderRocks(surface.orientation);
       writeColorOutput(surface.orientation);
@@ -842,6 +846,8 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
             // horizontal streak when the nearest sampled SDF normal changes.
             droplet.previousS = droplet.s;
             droplet.previousH = droplet.h;
+            droplet.trailStartS = droplet.s;
+            droplet.trailStartH = droplet.h;
           }
         } else {
           droplet.vs = slide * droplet.bias;
@@ -890,8 +896,28 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
       final int column = wrappedColumn(droplet.s, surface.orientation.width());
       if (droplet.h >= surface.orientation.available(column) || droplet.h < -3) {
         spawnDroplet(surface, droplet, -this.random.nextDouble() * 5);
-      } else {
-        renderDropletTrail(surface, droplet);
+      }
+    }
+  }
+
+  private void beginWaterTrails() {
+    for (SurfaceWater surface : this.surfaceWaters) {
+      for (int i = 0; i < surface.activeCount; ++i) {
+        final Droplet droplet = surface.droplets[i];
+        droplet.trailStartS = droplet.s;
+        droplet.trailStartH = droplet.h;
+      }
+    }
+  }
+
+  private void renderWaterTrails() {
+    for (SurfaceWater surface : this.surfaceWaters) {
+      for (int i = 0; i < surface.activeCount; ++i) {
+        final Droplet droplet = surface.droplets[i];
+        final int column = wrappedColumn(droplet.s, surface.orientation.width());
+        if (droplet.h < surface.orientation.available(column) && droplet.h >= -3) {
+          renderDropletTrail(surface, droplet);
+        }
       }
     }
   }
@@ -947,6 +973,8 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
     droplet.h = height;
     droplet.previousS = droplet.s;
     droplet.previousH = droplet.h;
+    droplet.trailStartS = droplet.s;
+    droplet.trailStartH = droplet.h;
     droplet.vs = 0;
     droplet.vh = 5 + 8 * this.random.nextDouble();
     droplet.bias = this.random.nextBoolean() ? 1 : -1;
@@ -993,6 +1021,8 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
       droplet.h = h + normalH * clearance;
       droplet.previousS = droplet.s;
       droplet.previousH = droplet.h;
+      droplet.trailStartS = droplet.s;
+      droplet.trailStartH = droplet.h;
       droplet.bias = this.random.nextBoolean() ? 1 : -1;
       droplet.vs = droplet.bias * (8 + 10 * this.random.nextDouble());
       droplet.vh = SPRAY_SPEED * (.7 + .6 * this.random.nextDouble());
@@ -1002,14 +1032,14 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
   }
 
   private void renderDropletTrail(SurfaceWater surface, Droplet droplet) {
-    double ds = droplet.s - droplet.previousS;
+    double ds = droplet.s - droplet.trailStartS;
     final double halfWidth = surface.orientation.width() * .5;
     if (ds > halfWidth) {
       ds -= surface.orientation.width();
     } else if (ds < -halfWidth) {
       ds += surface.orientation.width();
     }
-    final double dh = droplet.h - droplet.previousH;
+    final double dh = droplet.h - droplet.trailStartH;
     final double speed = Math.hypot(droplet.vs, droplet.vh);
     final double normalizedSpeed = Math.min(1, speed / this.streak.getValue());
     final int samples = Math.max(2, (int) Math.ceil(Math.hypot(ds, dh) * TRAIL_SAMPLES_PER_CELL));
@@ -1023,8 +1053,8 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
       final double brightness = beadBrightness * (.18 + .82 * amount);
       addWaterSample(
         surface.orientation,
-        droplet.previousS + ds * amount,
-        droplet.previousH + dh * amount,
+        droplet.trailStartS + ds * amount,
+        droplet.trailStartH + dh * amount,
         brightness,
         normalizedSpeed
       );
