@@ -14,6 +14,7 @@
         <params></params>
         <effects></effects>
         <palette></palette>
+        <view></view>
 
         <lx.version>1.2.2</lx.version>
         <maven-assembly-plugin.version>3.1.0</maven-assembly-plugin.version>
@@ -145,6 +146,7 @@
                                 <argument>params=${params}</argument>
                                 <argument>effects=${effects}</argument>
                                 <argument>palette=${palette}</argument>
+                                <argument>view=${view}</argument>
                             </arguments>
                         </configuration>
                     </plugin>
