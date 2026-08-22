@@ -211,6 +211,7 @@ double dist3D = Math.sqrt(
 - **Maximum 3 controls per column** - UI columns should never exceed 3 elements to prevent overflow and maintain visibility
 - **Logical grouping** - Group related parameters together (e.g., movement controls, visual controls, etc.)
 - **Clear button placement** - Important buttons like "Clear" should be easily accessible and not hidden by overcrowding
+- **Render custom pattern UI after changing it** - Run `./scripts/render-ui <fully-qualified-pattern-class>` and inspect both artifacts in `target/ui-review/`. See [docs/ui-rendering.md](docs/ui-rendering.md). The command uses the real Chromatik UI without installing the package.
 
 ### Wiring a Component to its UI
 

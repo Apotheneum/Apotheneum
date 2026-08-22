@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+  echo "Usage: ./scripts/render-ui <fully-qualified LXPattern class> [output-directory]" >&2
+}
+
+if [[ $# -lt 1 || $# -gt 2 ]]; then
+  usage
+  exit 2
+fi
+
+if [[ "$(uname -s)" != "Darwin" ]]; then
+  echo "render-ui currently supports macOS only (Chromatik's Metal framebuffer path)." >&2
+  exit 1
+fi
+
+repo_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$repo_dir"
+
+# Test compilation only: this never installs a package into ~/Chromatik/Packages.
+mvn -Ptests test-compile
+
+java_home="$(mvn -q -DforceStdout help:evaluate -Dexpression=java.home)"
+lx_version="$(mvn -q -DforceStdout help:evaluate -Dexpression=lx.version)"
+java_bin="$java_home/bin/java"
+if [[ ! -x "$java_bin" ]]; then
+  echo "Maven reported an unusable Java home: $java_home" >&2
+  exit 1
+fi
+
+chromatik_jar="${CHROMATIK_JAR:-/Applications/Chromatik.app/Contents/app/glxstudio-${lx_version}-jar-with-dependencies.jar}"
+if [[ ! -f "$chromatik_jar" ]]; then
+  echo "Chromatik ${lx_version} runtime jar does not exist: $chromatik_jar" >&2
+  echo "Install the matching Chromatik release or set CHROMATIK_JAR explicitly." >&2
+  exit 1
+fi
+
+isolated_home="$repo_dir/target/ui-render-home"
+mkdir -p "$isolated_home"
+
+exec "$java_bin" \
+  --enable-native-access=ALL-UNNAMED \
+  -XstartOnFirstThread \
+  -Duser.home="$isolated_home" \
+  -cp "target/test-classes:target/classes:$chromatik_jar" \
+  apotheneum.render.RenderDeviceUI "$@"
