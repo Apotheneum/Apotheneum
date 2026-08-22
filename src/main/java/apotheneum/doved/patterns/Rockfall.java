@@ -217,10 +217,6 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
     private double seed;
     private double centerX;
     private double centerZ;
-    private double tangentX;
-    private double tangentZ;
-    private double radialX;
-    private double radialZ;
     private double offsetS1;
     private double offsetY1;
     private double offsetR1;
@@ -590,12 +586,8 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
       variationNoise(loopX, loopY, rockIndex, .47, 17.3)
     );
     rock.seed = rockIndex * 7.37 + 2.5 * variationNoise(loopX, loopY, rockIndex, .83, 29.7);
-    rock.tangentX = -Math.sin(rock.theta);
-    rock.tangentZ = Math.cos(rock.theta);
-    rock.radialX = Math.cos(rock.theta);
-    rock.radialZ = Math.sin(rock.theta);
-    rock.centerX = this.worldCenterX + this.rockCenterRadius * rock.radialX;
-    rock.centerZ = this.worldCenterZ + this.rockCenterRadius * rock.radialZ;
+    rock.centerX = this.worldCenterX + this.rockCenterRadius * Math.cos(rock.theta);
+    rock.centerZ = this.worldCenterZ + this.rockCenterRadius * Math.sin(rock.theta);
     for (SurfaceWater surface : this.surfaceWaters) {
       rock.centerS[surface.index] = projectRockCenterS(surface.orientation, rock);
     }
@@ -705,7 +697,7 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
       for (int x = 0; x < orientation.width(); ++x) {
         for (int y = 0; y < orientation.height(); ++y) {
           final LXPoint point = orientation.point(x, y);
-          this.sdfField[point.index] = sdf(point.x, point.y, point.z);
+          this.sdfField[point.index] = sdf(surface, x, point.y);
         }
       }
     }
@@ -746,7 +738,7 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
 
       final double d = surfaceSdf(surface.orientation, droplet.s, droplet.h);
       if (d < this.contactBand) {
-        final Rock contactRock = closestRock(surface.orientation, droplet.s, droplet.h);
+        final Rock contactRock = closestRock(surface, droplet.s, droplet.h);
         if (contactRock != null) {
           droplet.contactingRock = true;
           droplet.convergenceCenterS = contactRock.centerS[surface.index];
@@ -1126,7 +1118,8 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
     return this.sdfField[point.index];
   }
 
-  private Rock closestRock(Apotheneum.Orientation orientation, double s, double h) {
+  private Rock closestRock(SurfaceWater surface, double s, double h) {
+    final Apotheneum.Orientation orientation = surface.orientation;
     final int x = wrappedColumn(s, orientation.width());
     final int y = Math.max(0, Math.min(orientation.height() - 1, (int) Math.round(h)));
     final LXPoint point = orientation.point(x, y);
@@ -1136,7 +1129,7 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
     final int candidateCount = this.rockCountByRow[row];
     for (int i = 0; i < candidateCount; ++i) {
       final Rock rock = this.rocks[this.rockIndicesByRow[row][i]];
-      final double distance = rockSdf(rock, point.x, point.y, point.z);
+      final double distance = rockSdf(rock, surface, x, point.y);
       if (distance < closestDistance) {
         closest = rock;
         closestDistance = distance;
@@ -1161,18 +1154,21 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
     return closestColumn;
   }
 
-  private double sdf(double x, double y, double z) {
+  private double sdf(SurfaceWater surface, double s, double y) {
     double field = Double.POSITIVE_INFINITY;
     final int row = Math.max(0, Math.min(Apotheneum.GRID_HEIGHT - 1, worldRow(y)));
     final int candidateCount = this.rockCountByRow[row];
     for (int i = 0; i < candidateCount; ++i) {
       final Rock rock = this.rocks[this.rockIndicesByRow[row][i]];
-      field = Math.min(field, rockSdf(rock, x, y, z));
+      field = Math.min(field, rockSdf(rock, surface, s, y));
     }
     return field;
   }
 
-  private double rockSdf(Rock rock, double x, double y, double z) {
+  private double rockSdf(Rock rock, SurfaceWater surface, double s, double y) {
+    // Evaluate in tangent/height space rather than at one physical radius between
+    // the nested chambers. centerS preserves the shared world-space angle, while
+    // worldRowHeight makes a rock the same apparent row size on every surface.
     final double scale = this.currentRockScale;
     final double radius = rock.baseRadius * scale;
     final double maximumExtent = radius * 1.5;
@@ -1180,37 +1176,38 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
     if (Math.abs(dy) > maximumExtent + this.contactBand) {
       return Double.POSITIVE_INFINITY;
     }
-    final double dx = x - rock.centerX;
-    final double dz = z - rock.centerZ;
+    final double dx = wrappedDelta(
+      rock.centerS[surface.index],
+      s,
+      surface.orientation.width()
+    ) * this.worldRowHeight;
     final double rejectRadius = maximumExtent + this.contactBand;
-    if (dx * dx + dy * dy + dz * dz > rejectRadius * rejectRadius) {
+    if (dx * dx + dy * dy > rejectRadius * rejectRadius) {
       return Double.POSITIVE_INFINITY;
     }
 
-    double rockField = sphereSdf(dx, dy, dz, radius);
-    final double dx1 = dx - rock.tangentX * rock.offsetS1 * scale;
-    final double dz1 = dz - rock.tangentZ * rock.offsetS1 * scale;
+    double rockField = sphereSdf(dx, dy, 0, radius);
+    final double dx1 = dx - rock.offsetS1 * scale;
     rockField = smoothMin(
       rockField,
-      sphereSdf(dx1, dy - rock.offsetY1 * scale, dz1, rock.offsetR1 * scale),
+      sphereSdf(dx1, dy - rock.offsetY1 * scale, 0, rock.offsetR1 * scale),
       radius * SMOOTH_MIN_FACTOR
     );
-    final double dx2 = dx - rock.tangentX * rock.offsetS2 * scale - rock.radialX * radius * .08;
-    final double dz2 = dz - rock.tangentZ * rock.offsetS2 * scale - rock.radialZ * radius * .08;
+    final double dx2 = dx - rock.offsetS2 * scale - radius * .08;
     rockField = smoothMin(
       rockField,
-      sphereSdf(dx2, dy - rock.offsetY2 * scale, dz2, rock.offsetR2 * scale),
+      sphereSdf(dx2, dy - rock.offsetY2 * scale, 0, rock.offsetR2 * scale),
       radius * SMOOTH_MIN_FACTOR
     );
     final double coarseNoise = LXUtils.noise(
-      (float) (x * this.coarseNoiseScale + rock.seed),
-      (float) (y * this.coarseNoiseScale - rock.seed * .37),
-      (float) (z * this.coarseNoiseScale + rock.seed * .61)
+      (float) (dx * this.coarseNoiseScale + rock.seed),
+      (float) (dy * this.coarseNoiseScale - rock.seed * .37),
+      (float) (rock.seed * .61)
     );
     final double fineNoise = LXUtils.noise(
-      (float) (x * this.fineNoiseScale - rock.seed * .43),
-      (float) (y * this.fineNoiseScale + rock.seed * .71),
-      (float) (z * this.fineNoiseScale - rock.seed * .29)
+      (float) (dx * this.fineNoiseScale - rock.seed * .43),
+      (float) (dy * this.fineNoiseScale + rock.seed * .71),
+      (float) (-rock.seed * .29)
     );
     rockField -= (coarseNoise - .5) * 2 * radius * this.coarseNoiseAmount;
     rockField -= (fineNoise - .5) * 2 * radius * this.fineNoiseAmount;
