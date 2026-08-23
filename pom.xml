@@ -13,6 +13,10 @@
         <pattern>apotheneum.doved.patterns.Fireflies</pattern>
         <params></params>
         <effects></effects>
+        <render.mainClass>apotheneum.render.RenderSpike</render.mainClass>
+        <clip>all</clip>
+        <cropStart></cropStart>
+        <cropWidth></cropWidth>
 
         <lx.version>1.2.2</lx.version>
         <maven-assembly-plugin.version>3.1.0</maven-assembly-plugin.version>
@@ -137,9 +141,12 @@
                             <classpathScope>test</classpathScope>
                             <arguments>
                                 <argument>-Djava.awt.headless=true</argument>
+                                <argument>-Dclip=${clip}</argument>
+                                <argument>-DcropStart=${cropStart}</argument>
+                                <argument>-DcropWidth=${cropWidth}</argument>
                                 <argument>-classpath</argument>
                                 <classpath />
-                                <argument>apotheneum.render.RenderSpike</argument>
+                                <argument>${render.mainClass}</argument>
                                 <argument>${pattern}</argument>
                                 <argument>params=${params}</argument>
                                 <argument>effects=${effects}</argument>
