@@ -62,6 +62,61 @@ surface that contains a lit usable pixel during the run. For example,
 `cube-exterior.gif` and `cube-exterior-contact.png`. The per-frame PNGs used to
 assemble each GIF live in a temporary directory and are removed afterwards.
 
+## Judge a viewer-sized column crop
+
+The complete 200-column cube unwrap is useful for checking continuity, but it is a
+god's-eye view that no person inside the installation sees. Add a crop when judging
+the local shape and motion of a wave, caustic field, or similar pattern:
+
+```bash
+mvn -Ptests test-compile exec:exec \
+  -Dpattern=apotheneum.doved.patterns.Flood \
+  -DcropStart=190 -DcropWidth=60
+```
+
+The crop is zero-based, includes exactly `cropWidth` columns, and wraps around the
+ring. The example therefore shows cube columns 190..199 followed by 0..49. The same
+start and width apply independently to every driven surface; the start is normalized
+to that surface's ring width, so it begins at cylinder column 70 on the 120-column
+cylinder. Crop width may not exceed the surface ring width. Height is never cropped
+or wrapped, and row 0 remains the top.
+
+The full artifacts are still written. Each cropped GIF sits beside its full strip as
+`<surface>-crop.gif`; it is an additional review view, not a replacement.
+
+## Pattern-owned animated clips
+
+Use the typed clip facility when parameters must change during a render. A pattern
+owns its catalog in its own test-scope driver, so adding Undersea clips and adding
+Breaker clips never touches a shared `Clip[]` array. The complete registration API is:
+
+```java
+var clips = List.of(new RenderSpike.AnimatedClip<>("rise", Flood::new, 6,
+  (pattern, frame, progress, seconds) -> pattern.level.setValue(progress)));
+RenderSpike.renderClips(clips,
+  new RenderSpike.AnimatedOptions(Path.of("target/flood-renders"), 2, 30));
+```
+
+The updater runs immediately before every 60fps engine frame. Its frame number is
+1-based, `progress` ranges from `(0, 1]`, and `seconds` includes the frame about to be
+rendered. The options specify the output directory, number of engine frames between
+written GIF frames, and GIF playback rate. Keep those last two consistent: interval 2
+with 30fps playback, or interval 3 with 20fps playback, both preserve real-time motion.
+
+Select the pattern-owned driver and either one named clip or all clips through Maven:
+
+```bash
+mvn -Ptests test-compile exec:exec \
+  -Drender.mainClass=apotheneum.render.FloodRenderSpike \
+  -Dclip=all -DcropStart=190 -DcropWidth=60
+```
+
+Each clip gets a fresh pattern instance while all clips share one LX and the real
+fixture. Artifacts are grouped as
+`target/flood-renders/<clip-name>/<surface>.gif`, with an additional
+`<surface>-crop.gif` when a crop is configured. Flood's catalog is the working example;
+new pattern drivers only declare their own typed clips and call `renderClips`.
+
 ## Renders are never committed
 
 The GIFs and contact sheets are evidence for one review conversation. They are not

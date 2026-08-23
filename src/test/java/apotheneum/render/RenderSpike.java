@@ -16,7 +16,9 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.TreeMap;
+import java.util.function.Function;
 import java.util.stream.Stream;
 
 import javax.imageio.ImageIO;
@@ -41,6 +43,76 @@ import heronarts.lx.structure.JsonFixture;
  * Run with {@code mvn -Ptests test-compile exec:exec} from the repository root.
  */
 public final class RenderSpike {
+
+  @FunctionalInterface
+  public interface FrameUpdater<P extends LXPattern> {
+    /**
+     * Updates a freshly constructed pattern immediately before an engine frame.
+     * Frame numbers are 1-based, progress is in (0, 1], and elapsed seconds
+     * includes the frame about to be rendered.
+     */
+    void update(P pattern, int engineFrame, double progress, double elapsedSeconds);
+  }
+
+  public record AnimatedClip<P extends LXPattern>(
+    String name,
+    Function<LX, P> factory,
+    double durationSeconds,
+    FrameUpdater<P> updater
+  ) {
+    public AnimatedClip {
+      if (name == null || name.isBlank()) {
+        throw new IllegalArgumentException("Clip name must not be blank");
+      }
+      Objects.requireNonNull(factory, "Clip factory must not be null");
+      if (!Double.isFinite(durationSeconds) || durationSeconds <= 0) {
+        throw new IllegalArgumentException("Clip duration must be a positive finite number");
+      }
+      Objects.requireNonNull(updater, "Clip updater must not be null");
+    }
+
+    int engineFrameCount() {
+      return (int) Math.round(this.durationSeconds * 60);
+    }
+  }
+
+  public record AnimatedOptions(Path outputDirectory, int gifFrameInterval, int gifFrameRate) {
+    public AnimatedOptions {
+      Objects.requireNonNull(outputDirectory, "Output directory must not be null");
+      if (gifFrameInterval <= 0 || gifFrameRate <= 0) {
+        throw new IllegalArgumentException("GIF frame interval and frame rate must be positive");
+      }
+      if (60 % gifFrameInterval != 0 || gifFrameRate != 60 / gifFrameInterval) {
+        throw new IllegalArgumentException(
+          "GIF frame interval and frame rate must preserve the 60fps engine's real-time motion"
+        );
+      }
+    }
+  }
+
+  public record ColumnCrop(int startColumn, int width) {
+    public ColumnCrop {
+      if (startColumn < 0) {
+        throw new IllegalArgumentException("Crop start column must be zero or greater");
+      }
+      if (width <= 0) {
+        throw new IllegalArgumentException("Crop width must be positive");
+      }
+    }
+
+    int sourceColumn(int outputColumn, int ringWidth) {
+      if (width > ringWidth) {
+        throw new IllegalArgumentException(
+          "Crop width " + width + " exceeds surface ring width " + ringWidth
+        );
+      }
+      return Math.floorMod(startColumn + outputColumn, ringWidth);
+    }
+
+    int normalizedStart(int ringWidth) {
+      return Math.floorMod(startColumn, ringWidth);
+    }
+  }
 
   private enum RenderSurface {
     CUBE_EXTERIOR("cube-exterior", false, true),
@@ -95,6 +167,7 @@ public final class RenderSpike {
     final String parameterAssignments = optionalArgument(args, 1, "params=");
     final List<Class<? extends LXEffect>> effectClasses = resolveEffectClasses(args);
     final String paletteAssignments = optionalArgument(args, 3, "palette=");
+    final ColumnCrop crop = resolveCrop();
     preflightFfmpeg();
 
     final long jvmStartMillis = ManagementFactory.getRuntimeMXBean().getStartTime();
@@ -150,10 +223,10 @@ public final class RenderSpike {
       if (!effects.isEmpty()) {
         LX.log("RenderSpike variant=bypass");
       }
-      renderVariant(lx, pattern, "bypass", "", temporaryFramesRoot, writtenArtifacts);
+      renderVariant(lx, pattern, "bypass", "", temporaryFramesRoot, writtenArtifacts, crop);
       if (!effects.isEmpty()) {
         setEffectsEnabled(effects, true);
-        renderVariant(lx, pattern, "effects", "-effects", temporaryFramesRoot, writtenArtifacts);
+        renderVariant(lx, pattern, "effects", "-effects", temporaryFramesRoot, writtenArtifacts, crop);
       }
 
       LX.log("RenderSpike outputDirectory=" + OUTPUT_DIRECTORY.toAbsolutePath());
@@ -170,13 +243,206 @@ public final class RenderSpike {
     }
   }
 
+  /**
+   * Renders one or all clips from a pattern-owned catalog. Select a clip with
+   * {@code -Dclip=<name>}; the default is {@code all}. Each clip gets a fresh
+   * pattern instance while every clip shares the process's single LX instance.
+   */
+  public static <P extends LXPattern> void renderClips(
+    List<AnimatedClip<P>> clips,
+    AnimatedOptions options
+  ) throws Exception {
+    Objects.requireNonNull(clips, "Clip list must not be null");
+    Objects.requireNonNull(options, "Animated options must not be null");
+    if (clips.isEmpty()) {
+      throw new IllegalArgumentException("At least one animated clip is required");
+    }
+    final Map<String, AnimatedClip<P>> clipsByName = new TreeMap<>();
+    for (AnimatedClip<P> clip : clips) {
+      Objects.requireNonNull(clip, "Clip list must not contain null");
+      if (clipsByName.put(clip.name(), clip) != null) {
+        throw new IllegalArgumentException("Duplicate animated clip name: " + clip.name());
+      }
+    }
+    final String requestedClip = System.getProperty("clip", "all").strip();
+    final List<AnimatedClip<P>> selectedClips;
+    if (requestedClip.isEmpty() || requestedClip.equalsIgnoreCase("all")) {
+      selectedClips = clips;
+    } else {
+      final AnimatedClip<P> selectedClip = clipsByName.get(requestedClip);
+      if (selectedClip == null) {
+        throw new IllegalArgumentException(
+          "Unknown clip '" + requestedClip + "'. Available clips: " + clipNames(clips)
+        );
+      }
+      selectedClips = List.of(selectedClip);
+    }
+    final ColumnCrop crop = resolveCrop();
+    preflightFfmpeg();
+    resetDirectory(options.outputDirectory());
+
+    final Path mediaPath = Files.createTempDirectory("apotheneum-animated-render-");
+    LX lx = null;
+    try {
+      copyFixtureMedia(mediaPath);
+
+      final LX.Flags flags = new LX.Flags();
+      flags.loadPreferences = false;
+      flags.mediaPath = mediaPath.toString();
+      flags.outputMode = LX.Flags.OutputMode.INACTIVE;
+
+      lx = new LX(flags);
+      lx.engine.output.enabled.setValue(false);
+      assertOutputDisabled(lx, "LX construction");
+
+      final JsonFixture fixture = new JsonFixture(lx, FIXTURE_NAME);
+      lx.structure.addFixture(fixture);
+      lx.structure.beforeEngineRun();
+      if (fixture.error.isOn()) {
+        throw new IllegalStateException("Fixture load failed: " + fixture.errorMessage.getString());
+      }
+      assertOutputDisabled(lx, "fixture load");
+
+      Apotheneum.initialize(lx);
+      if (!Apotheneum.exists) {
+        throw new IllegalStateException("Apotheneum.exists was false after loading the real fixture");
+      }
+      if (lx.getModel().size != EXPECTED_POINT_COUNT) {
+        LX.warning(
+          "RenderSpike expected " + EXPECTED_POINT_COUNT + " points but loaded " + lx.getModel().size
+        );
+      }
+      lx.engine.setFixedDeltaMs(FIXED_DELTA_MS);
+
+      LXChannel channel = null;
+      final Path temporaryFramesRoot = mediaPath.resolve("render-frames");
+      for (AnimatedClip<P> clip : selectedClips) {
+        final P pattern = clip.factory().apply(lx);
+        if (pattern == null) {
+          throw new IllegalStateException("Clip factory returned null for " + clip.name());
+        }
+        if (channel == null) {
+          channel = lx.engine.mixer.addChannel(new LXPattern[] { pattern });
+        } else {
+          channel.addPattern(pattern);
+          channel.goPattern(pattern, true);
+        }
+        renderAnimatedClip(lx, clip, pattern, options, crop, temporaryFramesRoot);
+      }
+
+      LX.log("RenderSpike outputDirectory=" + options.outputDirectory().toAbsolutePath());
+      LX.log("RenderSpike outputEnabled=" + lx.engine.output.enabled.isOn());
+    } finally {
+      try {
+        if (lx != null) {
+          lx.dispose();
+        }
+      } finally {
+        deleteTree(mediaPath);
+      }
+    }
+  }
+
+  private static <P extends LXPattern> void renderAnimatedClip(
+    LX lx,
+    AnimatedClip<P> clip,
+    P pattern,
+    AnimatedOptions options,
+    ColumnCrop crop,
+    Path temporaryFramesRoot
+  ) throws IOException, InterruptedException {
+    final int engineFrameCount = clip.engineFrameCount();
+    LX.log(
+      "RenderSpike clip=" + clip.name() +
+      " durationSeconds=" + clip.durationSeconds() +
+      " patternClass=" + pattern.getClass().getName()
+    );
+    final LXEngine.Frame outputFrame = new LXEngine.Frame(lx);
+    outputFrame.setModel(lx.getModel());
+    final EnumSet<RenderSurface> availableSurfaces = availableSurfaces();
+    final EnumSet<RenderSurface> drivenSurfaces = EnumSet.noneOf(RenderSurface.class);
+    final double[] peakNonBlackFractions = new double[RenderSurface.values().length];
+    final int expectedGifFrames = engineFrameCount / options.gifFrameInterval();
+    if (expectedGifFrames == 0) {
+      throw new IllegalArgumentException(
+        "Clip " + clip.name() + " is too short to produce a GIF frame at interval " +
+        options.gifFrameInterval()
+      );
+    }
+    final List<int[]> gifFrames = new ArrayList<>(expectedGifFrames);
+    long totalFrameNanos = 0;
+    double totalMeanBrightness = 0;
+
+    for (int frameNumber = 1; frameNumber <= engineFrameCount; ++frameNumber) {
+      final double elapsedSeconds = frameNumber * FIXED_DELTA_MS / 1000.;
+      final double progress = frameNumber / (double) engineFrameCount;
+      clip.updater().update(pattern, frameNumber, progress, elapsedSeconds);
+
+      assertOutputDisabled(lx, clip.name() + " before frame " + frameNumber);
+      final long frameStartNanos = System.nanoTime();
+      lx.engine.run();
+      totalFrameNanos += System.nanoTime() - frameStartNanos;
+      assertOutputDisabled(lx, clip.name() + " after frame " + frameNumber);
+
+      lx.engine.copyFrameThreadSafe(outputFrame);
+      final int[] colors = outputFrame.getMain();
+      totalMeanBrightness += meanBrightness(colors);
+      updateSurfaceCoverage(availableSurfaces, drivenSurfaces, peakNonBlackFractions, colors);
+      if (frameNumber % options.gifFrameInterval() == 0) {
+        gifFrames.add(colors.clone());
+      }
+    }
+
+    if (gifFrames.size() != expectedGifFrames) {
+      throw new IllegalStateException(
+        "Expected " + expectedGifFrames + " GIF frames, got " + gifFrames.size()
+      );
+    }
+    logSkippedSurfaces(pattern, availableSurfaces, drivenSurfaces, peakNonBlackFractions, clip.name());
+    validateCrop(crop, drivenSurfaces);
+    final Path clipOutputDirectory = Files.createDirectories(options.outputDirectory().resolve(clip.name()));
+    for (RenderSurface surface : drivenSurfaces) {
+      writeAnimatedSurfaceArtifacts(
+        surface,
+        gifFrames,
+        clipOutputDirectory,
+        temporaryFramesRoot.resolve(clip.name()),
+        options.gifFrameRate(),
+        crop
+      );
+    }
+
+    final double meanFrameMs = totalFrameNanos / 1_000_000. / engineFrameCount;
+    LX.log(String.format(
+      Locale.ROOT,
+      "RenderSpike clip=%s drivenSurfaces=%s peakNonBlackFractions=%s " +
+      "meanBrightnessPct=%.3f meanFrameMs=%.3f engineFrames=%d gifFrames=%d",
+      clip.name(),
+      surfaceNames(drivenSurfaces),
+      surfaceCoverageSummary(drivenSurfaces, peakNonBlackFractions),
+      totalMeanBrightness / engineFrameCount,
+      meanFrameMs,
+      engineFrameCount,
+      gifFrames.size()
+    ));
+  }
+
+  private static <P extends LXPattern> String clipNames(List<AnimatedClip<P>> clips) {
+    final List<String> names = new ArrayList<>(clips.size());
+    for (AnimatedClip<P> clip : clips) {
+      names.add(clip.name());
+    }
+    return String.join(", ", names);
+  }
+
   private static void renderVariant(
     LX lx,
     LXPattern pattern,
     String variant,
     String fileSuffix,
     Path temporaryFramesRoot,
-    List<WrittenArtifact> writtenArtifacts
+    List<WrittenArtifact> writtenArtifacts,
+    ColumnCrop crop
   ) throws IOException, InterruptedException {
     if (!fileSuffix.isEmpty()) {
       LX.log("RenderSpike variant=" + variant);
@@ -210,8 +476,9 @@ public final class RenderSpike {
     }
     LX.log("RenderSpike drivenSurfaces=" + surfaceNames(drivenSurfaces));
     logSkippedSurfaces(pattern, availableSurfaces, drivenSurfaces, peakNonBlackFractions, variant);
+    validateCrop(crop, drivenSurfaces);
     for (RenderSurface surface : drivenSurfaces) {
-      writeSurfaceArtifacts(surface, gifFrames, variant, fileSuffix, temporaryFramesRoot, writtenArtifacts);
+      writeSurfaceArtifacts(surface, gifFrames, variant, fileSuffix, temporaryFramesRoot, writtenArtifacts, crop);
     }
 
     final double meanFrameMs = totalFrameNanos / 1_000_000. / ENGINE_FRAME_COUNT;
@@ -273,6 +540,25 @@ public final class RenderSpike {
     }
     final String argument = args[index];
     return argument.startsWith(mavenPrefix) ? argument.substring(mavenPrefix.length()) : argument;
+  }
+
+  private static ColumnCrop resolveCrop() {
+    final String startValue = System.getProperty("cropStart", "").strip();
+    final String widthValue = System.getProperty("cropWidth", "").strip();
+    if (startValue.isEmpty() && widthValue.isEmpty()) {
+      LX.log("RenderSpike crop=(none)");
+      return null;
+    }
+    if (startValue.isEmpty() || widthValue.isEmpty()) {
+      throw new IllegalArgumentException("cropStart and cropWidth must be specified together");
+    }
+    try {
+      final ColumnCrop crop = new ColumnCrop(Integer.parseInt(startValue), Integer.parseInt(widthValue));
+      LX.log("RenderSpike cropStart=" + crop.startColumn() + " cropWidth=" + crop.width());
+      return crop;
+    } catch (NumberFormatException nfx) {
+      throw new IllegalArgumentException("cropStart and cropWidth must be integers", nfx);
+    }
   }
 
   private static List<LXEffect> addEffects(
@@ -664,6 +950,41 @@ public final class RenderSpike {
     return names.toString();
   }
 
+  private static String surfaceCoverageSummary(
+    EnumSet<RenderSurface> surfaces,
+    double[] peakNonBlackFractions
+  ) {
+    final StringBuilder summary = new StringBuilder();
+    for (RenderSurface surface : surfaces) {
+      if (!summary.isEmpty()) {
+        summary.append(',');
+      }
+      summary.append(surface.fileStem).append('=').append(String.format(
+        Locale.ROOT,
+        "%.6f",
+        peakNonBlackFractions[surface.ordinal()]
+      ));
+    }
+    return summary.toString();
+  }
+
+  private static void validateCrop(ColumnCrop crop, EnumSet<RenderSurface> surfaces) {
+    if (crop == null) {
+      return;
+    }
+    for (RenderSurface surface : surfaces) {
+      crop.sourceColumn(0, surface.orientation().width());
+    }
+  }
+
+  private static double meanBrightness(int[] colors) {
+    double totalBrightness = 0;
+    for (int color : colors) {
+      totalBrightness += LXColor.b(color);
+    }
+    return totalBrightness / colors.length;
+  }
+
   private static void logFrameStats(int frameNumber, int[] colors, long frameNanos) {
     int nonBlack = 0;
     double totalBrightness = 0;
@@ -692,13 +1013,14 @@ public final class RenderSpike {
     String variant,
     String fileSuffix,
     Path temporaryFramesRoot,
-    List<WrittenArtifact> writtenArtifacts
+    List<WrittenArtifact> writtenArtifacts,
+    ColumnCrop crop
   ) throws IOException, InterruptedException {
     final Path frameDirectory =
       Files.createDirectories(temporaryFramesRoot.resolve(surface.fileStem + fileSuffix));
     final List<BufferedImage> sampledFrames = new ArrayList<>(CONTACT_SAMPLE_COUNT);
     for (int frameIndex = 0; frameIndex < gifFrames.size(); ++frameIndex) {
-      final BufferedImage image = renderSurface(surface, gifFrames.get(frameIndex));
+      final BufferedImage image = renderSurface(surface, gifFrames.get(frameIndex), null);
       writePng(image, frameDirectory.resolve("frame-%03d.png".formatted(frameIndex + 1)));
       final int engineFrameNumber = (frameIndex + 1) * GIF_FRAME_INTERVAL;
       if (engineFrameNumber % CONTACT_SAMPLE_INTERVAL == 0) {
@@ -711,9 +1033,9 @@ public final class RenderSpike {
       );
     }
 
-    final BufferedImage firstFrame = renderSurface(surface, gifFrames.get(0));
+    final BufferedImage firstFrame = renderSurface(surface, gifFrames.get(0), null);
     final Path gifPath = OUTPUT_DIRECTORY.resolve(surface.fileStem + fileSuffix + ".gif");
-    assembleGif(frameDirectory, gifPath);
+    assembleGif(frameDirectory, gifPath, 30);
     logOutput(gifPath, firstFrame.getWidth(), firstFrame.getHeight());
     writtenArtifacts.add(new WrittenArtifact(gifPath.toAbsolutePath(), variant));
 
@@ -723,6 +1045,24 @@ public final class RenderSpike {
     logOutput(contactPath, contactSheet.getWidth(), contactSheet.getHeight());
     writtenArtifacts.add(new WrittenArtifact(contactPath.toAbsolutePath(), variant));
     deleteTree(frameDirectory);
+
+    if (crop != null) {
+      final Path cropFrameDirectory = Files.createDirectories(
+        temporaryFramesRoot.resolve(surface.fileStem + fileSuffix + "-crop")
+      );
+      BufferedImage cropFirstFrame = null;
+      for (int frameIndex = 0; frameIndex < gifFrames.size(); ++frameIndex) {
+        final BufferedImage image = renderSurface(surface, gifFrames.get(frameIndex), crop);
+        if (cropFirstFrame == null) {
+          cropFirstFrame = image;
+        }
+        writePng(image, cropFrameDirectory.resolve("frame-%03d.png".formatted(frameIndex + 1)));
+      }
+      final Path cropGifPath = OUTPUT_DIRECTORY.resolve(surface.fileStem + fileSuffix + "-crop.gif");
+      assembleGif(cropFrameDirectory, cropGifPath, 30);
+      logOutput(cropGifPath, cropFirstFrame.getWidth(), cropFirstFrame.getHeight());
+      deleteTree(cropFrameDirectory);
+    }
   }
 
   private static void logArtifactHandoff(List<WrittenArtifact> writtenArtifacts, boolean hasEffects) {
@@ -750,18 +1090,70 @@ public final class RenderSpike {
     }
   }
 
-  private static BufferedImage renderSurface(RenderSurface surface, int[] colors) {
+  private static void writeAnimatedSurfaceArtifacts(
+    RenderSurface surface,
+    List<int[]> gifFrames,
+    Path outputDirectory,
+    Path temporaryFramesRoot,
+    int gifFrameRate,
+    ColumnCrop crop
+  ) throws IOException, InterruptedException {
+    writeAnimatedGif(
+      surface,
+      gifFrames,
+      outputDirectory.resolve(surface.fileStem + ".gif"),
+      temporaryFramesRoot.resolve(surface.fileStem),
+      gifFrameRate,
+      null
+    );
+    if (crop != null) {
+      writeAnimatedGif(
+        surface,
+        gifFrames,
+        outputDirectory.resolve(surface.fileStem + "-crop.gif"),
+        temporaryFramesRoot.resolve(surface.fileStem + "-crop"),
+        gifFrameRate,
+        crop
+      );
+    }
+  }
+
+  private static void writeAnimatedGif(
+    RenderSurface surface,
+    List<int[]> gifFrames,
+    Path outputPath,
+    Path frameDirectory,
+    int gifFrameRate,
+    ColumnCrop crop
+  ) throws IOException, InterruptedException {
+    Files.createDirectories(frameDirectory);
+    BufferedImage firstFrame = null;
+    for (int frameIndex = 0; frameIndex < gifFrames.size(); ++frameIndex) {
+      final BufferedImage image = renderSurface(surface, gifFrames.get(frameIndex), crop);
+      if (firstFrame == null) {
+        firstFrame = image;
+      }
+      writePng(image, frameDirectory.resolve("frame-%03d.png".formatted(frameIndex + 1)));
+    }
+    assembleGif(frameDirectory, outputPath, gifFrameRate);
+    logOutput(outputPath, firstFrame.getWidth(), firstFrame.getHeight());
+    deleteTree(frameDirectory);
+  }
+
+  private static BufferedImage renderSurface(RenderSurface surface, int[] colors, ColumnCrop crop) {
     final Apotheneum.Orientation orientation = surface.orientation();
-    final int width = orientation.width();
+    final int ringWidth = orientation.width();
+    final int width = (crop == null) ? ringWidth : crop.width();
     final int height = orientation.height();
     final int scaledWidth = width * SCALE;
     final BufferedImage scaled = new BufferedImage(scaledWidth, height * SCALE, BufferedImage.TYPE_INT_RGB);
     final int[] pixels = ((DataBufferInt) scaled.getRaster().getDataBuffer()).getData();
     final Apotheneum.Column[] columns = orientation.columns();
     for (int x = 0; x < width; ++x) {
-      final int available = orientation.available(x);
+      final int sourceX = (crop == null) ? x : crop.sourceColumn(x, ringWidth);
+      final int available = orientation.available(sourceX);
       for (int y = 0; y < height; ++y) {
-        final int color = (y < available) ? colors[columns[x].points[y].index] : LXColor.BLACK;
+        final int color = (y < available) ? colors[columns[sourceX].points[y].index] : LXColor.BLACK;
         // Review-only: frame statistics consume the untouched post-effect colors before this method.
         final int reviewColor = boostForReview(color);
         for (int scaleY = 0; scaleY < SCALE; ++scaleY) {
@@ -771,7 +1163,7 @@ public final class RenderSpike {
       }
     }
     if (surface.cube) {
-      markFaceBoundaries(scaled);
+      markFaceBoundaries(scaled, (crop == null) ? 0 : crop.normalizedStart(ringWidth), width);
     }
     return scaled;
   }
@@ -788,12 +1180,19 @@ public final class RenderSpike {
     return (int) Math.round(255. * Math.min(1., REVIEW_GAIN * Math.pow(normalized, REVIEW_GAMMA)));
   }
 
-  private static void markFaceBoundaries(BufferedImage image) {
+  private static void markFaceBoundaries(BufferedImage image, int startColumn, int columnCount) {
     final int[] pixels = ((DataBufferInt) image.getRaster().getDataBuffer()).getData();
-    for (int faceIndex = 1; faceIndex < Apotheneum.cube.exterior.faces.length; ++faceIndex) {
-      final int boundaryX = faceIndex * Apotheneum.GRID_WIDTH * SCALE;
+    for (int outputColumn = 0; outputColumn < columnCount; ++outputColumn) {
+      final int sourceColumn = (startColumn + outputColumn) % Apotheneum.cube.exterior.width();
+      if (sourceColumn % Apotheneum.GRID_WIDTH != 0 || (startColumn == 0 && outputColumn == 0)) {
+        continue;
+      }
+      final int boundaryX = outputColumn * SCALE;
       for (int offset = 0; offset < FACE_BOUNDARY_WIDTH; ++offset) {
         final int x = boundaryX - FACE_BOUNDARY_WIDTH / 2 + offset;
+        if (x < 0 || x >= image.getWidth()) {
+          continue;
+        }
         for (int y = 0; y < image.getHeight(); ++y) {
           pixels[y * image.getWidth() + x] = FACE_BOUNDARY_COLOR;
         }
@@ -827,7 +1226,11 @@ public final class RenderSpike {
     return contact;
   }
 
-  private static void assembleGif(Path frameDirectory, Path outputPath) throws IOException, InterruptedException {
+  private static void assembleGif(
+    Path frameDirectory,
+    Path outputPath,
+    int frameRate
+  ) throws IOException, InterruptedException {
     final Process process = new ProcessBuilder(
       "ffmpeg",
       "-nostdin",
@@ -835,7 +1238,7 @@ public final class RenderSpike {
       "-loglevel",
       "error",
       "-framerate",
-      "30",
+      Integer.toString(frameRate),
       "-start_number",
       "1",
       "-i",
@@ -875,10 +1278,14 @@ public final class RenderSpike {
   }
 
   private static void resetOutputDirectory() throws IOException {
-    if (Files.exists(OUTPUT_DIRECTORY)) {
-      deleteTree(OUTPUT_DIRECTORY);
+    resetDirectory(OUTPUT_DIRECTORY);
+  }
+
+  private static void resetDirectory(Path directory) throws IOException {
+    if (Files.exists(directory)) {
+      deleteTree(directory);
     }
-    Files.createDirectories(OUTPUT_DIRECTORY);
+    Files.createDirectories(directory);
   }
 
   private static void deleteTree(Path root) throws IOException {
