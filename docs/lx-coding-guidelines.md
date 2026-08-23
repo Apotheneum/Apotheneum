@@ -267,6 +267,18 @@ they throw `IllegalArgumentException` only for construction-time config errors
 the initial value into `Range` rather than rejecting it. Don't write
 verification logic that assumes the value you set is the value you read back.
 
+**Performance-facing parameters must be `CompoundParameter`.** LX only allows
+modulation (modulators, macros, envelopes, MIDI-mapped macro chains) to
+terminate on compound parameters — a `DiscreteParameter` accepts manual edits
+and OSC but can never be driven by a modulator, and the failure only surfaces
+when someone tries to automate it, often long after the parameter shipped.
+Reach for `DiscreteParameter` only for genuine enumerations: mode selectors,
+or counts that index a fixed array of qualitatively different options. A
+continuous-feeling quantity — density, count, size, amount, speed — must be
+`CompoundParameter` even when the implementation ultimately rounds to an int;
+round at the point of use (`(int) Math.round(param.getValue())`), not by
+choosing the parameter type.
+
 ### 14. Serialization: `LXSerializable`, `KEY_*` constants, `Utils` helpers
 
 Persisted state implements `LXSerializable` (`save(LX, JsonObject)` /
@@ -338,6 +350,9 @@ it.
   `dispose()` calls `super.dispose()` (§12, §15).
 - **Parameters are `public final` and registered** with `addParameter` in the
   constructor; no read-back logic that assumes no clamping (§13).
+- **Any new `DiscreteParameter`: is it a true enumeration?** If it's a
+  continuous quantity (density, count, size, amount, speed), it must be
+  `CompoundParameter` or it can never be modulated (§13).
 - **Serialized state uses `KEY_*` constants, `Utils` helpers, and `obj.has(key)`
   guards** on every read (§14).
 - **Mutations that must be known to have applied read state back** —

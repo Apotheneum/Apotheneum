@@ -35,7 +35,6 @@ import heronarts.lx.model.LXModel;
 import heronarts.lx.model.LXPoint;
 import heronarts.lx.osc.LXOscComponent;
 import heronarts.lx.parameter.CompoundParameter;
-import heronarts.lx.parameter.DiscreteParameter;
 import heronarts.lx.parameter.LXParameterListener;
 import heronarts.lx.studio.LXStudio.UI;
 import heronarts.lx.studio.ui.device.UIDevice;
@@ -117,8 +116,8 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
     new CompoundParameter("Slide Speed", 11, 2, 30)
     .setDescription("Water speed while sliding around a rock");
 
-  public final DiscreteParameter waterDensity =
-    new DiscreteParameter("Water Density", 100, 0, WATER_DENSITY_PARAMETER_MAX + 1)
+  public final CompoundParameter waterDensity =
+    new CompoundParameter("Water Density", 100, 0, WATER_DENSITY_PARAMETER_MAX)
     .setDescription("Water droplet density as a percentage of the base pools");
 
   public final CompoundParameter streak =
@@ -292,8 +291,6 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
   private double lastVariationPhase = Double.NaN;
   private final LXParameterListener rockGeometryListener =
     parameter -> updateActiveRockCount();
-  private final LXParameterListener waterDensityListener =
-    parameter -> setWaterDensity(this.waterDensity.getValuei());
 
   public Rockfall(LX lx) {
     super(lx);
@@ -324,7 +321,6 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
     }
     this.rockSpacing.addListener(this.rockGeometryListener);
     this.rockScale.addListener(this.rockGeometryListener);
-    this.waterDensity.addListener(this.waterDensityListener);
   }
 
   private void initializeGeometry() {
@@ -407,7 +403,7 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
     for (int i = 0; i < this.activeRockCount; ++i) {
       this.rocks[i].visibility = 1;
     }
-    setWaterDensity(this.waterDensity.getValuei());
+    setWaterDensity((int) Math.round(this.waterDensity.getValue()));
   }
 
   private void initializeProjectedOutput() {
@@ -501,7 +497,6 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
   public void dispose() {
     this.rockSpacing.removeListener(this.rockGeometryListener);
     this.rockScale.removeListener(this.rockGeometryListener);
-    this.waterDensity.removeListener(this.waterDensityListener);
     this.rockColor.dispose();
     this.waterColor.dispose();
     super.dispose();
@@ -777,6 +772,7 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
     }
     final double dt = Math.min(MAX_DELTA_SECONDS, deltaMs * .001);
     updateDerivedValues();
+    setWaterDensity((int) Math.round(this.waterDensity.getValue()));
     updateRockProperties();
     updateRockVisibility(dt);
     this.rockColor.update();
