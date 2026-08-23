@@ -18,6 +18,7 @@
 
 package apotheneum.doved.patterns;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
@@ -268,6 +269,8 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
   private double[] waterSpeedTotal = new double[0];
   private double[] waterSampleWeight = new double[0];
   private double[] sdfField = new double[0];
+  private LXPoint[] heartPoints = new LXPoint[0];
+  private int[] heartSourceIndices = new int[0];
   private LXModel geometryModel;
   private double worldCenterX;
   private double worldCenterZ;
@@ -332,6 +335,7 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
     this.waterSpeedTotal = new double[this.geometryModel.size];
     this.waterSampleWeight = new double[this.geometryModel.size];
     this.sdfField = new double[this.geometryModel.size];
+    initializeHeartProjection();
     int surfaceCount = 0;
     for (Apotheneum.Orientation orientation : Apotheneum.cube.orientations()) {
       if (orientation != null) {
@@ -404,6 +408,57 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
       this.rocks[i].visibility = 1;
     }
     setWaterDensity(this.waterDensity.getValuei());
+  }
+
+  private void initializeHeartProjection() {
+    final boolean[] included = new boolean[this.geometryModel.size];
+    final List<LXPoint> points = new ArrayList<>();
+    for (LXModel heartModel : this.geometryModel.sub("heart")) {
+      for (LXPoint point : heartModel.points) {
+        if (!included[point.index]) {
+          included[point.index] = true;
+          points.add(point);
+        }
+      }
+    }
+    this.heartPoints = points.toArray(new LXPoint[0]);
+    this.heartSourceIndices = new int[this.heartPoints.length];
+    if (this.heartPoints.length == 0) {
+      return;
+    }
+
+    // Robot Heart is mounted beside the cube's left face. Project it onto the
+    // cube exterior so it receives the same falling-rock field and water motion
+    // as the installation surface directly behind it.
+    final Apotheneum.Orientation source = Apotheneum.cube.exterior;
+    for (int i = 0; i < this.heartPoints.length; ++i) {
+      final LXPoint point = this.heartPoints[i];
+      final int column = wrappedColumn(
+        projectPointS(source, point.x, point.z),
+        source.width()
+      );
+      this.heartSourceIndices[i] = source.point(
+        column,
+        nearestRow(source, column, point.y)
+      ).index;
+    }
+  }
+
+  private static int nearestRow(
+    Apotheneum.Orientation orientation,
+    int column,
+    double worldY
+  ) {
+    int nearest = 0;
+    double nearestDistance = Double.POSITIVE_INFINITY;
+    for (int row = 0; row < orientation.height(); ++row) {
+      final double distance = Math.abs(orientation.point(column, row).y - worldY);
+      if (distance < nearestDistance) {
+        nearest = row;
+        nearestDistance = distance;
+      }
+    }
+    return nearest;
   }
 
   private static Random createRandom() {
@@ -715,6 +770,13 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
     for (SurfaceWater surface : this.surfaceWaters) {
       renderRocks(surface.orientation);
       writeColorOutput(surface.orientation);
+    }
+    writeHeartOutput();
+  }
+
+  private void writeHeartOutput() {
+    for (int i = 0; i < this.heartPoints.length; ++i) {
+      colors[this.heartPoints[i].index] = colors[this.heartSourceIndices[i]];
     }
   }
 
@@ -1226,6 +1288,14 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
   }
 
   private double projectRockCenterS(Apotheneum.Orientation orientation, Rock rock) {
+    return projectPointS(orientation, rock.centerX, rock.centerZ);
+  }
+
+  private static double projectPointS(
+    Apotheneum.Orientation orientation,
+    double pointX,
+    double pointZ
+  ) {
     final LXPoint[] ring = orientation.ring(0).points;
     double closestS = 0;
     double closestDistanceSquared = Double.POSITIVE_INFINITY;
@@ -1237,11 +1307,11 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
         from.z,
         to.x,
         to.z,
-        rock.centerX,
-        rock.centerZ
+        pointX,
+        pointZ
       );
-      final double dx = LXUtils.lerp(from.x, to.x, amount) - rock.centerX;
-      final double dz = LXUtils.lerp(from.z, to.z, amount) - rock.centerZ;
+      final double dx = LXUtils.lerp(from.x, to.x, amount) - pointX;
+      final double dz = LXUtils.lerp(from.z, to.z, amount) - pointZ;
       final double distanceSquared = dx * dx + dz * dz;
       if (distanceSquared < closestDistanceSquared) {
         closestS = x + amount;
