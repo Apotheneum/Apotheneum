@@ -796,6 +796,11 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
     );
     for (int dropletIndex = 0; dropletIndex < surface.activeCount; ++dropletIndex) {
       final Droplet droplet = surface.droplets[dropletIndex];
+      if (!Double.isFinite(droplet.s) || !Double.isFinite(droplet.h) ||
+        !Double.isFinite(droplet.vs) || !Double.isFinite(droplet.vh)) {
+        spawnDroplet(surface, droplet, -this.random.nextDouble() * 5);
+        continue;
+      }
       droplet.previousS = droplet.s;
       droplet.previousH = droplet.h;
 
@@ -816,7 +821,7 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
           surfaceSdf(surface, droplet.s, droplet.h + 1) -
           surfaceSdf(surface, droplet.s, droplet.h - 1)
         );
-        final double gradientMagnitude = Math.hypot(gradS, gradH);
+        final double gradientMagnitude = finiteGradientMagnitude(gradS, gradH);
         if (gradientMagnitude > GRADIENT_EPSILON) {
           final double normalS = gradS / gradientMagnitude;
           final double normalH = gradH / gradientMagnitude;
@@ -1005,7 +1010,7 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
         surfaceSdf(surface, s, h + 1) -
         surfaceSdf(surface, s, h - 1)
       );
-      final double gradientMagnitude = Math.hypot(gradS, gradH);
+      final double gradientMagnitude = finiteGradientMagnitude(gradS, gradH);
       if (gradientMagnitude < GRADIENT_EPSILON) {
         continue;
       }
@@ -1310,7 +1315,7 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
   }
 
   private double sdf(SurfaceWater surface, double s, double y) {
-    double field = Double.POSITIVE_INFINITY;
+    double field = emptyFieldDistance(this.worldRowHeight);
     final int row = Math.max(0, Math.min(Apotheneum.GRID_HEIGHT - 1, worldRow(y)));
     final int candidateCount = this.rockCountByRow[row];
     for (int i = 0; i < candidateCount; ++i) {
@@ -1334,15 +1339,16 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
     final double dy = y - rock.worldY;
     final double rejectRadius = maximumExtent + Math.max(this.contactBand, this.currentRimWidth);
     if (Math.abs(dy) > rejectRadius) {
-      return Double.POSITIVE_INFINITY;
+      return Math.abs(dy) - maximumExtent;
     }
     final double dx = wrappedDelta(
       rock.centerS[surface.index],
       s,
       surface.orientation.width()
     ) * this.worldRowHeight;
-    if (dx * dx + dy * dy > rejectRadius * rejectRadius) {
-      return Double.POSITIVE_INFINITY;
+    final double centerDistance = Math.hypot(dx, dy);
+    if (centerDistance > rejectRadius) {
+      return centerDistance - maximumExtent;
     }
 
     double rockField = sphereSdf(dx, dy, 0, radius);
@@ -1382,12 +1388,20 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
     return Math.min(a, b) - h * h * amount * .25;
   }
 
-  private static int wrappedColumn(double s, int width) {
-    int column = (int) Math.round(s) % width;
-    if (column < 0) {
-      column += width;
-    }
-    return column;
+  static double emptyFieldDistance(double worldRowHeight) {
+    return worldRowHeight * Apotheneum.GRID_HEIGHT;
+  }
+
+  static double finiteGradientMagnitude(double gradS, double gradH) {
+    final double magnitude = Math.hypot(gradS, gradH);
+    return Double.isFinite(magnitude) ? magnitude : 0;
+  }
+
+  static int wrappedColumn(double s, int width) {
+    final int column = LXUtils.wrap((int) Math.round(s), 0, width);
+    // LXUtils.wrap treats both endpoints as valid. Column width is the same
+    // cyclic location as column 0, but is not a valid array index.
+    return column == width ? 0 : column;
   }
 
   private static double wrap(double value, int width) {

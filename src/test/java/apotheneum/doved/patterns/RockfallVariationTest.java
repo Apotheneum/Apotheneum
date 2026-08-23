@@ -164,6 +164,23 @@ public class RockfallVariationTest {
   }
 
   @Test
+  void emptySdfAndGradientFallbacksStayFinite() {
+    assertEquals(450, Rockfall.emptyFieldDistance(10), 1e-12);
+    assertEquals(5, Rockfall.finiteGradientMagnitude(3, 4), 1e-12);
+    assertEquals(0, Rockfall.finiteGradientMagnitude(Double.POSITIVE_INFINITY, 1), 0);
+    assertEquals(0, Rockfall.finiteGradientMagnitude(Double.NaN, 1), 0);
+  }
+
+  @Test
+  void wrappedColumnsUseTheFrameworkHelperWithoutLosingTheSeam() {
+    assertEquals(0, Rockfall.wrappedColumn(0, 200));
+    assertEquals(199, Rockfall.wrappedColumn(-1, 200));
+    assertEquals(0, Rockfall.wrappedColumn(200, 200));
+    assertEquals(1, Rockfall.wrappedColumn(201, 200));
+    assertEquals(0, Rockfall.wrappedColumn(400, 200));
+  }
+
+  @Test
   void everyPrefixOfVerticalPlacementStaysSpread() {
     // The defect this guards: a count-dependent stratification of (i + r) / N leaves the
     // first M rocks bunched into the lowest M/N of the world once the count drops to M,
