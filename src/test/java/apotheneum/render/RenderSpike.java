@@ -26,10 +26,12 @@ import javax.imageio.ImageIO;
 import apotheneum.Apotheneum;
 import heronarts.lx.LX;
 import heronarts.lx.LXEngine;
+import heronarts.lx.blend.LXBlend;
 import heronarts.lx.color.LXColor;
 import heronarts.lx.effect.LXEffect;
 import heronarts.lx.model.LXPoint;
 import heronarts.lx.mixer.LXChannel;
+import heronarts.lx.mixer.LXPatternEngine.CompositeMode;
 import heronarts.lx.parameter.BooleanParameter;
 import heronarts.lx.parameter.DiscreteParameter;
 import heronarts.lx.parameter.EnumParameter;
@@ -86,6 +88,70 @@ public final class RenderSpike {
           "GIF frame interval and frame rate must preserve the 60fps engine's real-time motion"
         );
       }
+    }
+  }
+
+  /**
+   * One pattern in a blend-mode channel. Layers appear on the channel in list
+   * order, and the updater receives the concrete pattern type created by the
+   * factory.
+   */
+  public record CompositeLayer<P extends LXPattern>(
+    String name,
+    Function<LX, P> factory,
+    double compositeLevel,
+    FrameUpdater<P> updater
+  ) {
+    public CompositeLayer {
+      if (name == null || name.isBlank()) {
+        throw new IllegalArgumentException("Composite layer name must not be blank");
+      }
+      Objects.requireNonNull(factory, "Composite layer factory must not be null");
+      if (!Double.isFinite(compositeLevel) || compositeLevel < 0 || compositeLevel > 1) {
+        throw new IllegalArgumentException("Composite level must be finite and between 0 and 1");
+      }
+      Objects.requireNonNull(updater, "Composite layer updater must not be null");
+    }
+  }
+
+  /**
+   * An animated, ordered set of patterns rendered together on one blend-mode
+   * channel. The first layer uses Normal over the transparent channel
+   * background; every subsequent layer uses the named blend mode.
+   */
+  public record CompositeClip(
+    String name,
+    String blendMode,
+    double durationSeconds,
+    List<CompositeLayer<?>> layers
+  ) {
+    public CompositeClip {
+      if (name == null || name.isBlank()) {
+        throw new IllegalArgumentException("Composite clip name must not be blank");
+      }
+      if (blendMode == null || blendMode.isBlank()) {
+        throw new IllegalArgumentException("Composite blend mode must not be blank");
+      }
+      if (!Double.isFinite(durationSeconds) || durationSeconds <= 0) {
+        throw new IllegalArgumentException("Composite clip duration must be a positive finite number");
+      }
+      Objects.requireNonNull(layers, "Composite layers must not be null");
+      layers = List.copyOf(layers);
+      if (layers.isEmpty()) {
+        throw new IllegalArgumentException("At least one composite layer is required");
+      }
+      final List<String> layerNames = new ArrayList<>(layers.size());
+      for (CompositeLayer<?> layer : layers) {
+        Objects.requireNonNull(layer, "Composite layers must not contain null");
+        if (layerNames.contains(layer.name())) {
+          throw new IllegalArgumentException("Duplicate composite layer name: " + layer.name());
+        }
+        layerNames.add(layer.name());
+      }
+    }
+
+    int engineFrameCount() {
+      return (int) Math.round(this.durationSeconds * 60);
     }
   }
 
@@ -335,6 +401,301 @@ public final class RenderSpike {
         deleteTree(mediaPath);
       }
     }
+  }
+
+  /**
+   * Renders one or all ordered multi-pattern clips on blend-mode channels.
+   * Select a clip with {@code -Dclip=<name>}; the default is {@code all}.
+   */
+  public static void renderCompositeClips(
+    List<CompositeClip> clips,
+    AnimatedOptions options
+  ) throws Exception {
+    Objects.requireNonNull(clips, "Composite clip list must not be null");
+    Objects.requireNonNull(options, "Animated options must not be null");
+    if (clips.isEmpty()) {
+      throw new IllegalArgumentException("At least one composite clip is required");
+    }
+    final Map<String, CompositeClip> clipsByName = new TreeMap<>();
+    for (CompositeClip clip : clips) {
+      Objects.requireNonNull(clip, "Composite clip list must not contain null");
+      if (clipsByName.put(clip.name(), clip) != null) {
+        throw new IllegalArgumentException("Duplicate composite clip name: " + clip.name());
+      }
+    }
+    final String requestedClip = System.getProperty("clip", "all").strip();
+    final List<CompositeClip> selectedClips;
+    if (requestedClip.isEmpty() || requestedClip.equalsIgnoreCase("all")) {
+      selectedClips = clips;
+    } else {
+      final CompositeClip selectedClip = clipsByName.get(requestedClip);
+      if (selectedClip == null) {
+        throw new IllegalArgumentException(
+          "Unknown clip '" + requestedClip + "'. Available clips: " +
+          String.join(", ", clipsByName.keySet())
+        );
+      }
+      selectedClips = List.of(selectedClip);
+    }
+    final ColumnCrop crop = resolveCrop();
+    preflightFfmpeg();
+    resetDirectory(options.outputDirectory());
+
+    final Path mediaPath = Files.createTempDirectory("apotheneum-composite-render-");
+    LX lx = null;
+    try {
+      copyFixtureMedia(mediaPath);
+
+      final LX.Flags flags = new LX.Flags();
+      flags.loadPreferences = false;
+      flags.mediaPath = mediaPath.toString();
+      flags.outputMode = LX.Flags.OutputMode.INACTIVE;
+
+      lx = new LX(flags);
+      lx.engine.output.enabled.setValue(false);
+      assertOutputDisabled(lx, "LX construction");
+
+      final JsonFixture fixture = new JsonFixture(lx, FIXTURE_NAME);
+      lx.structure.addFixture(fixture);
+      lx.structure.beforeEngineRun();
+      if (fixture.error.isOn()) {
+        throw new IllegalStateException("Fixture load failed: " + fixture.errorMessage.getString());
+      }
+      assertOutputDisabled(lx, "fixture load");
+
+      Apotheneum.initialize(lx);
+      if (!Apotheneum.exists) {
+        throw new IllegalStateException("Apotheneum.exists was false after loading the real fixture");
+      }
+      if (lx.getModel().size != EXPECTED_POINT_COUNT) {
+        LX.warning(
+          "RenderSpike expected " + EXPECTED_POINT_COUNT + " points but loaded " + lx.getModel().size
+        );
+      }
+      lx.engine.setFixedDeltaMs(FIXED_DELTA_MS);
+
+      LXChannel channel = null;
+      final Path temporaryFramesRoot = mediaPath.resolve("render-frames");
+      for (CompositeClip clip : selectedClips) {
+        final List<CompositeRuntime> runtimes = instantiateCompositeLayers(clip.layers(), lx);
+        final LXPattern[] patterns = new LXPattern[runtimes.size()];
+        for (int index = 0; index < runtimes.size(); ++index) {
+          patterns[index] = runtimes.get(index).pattern();
+        }
+        if (channel == null) {
+          channel = lx.engine.mixer.addChannel(patterns);
+        } else {
+          // Leave blend mode first so every previously active pattern is
+          // deactivated, then replace the ordered pattern list on this channel.
+          channel.patternEngine.compositeMode.setValue(CompositeMode.PLAYLIST);
+          channel.setPatterns(patterns);
+        }
+        configureCompositeChannel(channel, clip, runtimes);
+        renderCompositeClip(lx, clip, runtimes, options, crop, temporaryFramesRoot);
+      }
+
+      LX.log("RenderSpike outputDirectory=" + options.outputDirectory().toAbsolutePath());
+      LX.log("RenderSpike outputEnabled=" + lx.engine.output.enabled.isOn());
+    } finally {
+      try {
+        if (lx != null) {
+          lx.dispose();
+        }
+      } finally {
+        deleteTree(mediaPath);
+      }
+    }
+  }
+
+  private static List<CompositeRuntime> instantiateCompositeLayers(
+    List<CompositeLayer<?>> layers,
+    LX lx
+  ) {
+    final List<CompositeRuntime> runtimes = new ArrayList<>(layers.size());
+    for (CompositeLayer<?> layer : layers) {
+      runtimes.add(instantiateCompositeLayer(layer, lx));
+    }
+    return runtimes;
+  }
+
+  private static <P extends LXPattern> CompositeRuntime instantiateCompositeLayer(
+    CompositeLayer<P> layer,
+    LX lx
+  ) {
+    final P pattern = layer.factory().apply(lx);
+    if (pattern == null) {
+      throw new IllegalStateException("Composite layer factory returned null for " + layer.name());
+    }
+    return new CompositeRuntime(
+      layer.name(),
+      pattern,
+      layer.compositeLevel(),
+      (frame, progress, seconds) -> layer.updater().update(pattern, frame, progress, seconds)
+    );
+  }
+
+  private static void configureCompositeChannel(
+    LXChannel channel,
+    CompositeClip clip,
+    List<CompositeRuntime> runtimes
+  ) {
+    channel.patternEngine.compositeDampingEnabled.setValue(false);
+    for (int index = 0; index < runtimes.size(); ++index) {
+      final CompositeRuntime runtime = runtimes.get(index);
+      final LXPattern pattern = runtime.pattern();
+      pattern.compositeLevel.setValue(runtime.compositeLevel());
+      setCompositeBlend(pattern, (index == 0) ? "Normal" : clip.blendMode());
+      pattern.enabled.setValue(true);
+    }
+    channel.patternEngine.compositeMode.setValue(CompositeMode.BLEND);
+    if (!channel.isComposite()) {
+      throw new IllegalStateException("Channel did not enter blend composite mode");
+    }
+
+    final StringBuilder description = new StringBuilder();
+    for (int index = 0; index < runtimes.size(); ++index) {
+      final CompositeRuntime runtime = runtimes.get(index);
+      if (channel.getPattern(index) != runtime.pattern()) {
+        throw new IllegalStateException("Composite pattern order changed at index " + index);
+      }
+      if (!description.isEmpty()) {
+        description.append(',');
+      }
+      description.append(index).append(':').append(runtime.name())
+        .append('@').append(runtime.compositeLevel())
+        .append('[').append((index == 0) ? "Normal" : clip.blendMode()).append(']');
+    }
+    LX.log(
+      "RenderSpike compositeClip=" + clip.name() +
+      " blendMode=" + clip.blendMode() +
+      " layers=" + description
+    );
+  }
+
+  private static void setCompositeBlend(LXPattern pattern, String requestedName) {
+    final List<String> available = new ArrayList<>();
+    for (LXBlend blend : pattern.compositeBlend.getObjects()) {
+      final String label = blend.getLabel();
+      final String className = blend.getClass().getSimpleName();
+      available.add(label);
+      if (matchesBlendName(requestedName, label) ||
+          matchesBlendName(requestedName, blend.getName()) ||
+          matchesBlendName(requestedName, className) ||
+          matchesBlendName(requestedName, className.replaceFirst("Blend$", ""))) {
+        pattern.compositeBlend.setValue(blend);
+        return;
+      }
+    }
+    throw new IllegalArgumentException(
+      "Unknown composite blend mode '" + requestedName + "'. Available modes: " +
+      String.join(", ", available)
+    );
+  }
+
+  private static boolean matchesBlendName(String requestedName, String candidateName) {
+    return candidateName != null && requestedName.strip().equalsIgnoreCase(candidateName.strip());
+  }
+
+  private static void renderCompositeClip(
+    LX lx,
+    CompositeClip clip,
+    List<CompositeRuntime> runtimes,
+    AnimatedOptions options,
+    ColumnCrop crop,
+    Path temporaryFramesRoot
+  ) throws IOException, InterruptedException {
+    final int engineFrameCount = clip.engineFrameCount();
+    final LXEngine.Frame outputFrame = new LXEngine.Frame(lx);
+    outputFrame.setModel(lx.getModel());
+    final EnumSet<RenderSurface> availableSurfaces = availableSurfaces();
+    final EnumSet<RenderSurface> drivenSurfaces = EnumSet.noneOf(RenderSurface.class);
+    final double[] peakNonBlackFractions = new double[RenderSurface.values().length];
+    final int expectedGifFrames = engineFrameCount / options.gifFrameInterval();
+    if (expectedGifFrames == 0) {
+      throw new IllegalArgumentException(
+        "Composite clip " + clip.name() + " is too short to produce a GIF frame at interval " +
+        options.gifFrameInterval()
+      );
+    }
+    final List<int[]> gifFrames = new ArrayList<>(expectedGifFrames);
+    long totalFrameNanos = 0;
+    double totalMeanBrightness = 0;
+
+    for (int frameNumber = 1; frameNumber <= engineFrameCount; ++frameNumber) {
+      final double elapsedSeconds = frameNumber * FIXED_DELTA_MS / 1000.;
+      final double progress = frameNumber / (double) engineFrameCount;
+      for (CompositeRuntime runtime : runtimes) {
+        runtime.updater().update(frameNumber, progress, elapsedSeconds);
+      }
+
+      assertOutputDisabled(lx, clip.name() + " before frame " + frameNumber);
+      final long frameStartNanos = System.nanoTime();
+      lx.engine.run();
+      totalFrameNanos += System.nanoTime() - frameStartNanos;
+      assertOutputDisabled(lx, clip.name() + " after frame " + frameNumber);
+
+      lx.engine.copyFrameThreadSafe(outputFrame);
+      final int[] colors = outputFrame.getMain();
+      totalMeanBrightness += meanBrightness(colors);
+      updateSurfaceCoverage(availableSurfaces, drivenSurfaces, peakNonBlackFractions, colors);
+      if (frameNumber % options.gifFrameInterval() == 0) {
+        gifFrames.add(colors.clone());
+      }
+    }
+
+    if (gifFrames.size() != expectedGifFrames) {
+      throw new IllegalStateException(
+        "Expected " + expectedGifFrames + " GIF frames, got " + gifFrames.size()
+      );
+    }
+    logSkippedSurfaces(
+      runtimes.get(0).pattern(),
+      availableSurfaces,
+      drivenSurfaces,
+      peakNonBlackFractions,
+      clip.name()
+    );
+    validateCrop(crop, drivenSurfaces);
+    final Path clipOutputDirectory = Files.createDirectories(options.outputDirectory().resolve(clip.name()));
+    for (RenderSurface surface : drivenSurfaces) {
+      writeAnimatedSurfaceArtifacts(
+        surface,
+        gifFrames,
+        clipOutputDirectory,
+        temporaryFramesRoot.resolve(clip.name()),
+        options.gifFrameRate(),
+        crop
+      );
+    }
+
+    final double meanFrameMs = totalFrameNanos / 1_000_000. / engineFrameCount;
+    LX.log(String.format(
+      Locale.ROOT,
+      "RenderSpike compositeClip=%s blendMode=%s drivenSurfaces=%s " +
+      "peakNonBlackFractions=%s meanBrightnessPct=%.3f meanFrameMs=%.3f " +
+      "engineFrames=%d gifFrames=%d",
+      clip.name(),
+      clip.blendMode(),
+      surfaceNames(drivenSurfaces),
+      surfaceCoverageSummary(drivenSurfaces, peakNonBlackFractions),
+      totalMeanBrightness / engineFrameCount,
+      meanFrameMs,
+      engineFrameCount,
+      gifFrames.size()
+    ));
+  }
+
+  @FunctionalInterface
+  private interface CompositeRuntimeUpdater {
+    void update(int engineFrame, double progress, double elapsedSeconds);
+  }
+
+  private record CompositeRuntime(
+    String name,
+    LXPattern pattern,
+    double compositeLevel,
+    CompositeRuntimeUpdater updater
+  ) {
   }
 
   private static <P extends LXPattern> void renderAnimatedClip(
