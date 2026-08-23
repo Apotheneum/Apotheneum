@@ -220,4 +220,13 @@ public class RockfallVariationTest {
     }
     assertEquals(.6180339887498949, Rockfall.verticalPosition(0), 1e-12);
   }
+
+  @Test
+  void rockVisibilityApproachesMembershipWithoutPopping() {
+    assertEquals(.05, Rockfall.approachVisibility(0, 1, 1. / 60), 1e-12);
+    assertEquals(.95, Rockfall.approachVisibility(1, 0, 1. / 60), 1e-12);
+    assertEquals(1, Rockfall.approachVisibility(.9, 1, 1), 0);
+    assertEquals(0, Rockfall.approachVisibility(.1, 0, 1), 0);
+    assertEquals(.4, Rockfall.approachVisibility(.4, 1, 0), 0);
+  }
 }
