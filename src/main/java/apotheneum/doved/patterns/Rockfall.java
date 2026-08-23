@@ -35,7 +35,6 @@ import heronarts.lx.model.LXModel;
 import heronarts.lx.model.LXPoint;
 import heronarts.lx.osc.LXOscComponent;
 import heronarts.lx.parameter.CompoundParameter;
-import heronarts.lx.parameter.DiscreteParameter;
 import heronarts.lx.parameter.LXParameterListener;
 import heronarts.lx.studio.LXStudio.UI;
 import heronarts.lx.studio.ui.device.UIDevice;
@@ -117,8 +116,8 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
     new CompoundParameter("Slide Speed", 11, 2, 30)
     .setDescription("Water speed while sliding around a rock");
 
-  public final DiscreteParameter waterDensity =
-    new DiscreteParameter("Water Density", 100, 0, WATER_DENSITY_PARAMETER_MAX + 1)
+  public final CompoundParameter waterDensity =
+    new CompoundParameter("Water Density", 100, 0, WATER_DENSITY_PARAMETER_MAX)
     .setDescription("Water droplet density as a percentage of the base pools");
 
   public final CompoundParameter streak =
@@ -293,7 +292,7 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
   private final LXParameterListener rockGeometryListener =
     parameter -> updateActiveRockCount();
   private final LXParameterListener waterDensityListener =
-    parameter -> setWaterDensity(this.waterDensity.getValuei());
+    parameter -> setWaterDensity((int) Math.round(this.waterDensity.getValue()));
 
   public Rockfall(LX lx) {
     super(lx);
@@ -407,7 +406,7 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
     for (int i = 0; i < this.activeRockCount; ++i) {
       this.rocks[i].visibility = 1;
     }
-    setWaterDensity(this.waterDensity.getValuei());
+    setWaterDensity((int) Math.round(this.waterDensity.getValue()));
   }
 
   private void initializeProjectedOutput() {
