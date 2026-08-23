@@ -268,7 +268,10 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
   private double[] waterSpeedTotal = new double[0];
   private double[] waterSampleWeight = new double[0];
   private double[] sdfField = new double[0];
+  private LXPoint[] projectedPoints = new LXPoint[0];
+  private int[] projectedSourceIndices = new int[0];
   private LXModel geometryModel;
+  private LXModel projectionModel;
   private double worldCenterX;
   private double worldCenterZ;
   private double worldYMin;
@@ -359,6 +362,7 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
         ++surfaceIndex;
       }
     }
+    initializeProjectedOutput();
 
     double xMin = Double.POSITIVE_INFINITY;
     double xMax = Double.NEGATIVE_INFINITY;
@@ -404,6 +408,88 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
       this.rocks[i].visibility = 1;
     }
     setWaterDensity(this.waterDensity.getValuei());
+  }
+
+  private void initializeProjectedOutput() {
+    this.projectionModel = getModelView();
+    final boolean[] standardPoint = new boolean[this.geometryModel.size];
+    for (SurfaceWater surface : this.surfaceWaters) {
+      for (Apotheneum.Column column : surface.orientation.columns()) {
+        for (LXPoint point : column.points) {
+          standardPoint[point.index] = true;
+        }
+      }
+    }
+    int projectedCount = 0;
+    for (LXPoint point : this.projectionModel.points) {
+      if (!standardPoint[point.index]) {
+        ++projectedCount;
+      }
+    }
+    this.projectedPoints = new LXPoint[projectedCount];
+    this.projectedSourceIndices = new int[projectedCount];
+
+    int projectedIndex = 0;
+    for (LXPoint point : this.projectionModel.points) {
+      if (standardPoint[point.index]) {
+        continue;
+      }
+      Apotheneum.Orientation source = this.surfaceWaters[0].orientation;
+      double sourceS = projectPointS(source, point.x, point.z);
+      double nearestDistanceSquared = projectionDistanceSquared(
+        source,
+        sourceS,
+        point.x,
+        point.z
+      );
+      for (int surfaceIndex = 1; surfaceIndex < this.surfaceWaters.length; ++surfaceIndex) {
+        final Apotheneum.Orientation candidate =
+          this.surfaceWaters[surfaceIndex].orientation;
+        final double candidateS = projectPointS(
+          candidate,
+          point.x,
+          point.z
+        );
+        final double distanceSquared = projectionDistanceSquared(
+          candidate,
+          candidateS,
+          point.x,
+          point.z
+        );
+        if (distanceSquared < nearestDistanceSquared) {
+          source = candidate;
+          sourceS = candidateS;
+          nearestDistanceSquared = distanceSquared;
+        }
+      }
+      this.projectedPoints[projectedIndex] = point;
+      final int column = wrappedColumn(
+        sourceS,
+        source.width()
+      );
+      this.projectedSourceIndices[projectedIndex] = source.point(
+        column,
+        nearestRow(source, column, point.y)
+      ).index;
+      ++projectedIndex;
+    }
+  }
+
+  private static int nearestRow(
+    Apotheneum.Orientation orientation,
+    int column,
+    double worldY
+  ) {
+    int nearest = 0;
+    double nearestDistance = Double.POSITIVE_INFINITY;
+    for (int row = 0; row < orientation.height(); ++row) {
+      final double distance = Math.abs(orientation.point(column, row).y - worldY);
+      if (distance < nearestDistance) {
+        nearest = row;
+        nearestDistance = distance;
+      }
+    }
+    return nearest;
   }
 
   private static Random createRandom() {
@@ -683,7 +769,10 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
 
   @Override
   protected void render(double deltaMs) {
-    if (this.geometryModel != this.lx.getModel()) {
+    if (
+      this.geometryModel != this.lx.getModel() ||
+      this.projectionModel != getModelView()
+    ) {
       initializeGeometry();
     }
     final double dt = Math.min(MAX_DELTA_SECONDS, deltaMs * .001);
@@ -715,6 +804,13 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
     for (SurfaceWater surface : this.surfaceWaters) {
       renderRocks(surface.orientation);
       writeColorOutput(surface.orientation);
+    }
+    writeProjectedOutput();
+  }
+
+  private void writeProjectedOutput() {
+    for (int i = 0; i < this.projectedPoints.length; ++i) {
+      colors[this.projectedPoints[i].index] = colors[this.projectedSourceIndices[i]];
     }
   }
 
@@ -1226,6 +1322,14 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
   }
 
   private double projectRockCenterS(Apotheneum.Orientation orientation, Rock rock) {
+    return projectPointS(orientation, rock.centerX, rock.centerZ);
+  }
+
+  private static double projectPointS(
+    Apotheneum.Orientation orientation,
+    double pointX,
+    double pointZ
+  ) {
     final LXPoint[] ring = orientation.ring(0).points;
     double closestS = 0;
     double closestDistanceSquared = Double.POSITIVE_INFINITY;
@@ -1237,11 +1341,11 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
         from.z,
         to.x,
         to.z,
-        rock.centerX,
-        rock.centerZ
+        pointX,
+        pointZ
       );
-      final double dx = LXUtils.lerp(from.x, to.x, amount) - rock.centerX;
-      final double dz = LXUtils.lerp(from.z, to.z, amount) - rock.centerZ;
+      final double dx = LXUtils.lerp(from.x, to.x, amount) - pointX;
+      final double dz = LXUtils.lerp(from.z, to.z, amount) - pointZ;
       final double distanceSquared = dx * dx + dz * dz;
       if (distanceSquared < closestDistanceSquared) {
         closestS = x + amount;
@@ -1249,6 +1353,22 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
       }
     }
     return wrap(closestS, orientation.width());
+  }
+
+  private static double projectionDistanceSquared(
+    Apotheneum.Orientation orientation,
+    double s,
+    double pointX,
+    double pointZ
+  ) {
+    final LXPoint[] ring = orientation.ring(0).points;
+    final int fromIndex = (int) Math.floor(s);
+    final LXPoint from = ring[fromIndex];
+    final LXPoint to = ring[(fromIndex + 1) % ring.length];
+    final double amount = s - fromIndex;
+    final double dx = LXUtils.lerp(from.x, to.x, amount) - pointX;
+    final double dz = LXUtils.lerp(from.z, to.z, amount) - pointZ;
+    return dx * dx + dz * dz;
   }
 
   static double segmentProjectionAmount(
