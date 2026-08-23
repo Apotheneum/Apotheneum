@@ -2,6 +2,8 @@ package apotheneum.doved.patterns;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 
 import org.junit.jupiter.api.Test;
 
@@ -16,6 +18,8 @@ public class RockfallConstructionTest extends HeadlessLxTest {
     final LX lx = newHeadlessLx();
     assertFalse(Apotheneum.exists);
     final Rockfall rockfall = assertDoesNotThrow(() -> new Rockfall(lx));
+    assertSame(rockfall.rockSpeed, rockfall.getParameter("rockSpeed"));
+    assertNull(rockfall.getParameter("lurch"));
     rockfall.dispose();
   }
 }

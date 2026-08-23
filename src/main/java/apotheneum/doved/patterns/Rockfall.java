@@ -37,7 +37,6 @@ import heronarts.lx.osc.LXOscComponent;
 import heronarts.lx.parameter.CompoundParameter;
 import heronarts.lx.parameter.DiscreteParameter;
 import heronarts.lx.parameter.LXParameterListener;
-import heronarts.lx.parameter.TriggerParameter;
 import heronarts.lx.studio.LXStudio.UI;
 import heronarts.lx.studio.ui.device.UIDevice;
 import heronarts.lx.studio.ui.device.UIDeviceControls;
@@ -80,10 +79,6 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
   private static final double CONVERGENCE_SNAP_EPSILON = .1;
   private static final double MAX_LATERAL_SLIDE_MULTIPLIER = 2;
   private static final double MAX_LATERAL_FREE_FALL_FRACTION = .25;
-  private static final double LURCH_VELOCITY = 145;
-  private static final double LURCH_DECAY_PER_SECOND = 4.5;
-  private static final double SPRAY_SPEED = 26;
-  private static final int SPRAY_ATTEMPTS_PER_SURFACE = 600;
   private static final int TRAIL_SAMPLES_PER_CELL = 3;
   private static final double MAX_SWEEP_STEP_ROWS = .5;
   private static final double WATER_TRAIL_HALF_LIFE_SECONDS = .045;
@@ -111,10 +106,6 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
   public final CompoundParameter rockSpeed =
     new CompoundParameter("Rock Speed", 0, -90, 90)
     .setDescription("Rock scroll velocity; negative values move rocks downward");
-
-  public final TriggerParameter lurch =
-    new TriggerParameter("Lurch", this::onLurch)
-    .setDescription("Jolt rocks upward and shake water loose from their undersides");
 
   public final CompoundParameter gravity =
     new CompoundParameter("Gravity", 352, 1, 400)
@@ -293,8 +284,6 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
   private double coarseNoiseAmount;
   private double fineNoiseAmount;
   private double lastVariationPhase = Double.NaN;
-  private double lurchVelocity = 0;
-  private boolean sprayPending = false;
   private final LXParameterListener rockGeometryListener =
     parameter -> updateActiveRockCount();
   private final LXParameterListener waterDensityListener =
@@ -311,7 +300,6 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
     addParameter("craggedness", this.craggedness);
     addParameter("variation", this.variation);
     addParameter("rockSpeed", this.rockSpeed);
-    addParameter("lurch", this.lurch);
     addParameter("gravity", this.gravity);
     addParameter("slideSpeed", this.slideSpeed);
     addParameter("waterDensity", this.waterDensity);
@@ -660,11 +648,6 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
     );
   }
 
-  private void onLurch() {
-    this.lurchVelocity += LURCH_VELOCITY;
-    this.sprayPending = true;
-  }
-
   @Override
   protected void render(double deltaMs) {
     if (this.geometryModel != this.lx.getModel()) {
@@ -681,7 +664,7 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
     beginWaterTrails();
 
     final int simulationSteps = rockMotionSubstepCount(
-      this.rockSpeed.getValue() + this.lurchVelocity,
+      this.rockSpeed.getValue(),
       dt,
       this.worldRowHeight
     );
@@ -690,12 +673,6 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
       updateRocks(stepDt);
       rebuildRockRowIndex();
       sampleSdfField();
-      if (this.sprayPending) {
-        for (SurfaceWater surface : this.surfaceWaters) {
-          sprayFromUndersides(surface);
-        }
-        this.sprayPending = false;
-      }
       for (SurfaceWater surface : this.surfaceWaters) {
         updateWater(surface, stepDt);
       }
@@ -767,11 +744,7 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
   }
 
   private void updateRocks(double dt) {
-    final double velocity = this.rockSpeed.getValue() + this.lurchVelocity;
-    this.lurchVelocity *= Math.exp(-LURCH_DECAY_PER_SECOND * dt);
-    if (Math.abs(this.lurchVelocity) < .01) {
-      this.lurchVelocity = 0;
-    }
+    final double velocity = this.rockSpeed.getValue();
     for (int i = 0; i < this.activeRockCount; ++i) {
       final Rock rock = this.rocks[i];
       rock.worldY += velocity * dt;
@@ -985,55 +958,6 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
     droplet.bias = this.random.nextBoolean() ? 1 : -1;
     droplet.contactingRock = false;
     droplet.convergenceRemainingRows = 0;
-  }
-
-  private void sprayFromUndersides(SurfaceWater surface) {
-    int dropletIndex = 0;
-    for (int attempt = 0;
-      attempt < SPRAY_ATTEMPTS_PER_SURFACE && dropletIndex < surface.activeCount / 3;
-      ++attempt) {
-      final double s = this.random.nextDouble() * surface.orientation.width();
-      final double h = this.random.nextDouble() * surface.orientation.height();
-      final int column = wrappedColumn(s, surface.orientation.width());
-      if (h >= surface.orientation.available(column)) {
-        continue;
-      }
-      final double d = surfaceSdf(surface, s, h);
-      if (Math.abs(d) > this.contactBand) {
-        continue;
-      }
-      final double gradS = .5 * (
-        surfaceSdf(surface, s + 1, h) -
-        surfaceSdf(surface, s - 1, h)
-      );
-      final double gradH = .5 * (
-        surfaceSdf(surface, s, h + 1) -
-        surfaceSdf(surface, s, h - 1)
-      );
-      final double gradientMagnitude = finiteGradientMagnitude(gradS, gradH);
-      if (gradientMagnitude < GRADIENT_EPSILON) {
-        continue;
-      }
-      final double normalS = gradS / gradientMagnitude;
-      final double normalH = gradH / gradientMagnitude;
-      final double downwardTangent = 1 - normalH * normalH;
-      if (normalH <= .25 || downwardTangent <= .15) {
-        continue;
-      }
-      final Droplet droplet = surface.droplets[dropletIndex++];
-      final double clearance = (this.contactBand + this.worldRowHeight * .3 - d) / gradientMagnitude;
-      droplet.s = wrap(s + normalS * clearance, surface.orientation.width());
-      droplet.h = h + normalH * clearance;
-      droplet.previousS = droplet.s;
-      droplet.previousH = droplet.h;
-      droplet.trailStartS = droplet.s;
-      droplet.trailStartH = droplet.h;
-      droplet.bias = this.random.nextBoolean() ? 1 : -1;
-      droplet.vs = droplet.bias * (8 + 10 * this.random.nextDouble());
-      droplet.vh = SPRAY_SPEED * (.7 + .6 * this.random.nextDouble());
-      droplet.contactingRock = false;
-      droplet.convergenceRemainingRows = 0;
-    }
   }
 
   private void renderDropletTrail(SurfaceWater surface, Droplet droplet) {
@@ -1434,8 +1358,7 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
 
     addColumn(uiDevice, "Rock Motion",
       newKnob(rockfall.rockSpeed),
-      newKnob(rockfall.variation),
-      newButton(rockfall.lurch).setTriggerable(true).setBorderRounding(4)
+      newKnob(rockfall.variation)
     ).setChildSpacing(6);
 
     addVerticalBreak(ui, uiDevice);
