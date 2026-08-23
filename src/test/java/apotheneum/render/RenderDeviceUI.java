@@ -73,6 +73,7 @@ public final class RenderDeviceUI {
     patternClass = loadPatternClass(args[0]);
     outputDirectory = args.length == 2 ? Path.of(args[1]) : Path.of("target", "ui-review");
     Files.createDirectories(outputDirectory);
+    clearPreviousArtifacts(outputDirectory, patternClass.getSimpleName());
     installIsolatedFixtureMedia();
 
     initializeInvisibleGlfw();
@@ -88,6 +89,11 @@ public final class RenderDeviceUI {
     if (!completed) {
       throw new IllegalStateException("Chromatik exited before the device UI render completed");
     }
+  }
+
+  static void clearPreviousArtifacts(Path directory, String baseName) throws IOException {
+    Files.deleteIfExists(directory.resolve(baseName + ".png"));
+    Files.deleteIfExists(directory.resolve(baseName + ".json"));
   }
 
   private static void installIsolatedFixtureMedia() throws IOException {
