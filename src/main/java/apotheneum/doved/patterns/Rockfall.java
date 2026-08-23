@@ -291,8 +291,6 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
   private double lastVariationPhase = Double.NaN;
   private final LXParameterListener rockGeometryListener =
     parameter -> updateActiveRockCount();
-  private final LXParameterListener waterDensityListener =
-    parameter -> setWaterDensity((int) Math.round(this.waterDensity.getValue()));
 
   public Rockfall(LX lx) {
     super(lx);
@@ -323,7 +321,6 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
     }
     this.rockSpacing.addListener(this.rockGeometryListener);
     this.rockScale.addListener(this.rockGeometryListener);
-    this.waterDensity.addListener(this.waterDensityListener);
   }
 
   private void initializeGeometry() {
@@ -500,7 +497,6 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
   public void dispose() {
     this.rockSpacing.removeListener(this.rockGeometryListener);
     this.rockScale.removeListener(this.rockGeometryListener);
-    this.waterDensity.removeListener(this.waterDensityListener);
     this.rockColor.dispose();
     this.waterColor.dispose();
     super.dispose();
@@ -776,6 +772,7 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
     }
     final double dt = Math.min(MAX_DELTA_SECONDS, deltaMs * .001);
     updateDerivedValues();
+    setWaterDensity((int) Math.round(this.waterDensity.getValue()));
     updateRockProperties();
     updateRockVisibility(dt);
     this.rockColor.update();
