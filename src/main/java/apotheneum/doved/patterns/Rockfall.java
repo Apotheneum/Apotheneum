@@ -83,6 +83,7 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
   private static final double MAX_SWEEP_STEP_ROWS = .5;
   private static final double WATER_TRAIL_HALF_LIFE_SECONDS = .045;
   private static final double WATER_TRAIL_CUTOFF = .025;
+  private static final double ROCK_VISIBILITY_RATE_PER_SECOND = 3;
   private static final String RENDER_SEED_PROPERTY = "apotheneum.rockfall.seed";
   private static final double COLOR_BRIGHTNESS_MODULATION = .45;
   private static final double COLOR_SATURATION_MODULATION = .3;
@@ -219,6 +220,7 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
     private double offsetS2;
     private double offsetY2;
     private double offsetR2;
+    private double visibility;
 
     private Rock(int surfaceCount) {
       this.centerS = new double[surfaceCount];
@@ -276,6 +278,7 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
   private double rockRadiusMax;
   private double rockCenterRadius;
   private int activeRockCount = 0;
+  private int desiredRockCount = 0;
   private double currentRockScale = DEFAULT_ROCK_SCALE;
   private double contactBand;
   private double currentRimWidth;
@@ -393,9 +396,13 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
     this.rocks = new Rock[0];
     this.rockIndicesByRow = new int[Apotheneum.GRID_HEIGHT][0];
     this.activeRockCount = 0;
+    this.desiredRockCount = 0;
     this.lastVariationPhase = Double.NaN;
     updateDerivedValues();
     updateActiveRockCount();
+    for (int i = 0; i < this.activeRockCount; ++i) {
+      this.rocks[i].visibility = 1;
+    }
     setWaterDensity(this.waterDensity.getValuei());
   }
 
@@ -451,7 +458,7 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
   }
 
   private double effectiveRadius(Rock rock) {
-    return rock.baseRadius * this.currentRockScale;
+    return rock.baseRadius * this.currentRockScale * rock.visibility;
   }
 
   static int derivedRockCount(
@@ -489,11 +496,12 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
   }
 
   private double verticalExtent(Rock rock) {
+    final double visibility = rock.visibility;
     return conservativeRockExtent(
       effectiveRadius(rock),
       this.coarseNoiseAmount,
       this.fineNoiseAmount
-    ) + Math.max(this.contactBand, this.currentRimWidth);
+    ) + visibility * Math.max(this.contactBand, this.currentRimWidth);
   }
 
   static double conservativeRockExtent(
@@ -508,8 +516,33 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
     ensureRockCapacity(requestedCount);
     for (int i = this.activeRockCount; i < requestedCount; ++i) {
       activateRock(this.rocks[i], i, verticalPosition(i));
+      this.rocks[i].visibility = 0;
     }
-    this.activeRockCount = requestedCount;
+    this.activeRockCount = Math.max(this.activeRockCount, requestedCount);
+    this.desiredRockCount = requestedCount;
+  }
+
+  private void updateRockVisibility(double dt) {
+    for (int i = 0; i < this.activeRockCount; ++i) {
+      this.rocks[i].visibility = approachVisibility(
+        this.rocks[i].visibility,
+        i < this.desiredRockCount ? 1 : 0,
+        dt
+      );
+    }
+    while (
+      this.activeRockCount > this.desiredRockCount &&
+      this.rocks[this.activeRockCount - 1].visibility == 0
+    ) {
+      --this.activeRockCount;
+    }
+  }
+
+  static double approachVisibility(double visibility, double target, double dt) {
+    final double amount = ROCK_VISIBILITY_RATE_PER_SECOND * Math.max(0, dt);
+    return target > visibility ?
+      Math.min(target, visibility + amount) :
+      Math.max(target, visibility - amount);
   }
 
   /**
@@ -656,6 +689,7 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
     final double dt = Math.min(MAX_DELTA_SECONDS, deltaMs * .001);
     updateDerivedValues();
     updateRockProperties();
+    updateRockVisibility(dt);
     this.rockColor.update();
     this.waterColor.update();
     Arrays.fill(this.rockIntensity, 0);
@@ -1253,7 +1287,7 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
     // Evaluate in tangent/height space rather than at one physical radius between
     // the nested chambers. centerS preserves the shared world-space angle, while
     // worldRowHeight makes a rock the same apparent row size on every surface.
-    final double scale = this.currentRockScale;
+    final double scale = this.currentRockScale * rock.visibility;
     final double radius = rock.baseRadius * scale;
     final double maximumExtent = conservativeRockExtent(
       radius,
@@ -1261,9 +1295,10 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
       this.fineNoiseAmount
     );
     final double dy = y - rock.worldY;
-    final double rejectRadius = maximumExtent + Math.max(this.contactBand, this.currentRimWidth);
+    final double rejectRadius = maximumExtent + rock.visibility *
+      Math.max(this.contactBand, this.currentRimWidth);
     if (Math.abs(dy) > rejectRadius) {
-      return Math.abs(dy) - maximumExtent;
+      return (Math.abs(dy) - maximumExtent) / rock.visibility;
     }
     final double dx = wrappedDelta(
       rock.centerS[surface.index],
@@ -1272,7 +1307,7 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
     ) * this.worldRowHeight;
     final double centerDistance = Math.hypot(dx, dy);
     if (centerDistance > rejectRadius) {
-      return centerDistance - maximumExtent;
+      return (centerDistance - maximumExtent) / rock.visibility;
     }
 
     double rockField = sphereSdf(dx, dy, 0, radius);
@@ -1300,7 +1335,11 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
     );
     rockField -= (coarseNoise - .5) * 2 * radius * this.coarseNoiseAmount;
     rockField -= (fineNoise - .5) * 2 * radius * this.fineNoiseAmount;
-    return rockField;
+    // Preserve the pattern-wide rim and contact parameters while shrinking their
+    // effective widths with this rock. This keeps rendering and collision continuous
+    // through a membership transition instead of leaving a full-width halo that pops
+    // off on the final frame.
+    return rockField / rock.visibility;
   }
 
   private static double sphereSdf(double x, double y, double z, double radius) {
