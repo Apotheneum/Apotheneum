@@ -200,7 +200,7 @@ final class RawVideoServer {
   }
 
   /** Gathers colors into {@code rgb24}; masked or out-of-range indices render black. */
-  private static void fill(byte[] buffer, int[] colors, int[] indices) {
+  static void fill(byte[] buffer, int[] colors, int[] indices) {
     if (indices == null) {
       Arrays.fill(buffer, (byte) 0);
       return;

@@ -409,14 +409,18 @@ final class VideoWallLauncher {
     try {
       final FrameSource ffmpeg = startFfmpeg(ffmpegCommand);
       final AtomicReference<Playback> priorHolder = new AtomicReference<>(prior);
+      final AtomicReference<Playback> playbackHolder = new AtomicReference<>();
       final Runnable firstFrameDelivered = (prior == null) ? null : () -> stopPrior(priorHolder);
       final FrameRelay relay = new FrameRelay(
         ffmpeg,
         ffplay.getOutputStream(),
         FRAME_BYTES,
-        firstFrameDelivered
+        firstFrameDelivered,
+        () -> stopPlayback(playbackHolder)
       );
-      return new Playback(displayIndex, fullScreen, ffplay, relay, priorHolder);
+      final Playback playback = new Playback(displayIndex, fullScreen, ffplay, relay, priorHolder);
+      playbackHolder.set(playback);
+      return playback;
     } catch (IOException iox) {
       stopProcess(ffplay);
       throw iox;
@@ -511,12 +515,25 @@ final class VideoWallLauncher {
       if (!this.stopped.compareAndSet(false, true)) {
         return;
       }
-      this.relay.stop();
-      stopProcess(this.ffplay);
-      // If this replacement is stopped before it delivers a first frame, its
-      // make-before-break callback never runs. Retire the prior session here
-      // as well so that edge case cannot orphan a full-screen player.
-      stopPrior(this.prior);
+      final Thread waiter = new Thread(() -> {
+        // Kill the reader first. If ffplay has stopped draining stdin, this
+        // releases any relay write before relay.stop() closes the same pipe.
+        destroy(this.ffplay);
+        this.relay.stop();
+        // If this replacement is stopped before it delivers a first frame, its
+        // make-before-break callback never runs. Retire the prior session here
+        // as well so that edge case cannot orphan a full-screen player.
+        stopPrior(this.prior);
+      }, "Apotheneum Video Wall Stop");
+      waiter.setDaemon(true);
+      waiter.start();
+    }
+  }
+
+  private static void stopPlayback(AtomicReference<Playback> playbackHolder) {
+    final Playback playback = playbackHolder.get();
+    if (playback != null) {
+      playback.stop();
     }
   }
 
@@ -551,11 +568,6 @@ final class VideoWallLauncher {
       if (!this.stopped.compareAndSet(false, true)) {
         return;
       }
-      try {
-        input().close();
-      } catch (IOException iox) {
-        // The process may already have closed its pipe.
-      }
       stopProcess(this.process);
     }
   }
@@ -568,6 +580,7 @@ final class VideoWallLauncher {
     private final OutputStream output;
     private final int frameBytes;
     private final Runnable firstFrameDelivered;
+    private final Runnable relayTerminated;
     private final byte[] frame;
     private final Thread relayThread;
 
@@ -577,7 +590,13 @@ final class VideoWallLauncher {
     private byte[] bufferedFrame = null;
     private boolean deliveredAnyFrame = false;
 
-    FrameRelay(FrameSource initial, OutputStream output, int frameBytes, Runnable firstFrameDelivered) {
+    FrameRelay(
+      FrameSource initial,
+      OutputStream output,
+      int frameBytes,
+      Runnable firstFrameDelivered,
+      Runnable relayTerminated
+    ) {
       if (frameBytes <= 0) {
         throw new IllegalArgumentException("frameBytes must be positive");
       }
@@ -585,6 +604,7 @@ final class VideoWallLauncher {
       this.output = output;
       this.frameBytes = frameBytes;
       this.firstFrameDelivered = firstFrameDelivered;
+      this.relayTerminated = relayTerminated;
       this.frame = new byte[frameBytes];
       this.relayThread = new Thread(this::relay, "Apotheneum Video Wall Relay");
       this.relayThread.setDaemon(true);
@@ -622,10 +642,11 @@ final class VideoWallLauncher {
 
     private void warm(SwitchRequest request) {
       boolean complete = false;
+      IOException failure = null;
       try {
         complete = readFully(request.source.input(), request.firstFrame);
       } catch (IOException iox) {
-        // Report below only if this is still the requested replacement.
+        failure = iox;
       }
 
       FrameSource old = null;
@@ -657,6 +678,11 @@ final class VideoWallLauncher {
         request.source.stop();
         if (!failedWhileRequested) {
           ApotheneumVideoPlugin.log("discarded superseded video-wall layout");
+        } else if (failure != null) {
+          ApotheneumVideoPlugin.error(
+            failure,
+            "replacement video-wall layout failed before its first complete frame"
+          );
         } else {
           ApotheneumVideoPlugin.error("replacement video-wall layout ended before its first complete frame");
         }
@@ -711,6 +737,9 @@ final class VideoWallLauncher {
         }
       } finally {
         stop();
+        if (this.relayTerminated != null) {
+          this.relayTerminated.run();
+        }
       }
     }
 

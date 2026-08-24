@@ -30,7 +30,8 @@ class VideoWallRelayTest {
       oldSource,
       displayed,
       TEST_FRAME_BYTES,
-      firstFrameCallbacks::incrementAndGet
+      firstFrameCallbacks::incrementAndGet,
+      null
     );
 
     relay.start();
@@ -76,6 +77,7 @@ class VideoWallRelayTest {
       oldSource,
       displayed,
       TEST_FRAME_BYTES,
+      null,
       null
     );
 
@@ -97,6 +99,30 @@ class VideoWallRelayTest {
     } finally {
       relay.stop();
     }
+  }
+
+  @Test
+  void reportsInitialSourceTerminationToItsOwner() throws Exception {
+    final ControlledFrameSource source = new ControlledFrameSource();
+    final AtomicInteger terminationCallbacks = new AtomicInteger();
+    final VideoWallLauncher.FrameRelay relay = new VideoWallLauncher.FrameRelay(
+      source,
+      new ByteArrayOutputStream(),
+      TEST_FRAME_BYTES,
+      null,
+      terminationCallbacks::incrementAndGet
+    );
+
+    relay.start();
+    source.end();
+
+    org.junit.jupiter.api.Assertions.assertTimeoutPreemptively(Duration.ofSeconds(2), () -> {
+      while (terminationCallbacks.get() == 0) {
+        Thread.onSpinWait();
+      }
+    });
+    assertEquals(1, terminationCallbacks.get());
+    assertFalse(relay.isRunning());
   }
 
   private static void awaitSize(ByteArrayOutputStream output, int expected) {
@@ -133,6 +159,10 @@ class VideoWallRelayTest {
         this.output.write(value);
       }
       this.output.flush();
+    }
+
+    private void end() throws IOException {
+      this.output.close();
     }
 
     @Override

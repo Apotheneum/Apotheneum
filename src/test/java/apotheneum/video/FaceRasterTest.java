@@ -67,6 +67,7 @@ class FaceRasterTest {
       122,
       144
     );
+    assertEquals((Apotheneum.DOOR_WIDTH + 2.0) / (width * height), ApotheneumVideoPlugin.litFraction(frame));
   }
 
   private static void setPixel(byte[] frame, int width, int x, int y, int red, int green, int blue) {
