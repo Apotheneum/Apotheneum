@@ -75,7 +75,7 @@ class UIVideoWallPanel extends UICollapsibleSection {
   private static final float PANELS_GROUP_HEIGHT =
     GROUP_HEADING_HEIGHT + GROUP_ROW_SPACING + 2 * ROW_HEIGHT + GROUP_ROW_SPACING;
   private static final float PLAYBACK_GROUP_HEIGHT =
-    GROUP_HEADING_HEIGHT + GROUP_ROW_SPACING + ROW_HEIGHT + GROUP_ROW_SPACING + CONTROL_HEIGHT;
+    GROUP_HEADING_HEIGHT + GROUP_ROW_SPACING + ROW_HEIGHT + 2 * GROUP_ROW_SPACING + 2 * CONTROL_HEIGHT;
 
   // Between groups and the status line.
   private static final float GROUP_SPACING = 6;
@@ -92,11 +92,13 @@ class UIVideoWallPanel extends UICollapsibleSection {
 
   private final UI ui;
   private final VideoWallLauncher launcher;
+  private final VideoWallLauncher previewLauncher;
   private final ApotheneumVideo config;
   private final String ffplayPath;
 
   private final DiscreteParameter displayIndex;
   private final UIButton playButton;
+  private final UIButton previewButton;
   private final UIDropMenu presetMenu;
   private final UIDropMenu sourceMenu;
   private final UIDropMenu layoutMenu;
@@ -122,10 +124,17 @@ class UIVideoWallPanel extends UICollapsibleSection {
   private Preset boundPreset = null;
   private boolean disposed = false;
 
-  UIVideoWallPanel(UI ui, VideoWallLauncher launcher, ApotheneumVideo config, float width) {
+  UIVideoWallPanel(
+    UI ui,
+    VideoWallLauncher launcher,
+    VideoWallLauncher previewLauncher,
+    ApotheneumVideo config,
+    float width
+  ) {
     super(ui, 0, 0, width, SECTION_HEIGHT);
     this.ui = ui;
     this.launcher = launcher;
+    this.previewLauncher = previewLauncher;
     this.config = config;
     this.ffplayPath = VideoWallLauncher.findFfplay();
 
@@ -202,6 +211,20 @@ class UIVideoWallPanel extends UICollapsibleSection {
     };
     this.playButton.setActiveLabel("Stop").setInactiveLabel("Play");
 
+    this.previewButton = new UIButton(0, 0, contentWidth, CONTROL_HEIGHT) {
+      @Override
+      protected void onToggle(boolean active) {
+        if (active) {
+          if (!UIVideoWallPanel.this.previewLauncher.isRunning()) {
+            UIVideoWallPanel.this.previewLauncher.startPreview();
+          }
+        } else if (UIVideoWallPanel.this.previewLauncher.isRunning()) {
+          UIVideoWallPanel.this.previewLauncher.stop();
+        }
+      }
+    };
+    this.previewButton.setActiveLabel("Close Preview").setInactiveLabel("Preview");
+
     this.status = (UILabel) new UILabel(0, 0, contentWidth, STATUS_HEIGHT).setBreakLines(true);
 
     final UI2dContainer presetGroup = UI2dContainer.newVerticalContainer(contentWidth, GROUP_ROW_SPACING,
@@ -225,7 +248,8 @@ class UIVideoWallPanel extends UICollapsibleSection {
     final UI2dContainer playbackGroup = UI2dContainer.newVerticalContainer(contentWidth, GROUP_ROW_SPACING,
       groupHeading(contentWidth, "PLAYBACK"),
       stackedRow(contentWidth, "Display", displayMenu),
-      this.playButton
+      this.playButton,
+      this.previewButton
     );
 
     addChildren(presetGroup, pictureGroup, panelsGroup, playbackGroup, this.status);
@@ -331,12 +355,19 @@ class UIVideoWallPanel extends UICollapsibleSection {
     if (this.playButton.isActive() != running) {
       this.playButton.setActive(running);
     }
+    final boolean previewRunning = this.previewLauncher.isRunning();
+    if (this.previewButton.isActive() != previewRunning) {
+      this.previewButton.setActive(previewRunning);
+    }
     updateStatus();
   }
 
   private void applyIfRunningElseUpdateStatus() {
     if (this.launcher.isRunning()) {
       this.launcher.start(this.displayIndex.getValuei());
+    }
+    if (this.previewLauncher.isRunning()) {
+      this.previewLauncher.startPreview();
     }
     updateStatus();
   }
@@ -356,7 +387,10 @@ class UIVideoWallPanel extends UICollapsibleSection {
     final int cropHeight = this.config.cropHeight.getValuei();
     final String ffplayState = (this.ffplayPath != null) ? "ffplay found" : "ffplay NOT FOUND";
     final String litLabel = String.format("%.1f%% lit", this.config.getLitFraction() * 100.0);
-    this.status.setLabel(displayLabel + " · " + cropWidth + "x" + cropHeight + " · " + ffplayState + " · " + litLabel);
+    final String previewState = this.previewLauncher.isRunning() ? "preview open" : "preview closed";
+    this.status.setLabel(
+      displayLabel + " · " + cropWidth + "x" + cropHeight + " · " + ffplayState + " · "
+      + previewState + " · " + litLabel);
   }
 
   private static String[] genericLabels(int count) {

@@ -59,6 +59,12 @@ final class VideoWallLauncher {
   private static final int OUTPUT_HEIGHT = 600;
   static final int FRAME_BYTES = OUTPUT_WIDTH * OUTPUT_HEIGHT * 3;
 
+  // A half-size, windowed view preserves the processor signal's aspect ratio
+  // while leaving macOS's menu bar and the operator's Chromatik controls visible.
+  private static final int PREVIEW_WIDTH = OUTPUT_WIDTH / 2;
+  private static final int PREVIEW_HEIGHT = OUTPUT_HEIGHT / 2;
+  private static final String PREVIEW_TITLE = "Apotheneum Video Preview";
+
   private static final long STOP_WAIT_SECONDS = 2;
 
   // Every process this JVM has started (ffmpeg and ffplay alike), so a
@@ -151,6 +157,15 @@ final class VideoWallLauncher {
 
   /** Builds the ffplay command line for the live config: full-screen display of ffmpeg's stdout. */
   List<String> buildFfplayCommand(String ffplayPath) {
+    return buildFfplayCommand(ffplayPath, true);
+  }
+
+  /** Builds a titled, non-full-screen half-size preview for the local desktop. */
+  List<String> buildPreviewFfplayCommand(String ffplayPath) {
+    return buildFfplayCommand(ffplayPath, false);
+  }
+
+  private List<String> buildFfplayCommand(String ffplayPath, boolean fullScreen) {
     final List<String> command = new ArrayList<>();
     command.add(ffplayPath);
     command.add("-loglevel");
@@ -163,9 +178,19 @@ final class VideoWallLauncher {
     command.add(OUTPUT_WIDTH + "x" + OUTPUT_HEIGHT);
     command.add("-framerate");
     command.add(formatRate(this.config.fps.getValue()));
+    if (!fullScreen) {
+      command.add("-window_title");
+      command.add(PREVIEW_TITLE);
+      command.add("-x");
+      command.add(Integer.toString(PREVIEW_WIDTH));
+      command.add("-y");
+      command.add(Integer.toString(PREVIEW_HEIGHT));
+    }
     command.add("-i");
     command.add("-");
-    command.add("-fs");
+    if (fullScreen) {
+      command.add("-fs");
+    }
     return command;
   }
 
@@ -290,6 +315,15 @@ final class VideoWallLauncher {
    * the old one after the new session has delivered its first frame.
    */
   void start(int displayIndex) {
+    start(displayIndex, true);
+  }
+
+  /** Opens a normal macOS window on the desktop, independent of wall playback. */
+  void startPreview() {
+    start(-1, false);
+  }
+
+  private void start(int displayIndex, boolean fullScreen) {
     final String ffmpegPath = findFfmpeg();
     final String ffplayPath = findFfplay();
     if ((ffmpegPath == null) || (ffplayPath == null)) {
@@ -301,12 +335,13 @@ final class VideoWallLauncher {
 
     final List<String> ffmpegCommand = buildFfmpegCommand(ffmpegPath);
     final Playback current = this.playback;
-    if ((current != null) && current.isRunning() && (current.displayIndex == displayIndex)) {
+    if ((current != null) && current.isRunning() && current.matches(displayIndex, fullScreen)) {
       try {
         final FrameSource nextSource = startFfmpeg(ffmpegCommand);
         if (current.relay.switchWhenReady(nextSource)) {
           ApotheneumVideoPlugin.log(
-            "warming replacement video-wall layout: " + String.join(" ", ffmpegCommand));
+            "warming replacement " + (fullScreen ? "video-wall" : "preview") + " layout: "
+            + String.join(" ", ffmpegCommand));
           return;
         }
         nextSource.stop();
@@ -317,32 +352,36 @@ final class VideoWallLauncher {
       }
     }
 
-    final List<String> ffplayCommand = buildFfplayCommand(ffplayPath);
+    final List<String> ffplayCommand = buildFfplayCommand(ffplayPath, fullScreen);
     ApotheneumVideoPlugin.log(
-      "launching video wall on display " + displayIndex + ": "
+      "launching " + (fullScreen ? "video wall on display " + displayIndex : "local video preview") + ": "
       + String.join(" ", ffmpegCommand) + "  | relay |  " + String.join(" ", ffplayCommand));
 
     Playback replacement = null;
     try {
-      replacement = startPlayback(displayIndex, ffmpegCommand, ffplayCommand, current);
+      replacement = startPlayback(displayIndex, fullScreen, ffmpegCommand, ffplayCommand, current);
       this.playback = replacement;
       replacement.relay.start();
     } catch (IOException iox) {
       if (replacement != null) {
         replacement.stop();
       }
-      ApotheneumVideoPlugin.error("Failed to launch video wall: " + iox.getMessage());
+      ApotheneumVideoPlugin.error("Failed to launch " + (fullScreen ? "video wall" : "video preview")
+        + ": " + iox.getMessage());
     }
   }
 
   private Playback startPlayback(
     int displayIndex,
+    boolean fullScreen,
     List<String> ffmpegCommand,
     List<String> ffplayCommand,
     Playback prior
   ) throws IOException {
     final ProcessBuilder ffplayBuilder = new ProcessBuilder(ffplayCommand);
-    ffplayBuilder.environment().put("SDL_VIDEO_FULLSCREEN_DISPLAY", Integer.toString(displayIndex));
+    if (fullScreen) {
+      ffplayBuilder.environment().put("SDL_VIDEO_FULLSCREEN_DISPLAY", Integer.toString(displayIndex));
+    }
     // A full stdout/stderr pipe with nobody draining it would block ffplay's
     // writes and wedge the child; discard both so that can never happen.
     ffplayBuilder.redirectOutput(ProcessBuilder.Redirect.DISCARD);
@@ -359,7 +398,7 @@ final class VideoWallLauncher {
         FRAME_BYTES,
         firstFrameDelivered
       );
-      return new Playback(displayIndex, ffplay, relay, priorHolder);
+      return new Playback(displayIndex, fullScreen, ffplay, relay, priorHolder);
     } catch (IOException iox) {
       stopProcess(ffplay);
       throw iox;
@@ -403,6 +442,7 @@ final class VideoWallLauncher {
   private static final class Playback {
 
     private final int displayIndex;
+    private final boolean fullScreen;
     private final Process ffplay;
     private final FrameRelay relay;
     private final AtomicReference<Playback> prior;
@@ -410,11 +450,13 @@ final class VideoWallLauncher {
 
     private Playback(
       int displayIndex,
+      boolean fullScreen,
       Process ffplay,
       FrameRelay relay,
       AtomicReference<Playback> prior
     ) {
       this.displayIndex = displayIndex;
+      this.fullScreen = fullScreen;
       this.ffplay = ffplay;
       this.relay = relay;
       this.prior = prior;
@@ -422,6 +464,10 @@ final class VideoWallLauncher {
 
     private boolean isRunning() {
       return this.ffplay.isAlive() && this.relay.isRunning();
+    }
+
+    private boolean matches(int displayIndex, boolean fullScreen) {
+      return (this.displayIndex == displayIndex) && (this.fullScreen == fullScreen);
     }
 
     private void stop() {
