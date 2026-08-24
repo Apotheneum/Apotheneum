@@ -323,6 +323,45 @@ When LX does throw, it uses small typed exceptions, not bare `RuntimeException`:
 `PLUGIN`) and `LXCommand.InvalidCommandException`. Follow suit if you need a checked failure
 mode that callers should distinguish.
 
+### 18. A model view is not a write mask
+
+`LXDeviceComponent.getModelView()` tells a pattern which model it should use; it
+does **not** prevent the pattern from writing other indices in its shared
+`colors` buffer. A pattern that iterates `getModelView().points` naturally stays
+inside its view. A pattern that instead writes through cached/global geometry,
+calls a helper such as `setApotheneumColor`, or assigns arbitrary
+`colors[point.index]` values can write outside a pattern-level view.
+
+Pattern and channel views also have different inheritance and compositing
+behavior:
+
+- With its own view selector at `Default`, a pattern's `getModelView()` inherits
+  its channel's resolved model view (`LXDeviceComponent.getModelView`).
+- Selecting a pattern-level view changes the model returned to the pattern, but
+  is not an output mask; the pattern implementation must honor that model when
+  it writes colors.
+- A channel view constrains the channel at the mixer/compositing boundary, so it
+  remains effective even when a pattern writes global point indices.
+
+This can look inconsistent because `LXPatternEngine.loop` treats execution
+modes differently. In the normal single-active-pattern path, the active pattern
+renders directly into the channel buffer and there is no pattern-view masking
+pass afterward. In `BLEND` composite mode (and during transitions), LX blends a
+separate pattern buffer using the resolved pattern model, which does constrain
+the blend. Never rely on that mode-dependent masking; a pattern should honor its
+view while writing, and a channel view should define the final boundary.
+
+For patterns that intentionally discover or project onto third-party geometry,
+put that geometry in the **channel view** and leave the pattern view at
+`Default`. This lets the pattern inherit the registration model while retaining
+the channel's hard output boundary.
+
+During review, trace every color-buffer write rather than assuming
+`getModelView()` makes it safe. If a pattern-level view is supposed to be a hard
+filter, either iterate only resolved-view points or build a reusable membership
+mask when the view changes and guard every write, including clears, copies, and
+post-processing passes. Do not build that mask in `run()`/`render()` each frame.
+
 ---
 
 ## Part 3 — Review checklist
@@ -342,6 +381,10 @@ it.
   labels, subclassing existing components (§5).
 - **Model bounds respected** — no drawing outside the geometry; door columns use
   `available(columnIndex)` (§7, AGENTS.md).
+- **Model views are actually honored** — `getModelView()` is an input model, not
+  a write mask. Trace direct/global `colors[...]` writes, clears, copies, and
+  post-processing; use a channel view as the hard boundary for patterns that
+  intentionally project onto third-party geometry (§18).
 - **Logging via `LX.log`/`LX.error`** with the throwable passed through; no
   `System.out.println` or `printStackTrace`; prefix helpers rather than inline
   literals (§9).
