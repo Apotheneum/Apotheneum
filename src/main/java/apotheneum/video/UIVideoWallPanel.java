@@ -110,6 +110,7 @@ class UIVideoWallPanel extends UICollapsibleSection {
 
   private final LXParameterListener displayChangeListener;
   private final LXParameterListener fpsChangeListener;
+  private final LXParameterListener cropDimensionsChangeListener;
   private final LXParameterListener activePresetChangeListener;
   // Bound to whichever preset is currently active; re-bound in bindActivePreset().
   private final LXParameterListener presetLayoutChangeListener;
@@ -118,6 +119,7 @@ class UIVideoWallPanel extends UICollapsibleSection {
   // The preset the listeners above are currently attached to, so switching
   // presets can unsubscribe from the old one before subscribing to the new.
   private Preset boundPreset = null;
+  private boolean disposed = false;
 
   UIVideoWallPanel(UI ui, VideoWallLauncher launcher, ApotheneumVideo config, float width) {
     super(ui, 0, 0, width, SECTION_HEIGHT);
@@ -134,33 +136,41 @@ class UIVideoWallPanel extends UICollapsibleSection {
     this.displayIndex = new DiscreteParameter("Display", genericLabels(DEFAULT_DISPLAY_COUNT));
     // If already playing, the operator plainly means "show it there instead" —
     // restart on the new setting rather than leaving ffplay running on the old one.
-    this.displayChangeListener = p -> restartIfRunningElseUpdateStatus();
+    this.displayChangeListener = p -> enqueueEngineTask(this::restartIfRunningElseUpdateStatus);
     this.displayIndex.addListener(this.displayChangeListener);
 
     // Raw rgb24 carries no timing metadata. Both ffmpeg and ffplay snapshot
     // the configured rate at launch, so a live FPS edit must restart an active
     // pipeline before the producer and consumers drift apart.
-    this.fpsChangeListener = p -> restartIfRunningElseUpdateStatus();
+    this.fpsChangeListener = p -> enqueueEngineTask(this::restartIfRunningElseUpdateStatus);
     this.config.fps.addListener(this.fpsChangeListener);
+
+    // A rawvideo connection has no header: both endpoints snapshot its frame
+    // dimensions when it is opened. A live crop-size edit therefore needs the
+    // same reconnect as an FPS edit before the producer and consumer disagree
+    // about how many bytes make up a frame.
+    this.cropDimensionsChangeListener = p -> enqueueEngineTask(this::restartIfRunningElseUpdateStatus);
+    this.config.cropWidth.addListener(this.cropDimensionsChangeListener);
+    this.config.cropHeight.addListener(this.cropDimensionsChangeListener);
 
     // Switching which preset is active is the one control whose whole job is
     // to change five values at once — it must cause exactly one restart, not
     // five. That is why it never copies values onto shared live parameters:
     // it only rebinds which preset's own parameters the widgets and listeners
     // point at, then restarts (or updates status) a single time.
-    this.activePresetChangeListener = p -> bindActivePreset();
+    this.activePresetChangeListener = p -> enqueueEngineTask(this::bindActivePreset);
     this.config.activePreset.addListener(this.activePresetChangeListener);
 
     // Same "if playing, apply live; if not, just reflect it in status" rule as
     // the display picker above — a layout change is only worth a restart
     // while ffplay is actually on screen, and it also may reveal/hide Gap and
     // Panel Count.
-    this.presetLayoutChangeListener = p -> {
+    this.presetLayoutChangeListener = p -> enqueueEngineTask(() -> {
       updateGapEnabled();
       restartIfRunningElseUpdateStatus();
-    };
+    });
     // Source/Processor/Gap/Panel Count all follow the same live-apply rule.
-    this.presetFieldChangeListener = p -> restartIfRunningElseUpdateStatus();
+    this.presetFieldChangeListener = p -> enqueueEngineTask(this::restartIfRunningElseUpdateStatus);
 
     this.presetMenu = new UIDropMenu(0, 0, contentWidth, CONTROL_HEIGHT, this.config.activePreset);
     this.sourceMenu = new UIDropMenu(0, 0, contentWidth, CONTROL_HEIGHT, this.config.presetA.source);
@@ -284,10 +294,13 @@ class UIVideoWallPanel extends UICollapsibleSection {
 
   @Override
   public void dispose() {
+    this.disposed = true;
     this.ui.removeLoopTask(this.applyResolvedLabelsTask);
     this.ui.removeLoopTask(this.refreshTask);
     this.displayIndex.removeListener(this.displayChangeListener);
     this.config.fps.removeListener(this.fpsChangeListener);
+    this.config.cropWidth.removeListener(this.cropDimensionsChangeListener);
+    this.config.cropHeight.removeListener(this.cropDimensionsChangeListener);
     this.config.activePreset.removeListener(this.activePresetChangeListener);
     if (this.boundPreset != null) {
       this.boundPreset.source.removeListener(this.presetFieldChangeListener);
@@ -297,6 +310,18 @@ class UIVideoWallPanel extends UICollapsibleSection {
       this.boundPreset.panelCount.removeListener(this.presetFieldChangeListener);
     }
     super.dispose();
+  }
+
+  /**
+   * Parameter listeners may be invoked by the OSC receiver. UI and launcher
+   * state belong to the engine thread, so defer all listener work to it.
+   */
+  private void enqueueEngineTask(Runnable task) {
+    this.config.getLX().engine.addTask(() -> {
+      if (!this.disposed) {
+        task.run();
+      }
+    });
   }
 
   /** Runs every UI loop tick: mirrors the launcher's running state onto Play/Stop, and refreshes the status line. */

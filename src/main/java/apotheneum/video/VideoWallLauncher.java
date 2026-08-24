@@ -168,13 +168,15 @@ final class VideoWallLauncher {
       case FIT:
         return buildFitGraph();
       case FILL:
-        return "[0:v]scale=" + WALL_WIDTH + ":-2:flags=bilinear,crop="
-          + WALL_WIDTH + ":" + WALL_HEIGHT + ":0:(ih-" + WALL_HEIGHT + ")/2[w]";
+        return "[0:v]scale=w=" + WALL_WIDTH + ":h=" + WALL_HEIGHT
+          + ":force_original_aspect_ratio=increase:flags=bilinear,crop="
+          + WALL_WIDTH + ":" + WALL_HEIGHT + ":(iw-ow)/2:(ih-oh)/2[w]";
       case PANELS:
       default:
         final VideoSource source = this.config.activePreset().source.getEnum();
         if ((source.width() != VideoSource.MAX_WIDTH)
-          || (this.config.cropWidth.getValuei() != VideoSource.MAX_WIDTH)) {
+          || (this.config.cropWidth.getValuei() != VideoSource.MAX_WIDTH)
+          || (this.config.cropX.getValuei() != 0)) {
           // Panels splits the source into four equal-width faces; that only
           // lands on the real face boundaries when the source and crop are
           // both the whole perimeter. A single face or partial crop would
@@ -182,6 +184,7 @@ final class VideoWallLauncher {
           ApotheneumVideoPlugin.error(
             "Panels layout needs a " + VideoSource.MAX_WIDTH + "-column perimeter source and crop; source is "
             + source + " (" + source.width() + " columns), cropWidth is " + this.config.cropWidth.getValuei()
+            + ", cropX is " + this.config.cropX.getValuei()
             + ", falling back to Fit");
           return buildFitGraph();
         }

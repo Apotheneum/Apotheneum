@@ -117,6 +117,37 @@ class VideoWallPresetTest extends HeadlessLxTest {
   }
 
   @Test
+  void fillUsesBothWallDimensions() {
+    final LX lx = newHeadlessLx();
+    final ApotheneumVideo config = new ApotheneumVideo(lx);
+    lx.engine.registerComponent(ApotheneumVideo.PATH, config);
+    config.presetA.layout.setValue(ApotheneumVideo.Layout.FILL);
+    config.cropHeight.setValue(20);
+
+    final String filter = filterGraph(new VideoWallLauncher(config, 7878));
+
+    assertTrue(filter.contains("scale=w=2688:h=336:force_original_aspect_ratio=increase"),
+      "Fill must constrain a wide crop by wall height: " + filter);
+    assertTrue(filter.contains("crop=2688:336:(iw-ow)/2:(ih-oh)/2"),
+      "Fill must center-crop the expanded image: " + filter);
+  }
+
+  @Test
+  void panelsFallsBackToFitWithHorizontalCropOffset() {
+    final LX lx = newHeadlessLx();
+    final ApotheneumVideo config = new ApotheneumVideo(lx);
+    lx.engine.registerComponent(ApotheneumVideo.PATH, config);
+    config.presetA.layout.setValue(ApotheneumVideo.Layout.PANELS);
+    config.cropX.setValue(1);
+
+    final String filter = filterGraph(new VideoWallLauncher(config, 7878));
+
+    assertTrue(filter.contains("force_original_aspect_ratio=decrease"),
+      "offset Panels must fall back to Fit: " + filter);
+    assertTrue(!filter.contains("split="), "offset crop must not produce panels: " + filter);
+  }
+
+  @Test
   void commandsTrackTheConfiguredFrameRate() {
     final LX lx = newHeadlessLx();
     final ApotheneumVideo config = new ApotheneumVideo(lx);
@@ -127,6 +158,18 @@ class VideoWallPresetTest extends HeadlessLxTest {
 
     assertEquals("48", optionValue(launcher.buildFfmpegCommand("/usr/bin/ffmpeg"), "-framerate"));
     assertEquals("48", optionValue(launcher.buildFfplayCommand("/usr/bin/ffplay"), "-framerate"));
+  }
+
+  @Test
+  void commandTracksCropDimensions() {
+    final LX lx = newHeadlessLx();
+    final ApotheneumVideo config = new ApotheneumVideo(lx);
+    lx.engine.registerComponent(ApotheneumVideo.PATH, config);
+    config.cropWidth.setValue(150);
+    config.cropHeight.setValue(20);
+
+    assertEquals("150x20", optionValue(
+      new VideoWallLauncher(config, 7878).buildFfmpegCommand("/usr/bin/ffmpeg"), "-video_size"));
   }
 
   private static String filterGraph(VideoWallLauncher launcher) {
