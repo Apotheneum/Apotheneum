@@ -215,15 +215,13 @@ class UIVideoWallPanel extends UICollapsibleSection {
       @Override
       protected void onToggle(boolean active) {
         if (active) {
-          if (!UIVideoWallPanel.this.previewLauncher.isRunning()) {
-            UIVideoWallPanel.this.previewLauncher.startPreview();
-          }
-        } else if (UIVideoWallPanel.this.previewLauncher.isRunning()) {
-          UIVideoWallPanel.this.previewLauncher.stop();
+          UIVideoWallPanel.this.previewLauncher.openOrFocusPreview();
         }
       }
     };
-    this.previewButton.setActiveLabel("Close Preview").setInactiveLabel("Preview");
+    // Preview is an idempotent action rather than a toggle: a second press
+    // brings the existing window forward instead of unexpectedly closing it.
+    this.previewButton.setLabel("Preview").setTriggerable(true);
 
     this.status = (UILabel) new UILabel(0, 0, contentWidth, STATUS_HEIGHT).setBreakLines(true);
 
@@ -354,10 +352,6 @@ class UIVideoWallPanel extends UICollapsibleSection {
     final boolean running = this.launcher.isRunning();
     if (this.playButton.isActive() != running) {
       this.playButton.setActive(running);
-    }
-    final boolean previewRunning = this.previewLauncher.isRunning();
-    if (this.previewButton.isActive() != previewRunning) {
-      this.previewButton.setActive(previewRunning);
     }
     updateStatus();
   }

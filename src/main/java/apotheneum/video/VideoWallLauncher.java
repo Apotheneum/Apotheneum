@@ -323,6 +323,16 @@ final class VideoWallLauncher {
     start(-1, false);
   }
 
+  /** Opens the local preview once, or brings its existing window to the front. */
+  void openOrFocusPreview() {
+    final Playback current = this.playback;
+    if ((current != null) && current.isRunning() && current.matches(-1, false)) {
+      current.focus();
+      return;
+    }
+    startPreview();
+  }
+
   private void start(int displayIndex, boolean fullScreen) {
     final String ffmpegPath = findFfmpeg();
     final String ffplayPath = findFfplay();
@@ -439,6 +449,21 @@ final class VideoWallLauncher {
     waiter.start();
   }
 
+  /** Uses Cocoa's process activation API; unlike Accessibility scripting, this needs no window permission. */
+  private static void focusProcess(Process process) {
+    final String script = "ObjC.import('AppKit'); var app = $.NSRunningApplication"
+      + ".runningApplicationWithProcessIdentifier(" + process.pid() + ");"
+      + "if (app) app.activateWithOptions($.NSApplicationActivateIgnoringOtherApps);";
+    try {
+      new ProcessBuilder("/usr/bin/osascript", "-l", "JavaScript", "-e", script)
+        .redirectOutput(ProcessBuilder.Redirect.DISCARD)
+        .redirectError(ProcessBuilder.Redirect.DISCARD)
+        .start();
+    } catch (IOException iox) {
+      ApotheneumVideoPlugin.error("Failed to bring video preview forward: " + iox.getMessage());
+    }
+  }
+
   private static final class Playback {
 
     private final int displayIndex;
@@ -468,6 +493,10 @@ final class VideoWallLauncher {
 
     private boolean matches(int displayIndex, boolean fullScreen) {
       return (this.displayIndex == displayIndex) && (this.fullScreen == fullScreen);
+    }
+
+    private void focus() {
+      focusProcess(this.ffplay);
     }
 
     private void stop() {
