@@ -86,21 +86,6 @@ class VideoWallPresetTest extends HeadlessLxTest {
   }
 
   @Test
-  void panelsFallsBackToFitForASingleFaceSource() {
-    final LX lx = newHeadlessLx();
-    final ApotheneumVideo config = new ApotheneumVideo(lx);
-    lx.engine.registerComponent(ApotheneumVideo.PATH, config);
-    config.presetA.source.setValue(VideoSource.EXTERIOR_FRONT);
-    config.presetA.layout.setValue(ApotheneumVideo.Layout.PANELS);
-
-    final String filter = filterGraph(new VideoWallLauncher(config, 7878));
-
-    assertTrue(filter.contains("force_original_aspect_ratio=decrease"),
-      "single-face Panels must fall back to Fit: " + filter);
-    assertTrue(!filter.contains("split="), "single-face source must not produce panels: " + filter);
-  }
-
-  @Test
   void fitUsesBothWallDimensions() {
     final LX lx = newHeadlessLx();
     final ApotheneumVideo config = new ApotheneumVideo(lx);
@@ -148,16 +133,33 @@ class VideoWallPresetTest extends HeadlessLxTest {
   }
 
   @Test
-  void commandsTrackTheConfiguredFrameRate() {
+  void commandsUseFixedSixtyFpsLowLatencyPlayback() {
     final LX lx = newHeadlessLx();
     final ApotheneumVideo config = new ApotheneumVideo(lx);
     lx.engine.registerComponent(ApotheneumVideo.PATH, config);
-    config.fps.setValue(48);
 
     final VideoWallLauncher launcher = new VideoWallLauncher(config, 7878);
+    final List<String> ffplay = launcher.buildFfplayCommand("/usr/bin/ffplay");
 
-    assertEquals("48", optionValue(launcher.buildFfmpegCommand("/usr/bin/ffmpeg"), "-framerate"));
-    assertEquals("48", optionValue(launcher.buildFfplayCommand("/usr/bin/ffplay"), "-framerate"));
+    assertEquals("60", optionValue(launcher.buildFfmpegCommand("/usr/bin/ffmpeg"), "-framerate"));
+    assertEquals("60", optionValue(ffplay, "-framerate"));
+    assertEquals("nobuffer", optionValue(ffplay, "-fflags"));
+    assertEquals("low_delay", optionValue(ffplay, "-flags"));
+    assertTrue(ffplay.contains("-framedrop"));
+    assertEquals("ext", optionValue(ffplay, "-sync"));
+  }
+
+  @Test
+  void previewCommandIsWindowedAndTitled() {
+    final LX lx = newHeadlessLx();
+    final ApotheneumVideo config = new ApotheneumVideo(lx);
+    final List<String> command = new VideoWallLauncher(config, 7878)
+      .buildPreviewFfplayCommand("/usr/bin/ffplay");
+
+    assertEquals("Apotheneum Video Preview", optionValue(command, "-window_title"));
+    assertEquals("1344", optionValue(command, "-x"));
+    assertEquals("300", optionValue(command, "-y"));
+    assertTrue(!command.contains("-fs"), "local preview must remain a normal window");
   }
 
   @Test

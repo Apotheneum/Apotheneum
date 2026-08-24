@@ -26,7 +26,6 @@ final class FaceRaster {
   private int y = -1;
   private int width = -1;
   private int height = -1;
-  private boolean maskDoor = false;
   private int[] indices = null;
 
   /**
@@ -34,9 +33,9 @@ final class FaceRaster {
    * corner. Rebuilt only when an input changes. Null when the source is absent
    * from the model.
    */
-  int[] resolve(LXModel model, VideoSource source, int x, int y, int width, int height, boolean maskDoor) {
+  int[] resolve(LXModel model, VideoSource source, int x, int y, int width, int height) {
     if ((model == this.model) && (source == this.source) && (x == this.x) && (y == this.y) &&
-        (width == this.width) && (height == this.height) && (maskDoor == this.maskDoor)) {
+        (width == this.width) && (height == this.height)) {
       return this.indices;
     }
     this.model = model;
@@ -45,8 +44,7 @@ final class FaceRaster {
     this.y = y;
     this.width = width;
     this.height = height;
-    this.maskDoor = maskDoor;
-    this.indices = build(model, source, x, y, width, height, maskDoor);
+    this.indices = build(model, source, x, y, width, height);
     return this.indices;
   }
 
@@ -67,21 +65,11 @@ final class FaceRaster {
     return columns;
   }
 
-  private static int[] build(LXModel model, VideoSource source, int x, int y, int width, int height, boolean maskDoor) {
+  private static int[] build(LXModel model, VideoSource source, int x, int y, int width, int height) {
     final LXModel[] columns = columnsOf(model, source);
     if (columns == null) {
       return null;
     }
-
-    // Door columns carry a full complement of points, but the bottom
-    // DOOR_HEIGHT of them have no physical LED behind them. This repeats what
-    // Cube.Orientation.available() computes rather than calling it, because
-    // that lives on the mutable Apotheneum.cube static, which is rebuilt on the
-    // engine thread and so is not ours to read from a streaming thread. The
-    // modulo matches available()'s, so it lands on every face of a perimeter.
-    final int doorStart = Apotheneum.Cube.DOOR_START_COLUMN;
-    final int doorEnd = doorStart + Apotheneum.DOOR_WIDTH;
-    final int doorTop = Apotheneum.GRID_HEIGHT - Apotheneum.DOOR_HEIGHT;
 
     final int[] indices = new int[width * height];
     for (int row = 0; row < height; ++row) {
@@ -91,11 +79,8 @@ final class FaceRaster {
         final boolean inBounds =
           (faceX < columns.length) && (columns[faceX] != null) &&
           (faceY < columns[faceX].points.length);
-        final int localX = faceX % Apotheneum.GRID_WIDTH;
-        final boolean inDoor =
-          maskDoor && (localX >= doorStart) && (localX < doorEnd) && (faceY >= doorTop);
         indices[col + row * width] =
-          (inBounds && !inDoor) ? columns[faceX].points[faceY].index : MASKED;
+          inBounds ? columns[faceX].points[faceY].index : MASKED;
       }
     }
     return indices;

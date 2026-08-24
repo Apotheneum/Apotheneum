@@ -6,20 +6,19 @@ import heronarts.lx.LXComponent;
 import heronarts.lx.LXEngine;
 import heronarts.lx.LXLoopTask;
 import heronarts.lx.LXPlugin;
-import heronarts.lx.color.LXColor;
 import heronarts.lx.model.LXModel;
 
 /**
- * Streams a cropped rectangle of one cube face out of Chromatik as live video,
+ * Streams a cropped rectangle of the cube perimeter out of Chromatik as live video,
  * at the LEDs' own resolution — one video pixel per LED, no scaling, no
  * encoding: raw {@code rgb24} frames back to back over a plain TCP socket.
  *
  * <p>Consume it with ffplay or ffmpeg, telling it the crop size and the frame
  * rate out of band (the wire carries no header):
- * <pre>ffplay -f rawvideo -pixel_format rgb24 -video_size 200x45 -framerate 30 -i tcp://127.0.0.1:7878</pre>
- * <code>-framerate</code> must match this component's {@code fps} parameter:
- * raw video carries no rate and ffmpeg's rawvideo demuxer assumes 25, so a
- * mismatch does not drop frames, it accumulates latency without bound.
+ * <pre>ffplay -f rawvideo -pixel_format rgb24 -video_size 200x45 -framerate 60 -i tcp://127.0.0.1:7878</pre>
+ * <code>-framerate</code> must be 60: raw video carries no rate and ffmpeg's
+ * rawvideo demuxer assumes 25, so a mismatch does not drop frames, it
+ * accumulates latency without bound.
  * Override the port with <code>-Dapotheneum.video.port=</code>. Any upscaling
  * and letterboxing to the video processor's signal size belongs in the
  * consumer's ffmpeg chain, not here.
@@ -49,6 +48,7 @@ public class ApotheneumVideoPlugin implements LXPlugin {
   // connected, at the same modest per-frame cost RawVideoServer already pays
   // per viewer (a threadsafe buffer copy plus a cached raster resolve).
   private LXEngine.Frame litFrame = null;
+  private byte[] litBuffer = new byte[0];
   private final FaceRaster litRaster = new FaceRaster();
   private final LXLoopTask sampleLitFractionTask = this::sampleLitFraction;
 
@@ -101,7 +101,7 @@ public class ApotheneumVideoPlugin implements LXPlugin {
       + existing.getClass().getName());
   }
 
-  /** Fraction of the crop that is actually lit, for the same source/crop/mask a viewer would receive right now. */
+  /** Fraction of the crop that is actually lit, for the same source and crop a viewer would receive right now. */
   private void sampleLitFraction(double deltaMs) {
     if (!this.config.enabled.isOn()) {
       this.config.setLitFraction(0.0);
@@ -115,25 +115,41 @@ public class ApotheneumVideoPlugin implements LXPlugin {
       this.config.cropX.getValuei(),
       this.config.cropY.getValuei(),
       this.config.cropWidth.getValuei(),
-      this.config.cropHeight.getValuei(),
-      this.config.maskDoor.isOn()
+      this.config.cropHeight.getValuei()
     );
-    this.config.setLitFraction(litFraction(indices, this.litFrame.getMain()));
+    if (indices == null) {
+      this.config.setLitFraction(0.0);
+      return;
+    }
+    final int requiredBytes = indices.length * 3;
+    if (this.litBuffer.length != requiredBytes) {
+      // Crop dimensions change only on operator input, not per render frame.
+      this.litBuffer = new byte[requiredBytes];
+    }
+    RawVideoServer.fill(this.litBuffer, this.litFrame.getMain(), indices);
+    RawVideoServer.bridgeDoorAreas(
+      this.litBuffer,
+      this.config.source.getEnum(),
+      this.config.cropX.getValuei(),
+      this.config.cropY.getValuei(),
+      this.config.cropWidth.getValuei(),
+      this.config.cropHeight.getValuei()
+    );
+    this.config.setLitFraction(litFraction(this.litBuffer));
   }
 
-  /** Fraction of non-black pixels; a null/empty index set (source absent from the model) reports 0. */
-  private static double litFraction(int[] indices, int[] colors) {
-    if ((indices == null) || (indices.length == 0)) {
+  /** Fraction of non-black rgb24 pixels; an empty frame reports 0. */
+  static double litFraction(byte[] rgb24) {
+    if (rgb24.length == 0) {
       return 0.0;
     }
     int lit = 0;
-    for (int index : indices) {
-      final int color = ((index >= 0) && (index < colors.length)) ? colors[index] : LXColor.BLACK;
-      if ((color & 0xffffff) != 0) {
+    for (int at = 0; at < rgb24.length; at += 3) {
+      if ((rgb24[at] != 0) || (rgb24[at + 1] != 0) || (rgb24[at + 2] != 0)) {
         ++lit;
       }
     }
-    return (double) lit / indices.length;
+    return (double) lit / (rgb24.length / 3);
   }
 
   private static final String PREFIX = "[APOTHENEUM VIDEO] ";
@@ -144,6 +160,10 @@ public class ApotheneumVideoPlugin implements LXPlugin {
 
   static void error(String msg) {
     LX.error(PREFIX + msg);
+  }
+
+  static void error(Throwable failure, String msg) {
+    LX.error(failure, PREFIX + msg);
   }
 
 }

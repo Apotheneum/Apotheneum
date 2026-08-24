@@ -4,7 +4,6 @@ import apotheneum.Apotheneum;
 import heronarts.lx.LX;
 import heronarts.lx.LXComponent;
 import heronarts.lx.parameter.BooleanParameter;
-import heronarts.lx.parameter.BoundedParameter;
 import heronarts.lx.parameter.DiscreteParameter;
 import heronarts.lx.parameter.EnumParameter;
 import heronarts.lx.parameter.LXParameterListener;
@@ -32,6 +31,9 @@ public class ApotheneumVideo extends LXComponent {
   /** Engine path; parameters live at <code>/lx/apotheneumVideo/*</code>. */
   public static final String PATH = "apotheneumVideo";
 
+  /** Fixed end-to-end frame rate for the producer, layout process and player. */
+  public static final int FRAME_RATE = 60;
+
   public final BooleanParameter enabled =
     new BooleanParameter("Enabled", true)
     .setDescription("Whether the video stream is running");
@@ -51,14 +53,6 @@ public class ApotheneumVideo extends LXComponent {
   public final DiscreteParameter cropHeight =
     new DiscreteParameter("Height", Apotheneum.GRID_HEIGHT, 1, Apotheneum.GRID_HEIGHT + 1)
     .setDescription("Height of the crop in LED rows");
-
-  public final BoundedParameter fps =
-    new BoundedParameter("FPS", 30, 1, 60)
-    .setDescription("Frames per second sent to connected viewers");
-
-  public final BooleanParameter maskDoor =
-    new BooleanParameter("Mask Door", true)
-    .setDescription("Black out the door cutouts, so the stream matches what is physically lit");
 
   /** How the cropped source is arranged onto the wall's 2688x336 usable picture area. */
   public enum Layout {
@@ -134,8 +128,6 @@ public class ApotheneumVideo extends LXComponent {
     addParameter("cropY", this.cropY);
     addParameter("cropWidth", this.cropWidth);
     addParameter("cropHeight", this.cropHeight);
-    addParameter("fps", this.fps);
-    addParameter("maskDoor", this.maskDoor);
     addParameter("activePreset", this.activePreset);
     addChild("presetA", this.presetA);
     addChild("presetB", this.presetB);

@@ -44,8 +44,9 @@ import heronarts.lx.parameter.LXParameterListener;
  * <p>Editing any of the five preset-owned controls edits the <i>active</i>
  * preset, never a copied-out live set — so switching {@link
  * ApotheneumVideo#activePreset} only ever rebinds which preset's parameters
- * the widgets point at and restarts the pipeline once, rather than copying
- * five values onto five live parameters and firing five separate restarts.
+ * the widgets point at and requests one make-before-break layout change,
+ * rather than copying five values onto five live parameters and firing five
+ * separate changes.
  *
  * <p>Display names come from {@code system_profiler}, run once in a
  * background thread at construction — never on the UI thread, and never
@@ -74,7 +75,7 @@ class UIVideoWallPanel extends UICollapsibleSection {
   private static final float PANELS_GROUP_HEIGHT =
     GROUP_HEADING_HEIGHT + GROUP_ROW_SPACING + 2 * ROW_HEIGHT + GROUP_ROW_SPACING;
   private static final float PLAYBACK_GROUP_HEIGHT =
-    GROUP_HEADING_HEIGHT + GROUP_ROW_SPACING + ROW_HEIGHT + GROUP_ROW_SPACING + CONTROL_HEIGHT;
+    GROUP_HEADING_HEIGHT + GROUP_ROW_SPACING + ROW_HEIGHT + 2 * GROUP_ROW_SPACING + 2 * CONTROL_HEIGHT;
 
   // Between groups and the status line.
   private static final float GROUP_SPACING = 6;
@@ -91,11 +92,13 @@ class UIVideoWallPanel extends UICollapsibleSection {
 
   private final UI ui;
   private final VideoWallLauncher launcher;
+  private final VideoWallLauncher previewLauncher;
   private final ApotheneumVideo config;
   private final String ffplayPath;
 
   private final DiscreteParameter displayIndex;
   private final UIButton playButton;
+  private final UIButton previewButton;
   private final UIDropMenu presetMenu;
   private final UIDropMenu sourceMenu;
   private final UIDropMenu layoutMenu;
@@ -109,7 +112,6 @@ class UIVideoWallPanel extends UICollapsibleSection {
   private final LXLoopTask refreshTask = this::refresh;
 
   private final LXParameterListener displayChangeListener;
-  private final LXParameterListener fpsChangeListener;
   private final LXParameterListener cropDimensionsChangeListener;
   private final LXParameterListener activePresetChangeListener;
   // Bound to whichever preset is currently active; re-bound in bindActivePreset().
@@ -121,10 +123,17 @@ class UIVideoWallPanel extends UICollapsibleSection {
   private Preset boundPreset = null;
   private boolean disposed = false;
 
-  UIVideoWallPanel(UI ui, VideoWallLauncher launcher, ApotheneumVideo config, float width) {
+  UIVideoWallPanel(
+    UI ui,
+    VideoWallLauncher launcher,
+    VideoWallLauncher previewLauncher,
+    ApotheneumVideo config,
+    float width
+  ) {
     super(ui, 0, 0, width, SECTION_HEIGHT);
     this.ui = ui;
     this.launcher = launcher;
+    this.previewLauncher = previewLauncher;
     this.config = config;
     this.ffplayPath = VideoWallLauncher.findFfplay();
 
@@ -135,42 +144,36 @@ class UIVideoWallPanel extends UICollapsibleSection {
 
     this.displayIndex = new DiscreteParameter("Display", genericLabels(DEFAULT_DISPLAY_COUNT));
     // If already playing, the operator plainly means "show it there instead" —
-    // restart on the new setting rather than leaving ffplay running on the old one.
-    this.displayChangeListener = p -> enqueueEngineTask(this::restartIfRunningElseUpdateStatus);
+    // apply the new setting rather than leaving ffplay running on the old one.
+    this.displayChangeListener = p -> enqueueEngineTask(this::applyIfRunningElseUpdateStatus);
     this.displayIndex.addListener(this.displayChangeListener);
 
-    // Raw rgb24 carries no timing metadata. Both ffmpeg and ffplay snapshot
-    // the configured rate at launch, so a live FPS edit must restart an active
-    // pipeline before the producer and consumers drift apart.
-    this.fpsChangeListener = p -> enqueueEngineTask(this::restartIfRunningElseUpdateStatus);
-    this.config.fps.addListener(this.fpsChangeListener);
-
     // A rawvideo connection has no header: both endpoints snapshot its frame
-    // dimensions when it is opened. A live crop-size edit therefore needs the
-    // same reconnect as an FPS edit before the producer and consumer disagree
-    // about how many bytes make up a frame.
-    this.cropDimensionsChangeListener = p -> enqueueEngineTask(this::restartIfRunningElseUpdateStatus);
+    // dimensions when it is opened. A live crop-size edit therefore needs a
+    // reconnect before the producer and consumer disagree about how many
+    // bytes make up a frame.
+    this.cropDimensionsChangeListener = p -> enqueueEngineTask(this::applyIfRunningElseUpdateStatus);
     this.config.cropWidth.addListener(this.cropDimensionsChangeListener);
     this.config.cropHeight.addListener(this.cropDimensionsChangeListener);
 
     // Switching which preset is active is the one control whose whole job is
-    // to change five values at once — it must cause exactly one restart, not
+    // to change five values at once — it must cause exactly one apply, not
     // five. That is why it never copies values onto shared live parameters:
     // it only rebinds which preset's own parameters the widgets and listeners
-    // point at, then restarts (or updates status) a single time.
+    // point at, then applies (or updates status) a single time.
     this.activePresetChangeListener = p -> enqueueEngineTask(this::bindActivePreset);
     this.config.activePreset.addListener(this.activePresetChangeListener);
 
     // Same "if playing, apply live; if not, just reflect it in status" rule as
-    // the display picker above — a layout change is only worth a restart
+    // the display picker above — a layout change is only worth applying
     // while ffplay is actually on screen, and it also may reveal/hide Gap and
     // Panel Count.
     this.presetLayoutChangeListener = p -> enqueueEngineTask(() -> {
       updateGapEnabled();
-      restartIfRunningElseUpdateStatus();
+      applyIfRunningElseUpdateStatus();
     });
     // Source/Processor/Gap/Panel Count all follow the same live-apply rule.
-    this.presetFieldChangeListener = p -> enqueueEngineTask(this::restartIfRunningElseUpdateStatus);
+    this.presetFieldChangeListener = p -> enqueueEngineTask(this::applyIfRunningElseUpdateStatus);
 
     this.presetMenu = new UIDropMenu(0, 0, contentWidth, CONTROL_HEIGHT, this.config.activePreset);
     this.sourceMenu = new UIDropMenu(0, 0, contentWidth, CONTROL_HEIGHT, this.config.presetA.source);
@@ -201,6 +204,18 @@ class UIVideoWallPanel extends UICollapsibleSection {
     };
     this.playButton.setActiveLabel("Stop").setInactiveLabel("Play");
 
+    this.previewButton = new UIButton(0, 0, contentWidth, CONTROL_HEIGHT) {
+      @Override
+      protected void onToggle(boolean active) {
+        if (active) {
+          UIVideoWallPanel.this.previewLauncher.openOrFocusPreview();
+        }
+      }
+    };
+    // Preview is an idempotent action rather than a toggle: a second press
+    // brings the existing window forward instead of unexpectedly closing it.
+    this.previewButton.setLabel("Preview").setTriggerable(true);
+
     this.status = (UILabel) new UILabel(0, 0, contentWidth, STATUS_HEIGHT).setBreakLines(true);
 
     final UI2dContainer presetGroup = UI2dContainer.newVerticalContainer(contentWidth, GROUP_ROW_SPACING,
@@ -224,7 +239,8 @@ class UIVideoWallPanel extends UICollapsibleSection {
     final UI2dContainer playbackGroup = UI2dContainer.newVerticalContainer(contentWidth, GROUP_ROW_SPACING,
       groupHeading(contentWidth, "PLAYBACK"),
       stackedRow(contentWidth, "Display", displayMenu),
-      this.playButton
+      this.playButton,
+      this.previewButton
     );
 
     addChildren(presetGroup, pictureGroup, panelsGroup, playbackGroup, this.status);
@@ -249,7 +265,7 @@ class UIVideoWallPanel extends UICollapsibleSection {
   /**
    * Points every preset-scoped control and listener at the newly active
    * preset, then applies the change exactly once — the hard requirement that
-   * switching presets is a single restart, not one per changed value.
+   * switching presets is a single apply, not one per changed value.
    */
   private void bindActivePreset() {
     final Preset next = this.config.activePreset();
@@ -277,7 +293,7 @@ class UIVideoWallPanel extends UICollapsibleSection {
     this.panelCountBox.setParameter(next.panelCount);
 
     updateGapEnabled();
-    restartIfRunningElseUpdateStatus();
+    applyIfRunningElseUpdateStatus();
   }
 
   /**
@@ -298,7 +314,6 @@ class UIVideoWallPanel extends UICollapsibleSection {
     this.ui.removeLoopTask(this.applyResolvedLabelsTask);
     this.ui.removeLoopTask(this.refreshTask);
     this.displayIndex.removeListener(this.displayChangeListener);
-    this.config.fps.removeListener(this.fpsChangeListener);
     this.config.cropWidth.removeListener(this.cropDimensionsChangeListener);
     this.config.cropHeight.removeListener(this.cropDimensionsChangeListener);
     this.config.activePreset.removeListener(this.activePresetChangeListener);
@@ -333,9 +348,12 @@ class UIVideoWallPanel extends UICollapsibleSection {
     updateStatus();
   }
 
-  private void restartIfRunningElseUpdateStatus() {
+  private void applyIfRunningElseUpdateStatus() {
     if (this.launcher.isRunning()) {
       this.launcher.start(this.displayIndex.getValuei());
+    }
+    if (this.previewLauncher.isRunning()) {
+      this.previewLauncher.startPreview();
     }
     updateStatus();
   }
@@ -355,7 +373,10 @@ class UIVideoWallPanel extends UICollapsibleSection {
     final int cropHeight = this.config.cropHeight.getValuei();
     final String ffplayState = (this.ffplayPath != null) ? "ffplay found" : "ffplay NOT FOUND";
     final String litLabel = String.format("%.1f%% lit", this.config.getLitFraction() * 100.0);
-    this.status.setLabel(displayLabel + " · " + cropWidth + "x" + cropHeight + " · " + ffplayState + " · " + litLabel);
+    final String previewState = this.previewLauncher.isRunning() ? "preview open" : "preview closed";
+    this.status.setLabel(
+      displayLabel + " · " + cropWidth + "x" + cropHeight + " · " + ffplayState + " · "
+      + previewState + " · " + litLabel);
   }
 
   private static String[] genericLabels(int count) {

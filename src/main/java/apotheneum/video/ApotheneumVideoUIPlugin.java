@@ -17,6 +17,7 @@ import heronarts.lx.studio.LXStudio;
 public class ApotheneumVideoUIPlugin implements LXStudio.Plugin {
 
   private VideoWallLauncher launcher = null;
+  private VideoWallLauncher previewLauncher = null;
   private UIVideoWallPanel panel = null;
 
   @Override
@@ -34,7 +35,9 @@ public class ApotheneumVideoUIPlugin implements LXStudio.Plugin {
     }
     final ApotheneumVideo config = (ApotheneumVideo) child;
     this.launcher = new VideoWallLauncher(config, config.getPort());
-    this.panel = new UIVideoWallPanel(ui, this.launcher, config, ui.leftPane.global.getContentWidth());
+    this.previewLauncher = new VideoWallLauncher(config, config.getPort());
+    this.panel = new UIVideoWallPanel(
+      ui, this.launcher, this.previewLauncher, config, ui.leftPane.global.getContentWidth());
     ui.leftPane.global.addChildren(this.panel);
   }
 
@@ -43,6 +46,10 @@ public class ApotheneumVideoUIPlugin implements LXStudio.Plugin {
     if (this.launcher != null) {
       this.launcher.stop();
       this.launcher = null;
+    }
+    if (this.previewLauncher != null) {
+      this.previewLauncher.stop();
+      this.previewLauncher = null;
     }
     if (this.panel != null) {
       this.panel.removeFromContainer();
