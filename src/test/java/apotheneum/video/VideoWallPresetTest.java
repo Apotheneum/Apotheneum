@@ -133,16 +133,20 @@ class VideoWallPresetTest extends HeadlessLxTest {
   }
 
   @Test
-  void commandsTrackTheConfiguredFrameRate() {
+  void commandsUseFixedSixtyFpsLowLatencyPlayback() {
     final LX lx = newHeadlessLx();
     final ApotheneumVideo config = new ApotheneumVideo(lx);
     lx.engine.registerComponent(ApotheneumVideo.PATH, config);
-    config.fps.setValue(48);
 
     final VideoWallLauncher launcher = new VideoWallLauncher(config, 7878);
+    final List<String> ffplay = launcher.buildFfplayCommand("/usr/bin/ffplay");
 
-    assertEquals("48", optionValue(launcher.buildFfmpegCommand("/usr/bin/ffmpeg"), "-framerate"));
-    assertEquals("48", optionValue(launcher.buildFfplayCommand("/usr/bin/ffplay"), "-framerate"));
+    assertEquals("60", optionValue(launcher.buildFfmpegCommand("/usr/bin/ffmpeg"), "-framerate"));
+    assertEquals("60", optionValue(ffplay, "-framerate"));
+    assertEquals("nobuffer", optionValue(ffplay, "-fflags"));
+    assertEquals("low_delay", optionValue(ffplay, "-flags"));
+    assertTrue(ffplay.contains("-framedrop"));
+    assertEquals("ext", optionValue(ffplay, "-sync"));
   }
 
   @Test

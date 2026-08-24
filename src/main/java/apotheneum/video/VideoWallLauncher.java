@@ -131,7 +131,7 @@ final class VideoWallLauncher {
     command.add("-video_size");
     command.add(cropWidth + "x" + cropHeight);
     command.add("-framerate");
-    command.add(formatRate(this.config.fps.getValue()));
+    command.add(Integer.toString(ApotheneumVideo.FRAME_RATE));
     // The TCP feed carries no rate of its own and ffmpeg buffers a socket
     // input by default; without these, latency on the live feed grows
     // unbounded instead of staying current.
@@ -177,7 +177,18 @@ final class VideoWallLauncher {
     command.add("-video_size");
     command.add(OUTPUT_WIDTH + "x" + OUTPUT_HEIGHT);
     command.add("-framerate");
-    command.add(formatRate(this.config.fps.getValue()));
+    command.add(Integer.toString(ApotheneumVideo.FRAME_RATE));
+    // ffplay otherwise queues raw frames to preserve presentation timing.
+    // For a live lighting feed, stale frames are worse than dropped ones:
+    // keep the input queue shallow and follow the external clock so the
+    // screen always converges on the newest complete frame.
+    command.add("-fflags");
+    command.add("nobuffer");
+    command.add("-flags");
+    command.add("low_delay");
+    command.add("-framedrop");
+    command.add("-sync");
+    command.add("ext");
     if (!fullScreen) {
       command.add("-window_title");
       command.add(PREVIEW_TITLE);
@@ -810,13 +821,6 @@ final class VideoWallLauncher {
       Thread.currentThread().interrupt();
       process.destroyForcibly();
     }
-  }
-
-  private static String formatRate(double fps) {
-    if (fps == Math.rint(fps)) {
-      return Long.toString((long) fps);
-    }
-    return Double.toString(fps);
   }
 
 }

@@ -178,7 +178,7 @@ final class RawVideoServer {
         out.write(buffer);
         out.flush();
 
-        final long periodNanos = (long) (1_000_000_000.0 / this.config.fps.getValue());
+        final long periodNanos = 1_000_000_000L / ApotheneumVideo.FRAME_RATE;
         nextFrameNanos += periodNanos;
 
         final long sleepNanos = nextFrameNanos - System.nanoTime();

@@ -10,16 +10,16 @@ import heronarts.lx.color.LXColor;
 import heronarts.lx.model.LXModel;
 
 /**
- * Streams a cropped rectangle of one cube face out of Chromatik as live video,
+ * Streams a cropped rectangle of the cube perimeter out of Chromatik as live video,
  * at the LEDs' own resolution — one video pixel per LED, no scaling, no
  * encoding: raw {@code rgb24} frames back to back over a plain TCP socket.
  *
  * <p>Consume it with ffplay or ffmpeg, telling it the crop size and the frame
  * rate out of band (the wire carries no header):
- * <pre>ffplay -f rawvideo -pixel_format rgb24 -video_size 200x45 -framerate 30 -i tcp://127.0.0.1:7878</pre>
- * <code>-framerate</code> must match this component's {@code fps} parameter:
- * raw video carries no rate and ffmpeg's rawvideo demuxer assumes 25, so a
- * mismatch does not drop frames, it accumulates latency without bound.
+ * <pre>ffplay -f rawvideo -pixel_format rgb24 -video_size 200x45 -framerate 60 -i tcp://127.0.0.1:7878</pre>
+ * <code>-framerate</code> must be 60: raw video carries no rate and ffmpeg's
+ * rawvideo demuxer assumes 25, so a mismatch does not drop frames, it
+ * accumulates latency without bound.
  * Override the port with <code>-Dapotheneum.video.port=</code>. Any upscaling
  * and letterboxing to the video processor's signal size belongs in the
  * consumer's ffmpeg chain, not here.

@@ -17,10 +17,9 @@ import heronarts.lx.parameter.EnumParameter;
  * paths (e.g. <code>/lx/apotheneumVideo/presetA/layout</code>), addressable
  * over OSC and MCP exactly like everything else.
  *
- * <p>{@code cropX}/{@code cropY}/{@code cropWidth}/{@code cropHeight},
- * {@code fps} and {@code enabled} are not here: they describe the feed itself,
- * not the wall's presentation of it, so they stay global on
- * {@link ApotheneumVideo}.
+ * <p>{@code cropX}/{@code cropY}/{@code cropWidth}/{@code cropHeight} and
+ * {@code enabled} are not here: they describe the feed itself, not the wall's
+ * presentation of it, so they stay global on {@link ApotheneumVideo}.
  */
 public class Preset extends LXComponent {
 
