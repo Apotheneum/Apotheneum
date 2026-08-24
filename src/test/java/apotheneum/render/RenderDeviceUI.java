@@ -1,6 +1,8 @@
 package apotheneum.render;
 
 import apotheneum.Apotheneum;
+import apotheneum.doved.effects.LinkedColorize;
+import apotheneum.doved.modulators.ColorizeStyle;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
@@ -15,14 +17,20 @@ import heronarts.glx.ui.component.UILabel;
 import heronarts.glx.ui.component.UIParameterComponent;
 import heronarts.glx.ui.vg.VGraphics;
 import heronarts.lx.LX;
+import heronarts.lx.effect.LXEffect;
 import heronarts.lx.mixer.LXChannel;
 import heronarts.lx.midi.template.LXMidiTemplate;
+import heronarts.lx.modulator.LXModulator;
 import heronarts.lx.parameter.LXParameter;
 import heronarts.lx.pattern.LXPattern;
+import heronarts.lx.pattern.color.SolidPattern;
 import heronarts.lx.studio.LXStudio;
 import heronarts.lx.studio.ui.device.UIDeviceBin;
+import heronarts.lx.studio.ui.device.UIEffectDevice;
 import heronarts.lx.studio.ui.device.UIPatternDevice;
 import heronarts.lx.studio.ui.midi.template.UIMidiTemplate;
+import heronarts.lx.studio.ui.modulation.UIModulator;
+import heronarts.lx.studio.ui.modulation.UIModulatorControls;
 import heronarts.lx.structure.JsonFixture;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
@@ -46,7 +54,8 @@ import org.lwjgl.bgfx.BGFX;
 import org.lwjgl.glfw.GLFW;
 
 /**
- * Renders one pattern or MIDI template's real Chromatik device panel to PNG and JSON.
+ * Renders one pattern, effect, global modulator, or MIDI template's real Chromatik panel to PNG
+ * and JSON.
  *
  * <p>This class deliberately lives in test scope. It is launched by {@code scripts/render-ui}
  * against the official Chromatik application runtime and never enters the package jar.
@@ -58,13 +67,17 @@ public final class RenderDeviceUI {
   private static final int READBACK_SETTLE_FRAMES = 30;
   // 4 columns × 52px, plus UIMidiTemplate's 8px horizontal content inset.
   private static final int MIDI_TEMPLATE_WIDTH = 216;
+  private static final int MODULATOR_PANEL_WIDTH = 164;
+  private static final int MODULATOR_PANEL_HEIGHT = 160;
   private static final String FIXTURE_NAME = "Apotheneum";
   private static final Path SOURCE_FIXTURE =
     Path.of("src", "main", "resources", "fixtures", FIXTURE_NAME + ".lxf");
   private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
   private static Class<? extends LXPattern> patternClass;
+  private static Class<? extends LXEffect> effectClass;
   private static Class<? extends LXMidiTemplate> midiTemplateClass;
+  private static Class<? extends LXModulator> modulatorClass;
   private static Class<?> componentClass;
   private static Path outputDirectory;
   private static volatile Throwable failure;
@@ -75,7 +88,9 @@ public final class RenderDeviceUI {
   public static void main(String[] args) throws Exception {
     if (args.length < 1 || args.length > 2) {
       throw new IllegalArgumentException(
-        "Usage: RenderDeviceUI <fully-qualified LXPattern or LXMidiTemplate class> [output-directory]");
+        "Usage: RenderDeviceUI <fully-qualified LXPattern, LXEffect, LXMidiTemplate, or " +
+        "LXModulator class> " +
+        "[output-directory]");
     }
     loadComponentClass(args[0]);
     outputDirectory = args.length == 2 ? Path.of(args[1]) : Path.of("target", "ui-review");
@@ -122,14 +137,22 @@ public final class RenderDeviceUI {
   private static void loadComponentClass(String className)
     throws ClassNotFoundException, NoSuchMethodException {
     final Class<?> candidate = RenderDeviceUI.class.getClassLoader().loadClass(className);
-    candidate.getConstructor(LX.class);
     componentClass = candidate;
     if (LXPattern.class.isAssignableFrom(candidate)) {
+      candidate.getConstructor(LX.class);
       patternClass = candidate.asSubclass(LXPattern.class);
+    } else if (LXEffect.class.isAssignableFrom(candidate)) {
+      candidate.getConstructor(LX.class);
+      effectClass = candidate.asSubclass(LXEffect.class);
     } else if (LXMidiTemplate.class.isAssignableFrom(candidate)) {
+      candidate.getConstructor(LX.class);
       midiTemplateClass = candidate.asSubclass(LXMidiTemplate.class);
+    } else if (LXModulator.class.isAssignableFrom(candidate)) {
+      candidate.getConstructor();
+      modulatorClass = candidate.asSubclass(LXModulator.class);
     } else {
-      throw new IllegalArgumentException(className + " does not extend LXPattern or LXMidiTemplate");
+      throw new IllegalArgumentException(
+        className + " does not extend LXPattern, LXEffect, LXMidiTemplate, or LXModulator");
     }
   }
 
@@ -224,8 +247,16 @@ public final class RenderDeviceUI {
 
   private static void prepareInstallationAndCapture(LXStudio.UI ui, LXStudio studio) {
     try {
-      if (patternClass == null) {
+      if (midiTemplateClass != null) {
         prepareMidiTemplateAndCapture(ui, studio);
+        return;
+      }
+      if (effectClass != null) {
+        prepareEffectAndCapture(ui, studio);
+        return;
+      }
+      if (modulatorClass != null) {
+        prepareModulatorAndCapture(ui, studio);
         return;
       }
       studio.structure.removeFixtures(List.copyOf(studio.structure.fixtures));
@@ -265,6 +296,42 @@ public final class RenderDeviceUI {
     }
   }
 
+  private static void prepareEffectAndCapture(LXStudio.UI ui, LXStudio studio) {
+    try {
+      final LXPattern pattern = new SolidPattern(studio);
+      final LXChannel channel = studio.engine.mixer.addChannel(new LXPattern[] { pattern });
+      studio.engine.mixer.setFocusedChannel(channel);
+      final LXEffect effect = effectClass.getConstructor(LX.class).newInstance(studio);
+      seedEffectStyle(studio, effect);
+      pattern.addEffect(effect, 0);
+      ui.addLayer(new CaptureLayer(ui, studio, channel, effect));
+      log("effect=" + effectClass.getName());
+    } catch (Throwable x) {
+      fail(studio, x);
+    }
+  }
+
+  private static void seedEffectStyle(LXStudio studio, LXEffect effect) {
+    if (effect instanceof LinkedColorize linkedColorize) {
+      final ColorizeStyle style = studio.engine.modulation.addModulator(
+        new ColorizeStyle("Style A"));
+      style.color1.setColor(0xff24105c);
+      style.color2.setColor(0xffd47bff);
+      linkedColorize.style.setValue(style);
+    }
+  }
+
+  private static void prepareModulatorAndCapture(LXStudio.UI ui, LXStudio studio) {
+    try {
+      final LXModulator modulator = studio.engine.modulation.addModulator(
+        modulatorClass.getConstructor().newInstance());
+      ui.addLayer(new CaptureLayer(ui, studio, modulator));
+      log("modulator=" + modulatorClass.getName());
+    } catch (Throwable x) {
+      fail(studio, x);
+    }
+  }
+
   private static final class CaptureLayer extends UI2dContext {
     private final LXStudio studio;
     private final UI2dComponent device;
@@ -287,6 +354,38 @@ public final class RenderDeviceUI {
       }
 
       setSize(bin.getWidth(), bin.getHeight());
+      this.pixelWidth = Math.round(getWidth() * ui.getContentScaleX());
+      this.pixelHeight = Math.round(getHeight() * ui.getContentScaleY());
+      this.pixels = ByteBuffer.allocateDirect(this.pixelWidth * this.pixelHeight * 4)
+        .order(ByteOrder.nativeOrder());
+    }
+
+    private CaptureLayer(
+      LXStudio.UI ui, LXStudio studio, LXChannel channel, LXEffect effect) {
+      super(ui, 20, 100, 600, UIDeviceBin.HEIGHT);
+      this.studio = studio;
+
+      final UIDeviceBin bin = new UIDeviceBin(ui, channel);
+      bin.addToContainer(this);
+      this.device = findEffectDevice(bin, effect);
+      if (this.device == null) {
+        throw new IllegalStateException("Chromatik did not create a device UI for " + effectClass);
+      }
+
+      setSize(bin.getWidth(), bin.getHeight());
+      this.pixelWidth = Math.round(getWidth() * ui.getContentScaleX());
+      this.pixelHeight = Math.round(getHeight() * ui.getContentScaleY());
+      this.pixels = ByteBuffer.allocateDirect(this.pixelWidth * this.pixelHeight * 4)
+        .order(ByteOrder.nativeOrder());
+    }
+
+    private CaptureLayer(LXStudio.UI ui, LXStudio studio, LXModulator modulator) {
+      super(ui, 20, 100, MODULATOR_PANEL_WIDTH, MODULATOR_PANEL_HEIGHT);
+      this.studio = studio;
+      this.device = new RenderModulatorPanel(ui, modulator);
+      this.device.addToContainer(this);
+
+      setSize(this.device.getWidth(), this.device.getHeight());
       this.pixelWidth = Math.round(getWidth() * ui.getContentScaleX());
       this.pixelHeight = Math.round(getHeight() * ui.getContentScaleY());
       this.pixels = ByteBuffer.allocateDirect(this.pixelWidth * this.pixelHeight * 4)
@@ -412,6 +511,44 @@ public final class RenderDeviceUI {
       }
     }
     return null;
+  }
+
+  private static UIEffectDevice findEffectDevice(UIObject object, LXEffect effect) {
+    if (object instanceof UIEffectDevice device && device.effect == effect) {
+      return device;
+    }
+    if (object instanceof UI2dContainer container) {
+      for (UIObject child : container.getChildren()) {
+        final UIEffectDevice found = findEffectDevice(child, effect);
+        if (found != null) {
+          return found;
+        }
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Global modulators do not have a public concrete panel class, unlike device modulators.
+   * This small renderer-only host uses LX Studio's real control factory and control layout.
+   */
+  @SuppressWarnings({ "rawtypes", "unchecked" })
+  private static final class RenderModulatorPanel extends UIModulator {
+    private final UIModulatorControls controls;
+
+    private RenderModulatorPanel(LXStudio.UI ui, LXModulator modulator) {
+      super(ui, modulator, 0, 0, MODULATOR_PANEL_WIDTH, MODULATOR_PANEL_HEIGHT);
+      setContentTarget(new UI2dContainer(0, 0, MODULATOR_PANEL_WIDTH, MODULATOR_PANEL_HEIGHT));
+      this.controls = ui.instantiateModulatorControls(modulator);
+      this.controls.buildModulatorControls(ui, this, modulator);
+    }
+
+    @Override
+    public void dispose() {
+      this.controls.disposeModulatorControls((LXStudio.UI) this.ui, this,
+        (LXModulator) this.modulator);
+      super.dispose();
+    }
   }
 
   private static JsonObject describe(UIObject object, List<String> warnings) {
