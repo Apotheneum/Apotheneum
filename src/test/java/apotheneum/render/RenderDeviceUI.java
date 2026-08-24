@@ -8,6 +8,7 @@ import com.google.gson.JsonObject;
 import heronarts.glx.WindowCloser;
 import heronarts.glx.ui.UI;
 import heronarts.glx.ui.UI2dContainer;
+import heronarts.glx.ui.UI2dComponent;
 import heronarts.glx.ui.UI2dContext;
 import heronarts.glx.ui.UIObject;
 import heronarts.glx.ui.component.UILabel;
@@ -15,11 +16,13 @@ import heronarts.glx.ui.component.UIParameterComponent;
 import heronarts.glx.ui.vg.VGraphics;
 import heronarts.lx.LX;
 import heronarts.lx.mixer.LXChannel;
+import heronarts.lx.midi.template.LXMidiTemplate;
 import heronarts.lx.parameter.LXParameter;
 import heronarts.lx.pattern.LXPattern;
 import heronarts.lx.studio.LXStudio;
 import heronarts.lx.studio.ui.device.UIDeviceBin;
 import heronarts.lx.studio.ui.device.UIPatternDevice;
+import heronarts.lx.studio.ui.midi.template.UIMidiTemplate;
 import heronarts.lx.structure.JsonFixture;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
@@ -43,7 +46,7 @@ import org.lwjgl.bgfx.BGFX;
 import org.lwjgl.glfw.GLFW;
 
 /**
- * Renders one pattern's real Chromatik device panel to PNG and JSON.
+ * Renders one pattern or MIDI template's real Chromatik device panel to PNG and JSON.
  *
  * <p>This class deliberately lives in test scope. It is launched by {@code scripts/render-ui}
  * against the official Chromatik application runtime and never enters the package jar.
@@ -53,12 +56,16 @@ public final class RenderDeviceUI {
   private static final Duration STARTUP_TIMEOUT = Duration.ofSeconds(30);
   private static final int DRAW_FRAMES_BEFORE_READBACK = 60;
   private static final int READBACK_SETTLE_FRAMES = 30;
+  // 4 columns × 52px, plus UIMidiTemplate's 8px horizontal content inset.
+  private static final int MIDI_TEMPLATE_WIDTH = 216;
   private static final String FIXTURE_NAME = "Apotheneum";
   private static final Path SOURCE_FIXTURE =
     Path.of("src", "main", "resources", "fixtures", FIXTURE_NAME + ".lxf");
   private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
   private static Class<? extends LXPattern> patternClass;
+  private static Class<? extends LXMidiTemplate> midiTemplateClass;
+  private static Class<?> componentClass;
   private static Path outputDirectory;
   private static volatile Throwable failure;
   private static volatile boolean completed;
@@ -68,13 +75,15 @@ public final class RenderDeviceUI {
   public static void main(String[] args) throws Exception {
     if (args.length < 1 || args.length > 2) {
       throw new IllegalArgumentException(
-        "Usage: RenderDeviceUI <fully-qualified LXPattern class> [output-directory]");
+        "Usage: RenderDeviceUI <fully-qualified LXPattern or LXMidiTemplate class> [output-directory]");
     }
-    patternClass = loadPatternClass(args[0]);
+    loadComponentClass(args[0]);
     outputDirectory = args.length == 2 ? Path.of(args[1]) : Path.of("target", "ui-review");
     Files.createDirectories(outputDirectory);
-    clearPreviousArtifacts(outputDirectory, patternClass.getSimpleName());
-    installIsolatedFixtureMedia();
+    clearPreviousArtifacts(outputDirectory, componentClass.getSimpleName());
+    if (patternClass != null) {
+      installIsolatedFixtureMedia();
+    }
 
     initializeInvisibleGlfw();
     final Thread controller = new Thread(RenderDeviceUI::control, "device UI render controller");
@@ -110,14 +119,18 @@ public final class RenderDeviceUI {
     }
   }
 
-  private static Class<? extends LXPattern> loadPatternClass(String className)
+  private static void loadComponentClass(String className)
     throws ClassNotFoundException, NoSuchMethodException {
     final Class<?> candidate = RenderDeviceUI.class.getClassLoader().loadClass(className);
-    if (!LXPattern.class.isAssignableFrom(candidate)) {
-      throw new IllegalArgumentException(className + " does not extend LXPattern");
-    }
     candidate.getConstructor(LX.class);
-    return candidate.asSubclass(LXPattern.class);
+    componentClass = candidate;
+    if (LXPattern.class.isAssignableFrom(candidate)) {
+      patternClass = candidate.asSubclass(LXPattern.class);
+    } else if (LXMidiTemplate.class.isAssignableFrom(candidate)) {
+      midiTemplateClass = candidate.asSubclass(LXMidiTemplate.class);
+    } else {
+      throw new IllegalArgumentException(className + " does not extend LXPattern or LXMidiTemplate");
+    }
   }
 
   private static void initializeInvisibleGlfw() {
@@ -211,6 +224,10 @@ public final class RenderDeviceUI {
 
   private static void prepareInstallationAndCapture(LXStudio.UI ui, LXStudio studio) {
     try {
+      if (patternClass == null) {
+        prepareMidiTemplateAndCapture(ui, studio);
+        return;
+      }
       studio.structure.removeFixtures(List.copyOf(studio.structure.fixtures));
       final JsonFixture fixture = new JsonFixture(studio, FIXTURE_NAME);
       studio.structure.addFixture(fixture);
@@ -237,10 +254,20 @@ public final class RenderDeviceUI {
     }
   }
 
+  private static void prepareMidiTemplateAndCapture(LXStudio.UI ui, LXStudio studio) {
+    try {
+      final LXMidiTemplate template = midiTemplateClass.getConstructor(LX.class).newInstance(studio);
+      studio.engine.midi.addTemplate(template);
+      ui.addLayer(new CaptureLayer(ui, studio, template));
+      log("midiTemplate=" + midiTemplateClass.getName());
+    } catch (Throwable x) {
+      fail(studio, x);
+    }
+  }
+
   private static final class CaptureLayer extends UI2dContext {
     private final LXStudio studio;
-    private final LXPattern pattern;
-    private final UIPatternDevice device;
+    private final UI2dComponent device;
     private final int pixelWidth;
     private final int pixelHeight;
     private final ByteBuffer pixels;
@@ -251,7 +278,6 @@ public final class RenderDeviceUI {
       LXStudio.UI ui, LXStudio studio, LXChannel channel, LXPattern pattern) {
       super(ui, 20, 100, 600, UIDeviceBin.HEIGHT);
       this.studio = studio;
-      this.pattern = pattern;
 
       final UIDeviceBin bin = new UIDeviceBin(ui, channel);
       bin.addToContainer(this);
@@ -261,6 +287,19 @@ public final class RenderDeviceUI {
       }
 
       setSize(bin.getWidth(), bin.getHeight());
+      this.pixelWidth = Math.round(getWidth() * ui.getContentScaleX());
+      this.pixelHeight = Math.round(getHeight() * ui.getContentScaleY());
+      this.pixels = ByteBuffer.allocateDirect(this.pixelWidth * this.pixelHeight * 4)
+        .order(ByteOrder.nativeOrder());
+    }
+
+    private CaptureLayer(LXStudio.UI ui, LXStudio studio, LXMidiTemplate template) {
+      super(ui, 20, 100, 600, 900);
+      this.studio = studio;
+      this.device = new UIMidiTemplate(ui, template, MIDI_TEMPLATE_WIDTH);
+      this.device.addToContainer(this);
+
+      setSize(this.device.getWidth(), this.device.getHeight());
       this.pixelWidth = Math.round(getWidth() * ui.getContentScaleX());
       this.pixelHeight = Math.round(getHeight() * ui.getContentScaleY());
       this.pixels = ByteBuffer.allocateDirect(this.pixelWidth * this.pixelHeight * 4)
@@ -303,7 +342,7 @@ public final class RenderDeviceUI {
     }
 
     private void writeArtifacts(UI ui) throws IOException {
-      final String baseName = this.pattern.getClass().getSimpleName();
+      final String baseName = componentClass.getSimpleName();
       final Path pngPath = outputDirectory.resolve(baseName + ".png");
       final Path jsonPath = outputDirectory.resolve(baseName + ".json");
 
@@ -346,7 +385,7 @@ public final class RenderDeviceUI {
     private void writeLayoutJson(UI ui, Path pngPath, Path jsonPath) throws IOException {
       final List<String> warnings = new ArrayList<>();
       final JsonObject document = new JsonObject();
-      document.addProperty("componentClass", this.pattern.getClass().getName());
+      document.addProperty("componentClass", componentClass.getName());
       document.addProperty("image", pngPath.getFileName().toString());
       document.addProperty("contentScaleX", ui.getContentScaleX());
       document.addProperty("contentScaleY", ui.getContentScaleY());

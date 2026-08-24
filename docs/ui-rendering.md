@@ -1,15 +1,21 @@
-# Rendering a pattern's device UI
+# Rendering a component UI
 
-`scripts/render-ui` captures the real Chromatik device panel for a pattern without
+`scripts/render-ui` captures the real Chromatik device panel for a pattern or MIDI template without
 installing the Apotheneum package or opening visible windows. It writes both pixels and
 structure so a developer or coding agent can judge the UI it just changed.
 
 ## Run it
 
-Pass the pattern's fully-qualified class name:
+Pass the component's fully-qualified class name:
 
 ```bash
 ./scripts/render-ui apotheneum.doved.patterns.Fireflies
+```
+
+MIDI templates render their dedicated MIDI-template panel:
+
+```bash
+./scripts/render-ui apotheneum.doved.midi.MidiFighterTwister64
 ```
 
 The default output directory is `target/ui-review/`:
@@ -31,9 +37,9 @@ parameter controls.
 
 ## Use it as a feedback loop
 
-Rendering is part of both implementation and code review whenever a change adds a pattern,
-changes its registered parameters, or changes its device controls. Identify every affected
-pattern class from the diff and render each one. A reviewer with a supported environment
+Rendering is part of both implementation and code review whenever a change adds a pattern or MIDI
+template, changes its registered parameters, or changes its device controls. Identify every affected
+component class from the diff and render each one. A reviewer with a supported environment
 should render the current PR head independently even when the author already attached an
 image; the attachment is evidence for the conversation, while the local render verifies the
 code currently under review.
@@ -73,12 +79,11 @@ The renderer uses Chromatik's official application runtime to construct the real
 
 - macOS and Chromatik installed in `/Applications`;
 - JDK 25, as used by the Maven build;
-- a pattern class with a public constructor accepting `LX`.
+- an `LXPattern` or `LXMidiTemplate` class with a public constructor accepting `LX`.
 
 Set `CHROMATIK_JAR` to use an application runtime jar in another location.
 
-This first version renders patterns. Effects need a known host pattern, and modulators
-need both a host and a named target parameter; adding those comparison workflows is
-separate work. Automated `--changed` discovery and Linux CI are also future work. Linux
+Effects need a known host pattern, and modulators need both a host and a named target parameter;
+adding those comparison workflows is separate work. Automated `--changed` discovery and Linux CI are also future work. Linux
 will need a tested Xvfb/software-OpenGL path, while this version deliberately uses the
 known-good macOS Metal readback path.
