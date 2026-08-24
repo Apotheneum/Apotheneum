@@ -34,6 +34,7 @@ import heronarts.lx.color.LXDynamicColor;
 import heronarts.lx.model.LXModel;
 import heronarts.lx.model.LXPoint;
 import heronarts.lx.osc.LXOscComponent;
+import heronarts.lx.parameter.CompoundDiscreteParameter;
 import heronarts.lx.parameter.CompoundParameter;
 import heronarts.lx.parameter.LXParameterListener;
 import heronarts.lx.studio.LXStudio.UI;
@@ -116,8 +117,10 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
     new CompoundParameter("Slide Speed", 11, 2, 30)
     .setDescription("Water speed while sliding around a rock");
 
-  public final CompoundParameter waterDensity =
-    new CompoundParameter("Water Density", 100, 0, WATER_DENSITY_PARAMETER_MAX)
+  public final CompoundDiscreteParameter waterDensity =
+    // DiscreteParameter's 4-arg (value, min, max) ctor treats max as exclusive,
+    // so +1 keeps WATER_DENSITY_PARAMETER_MAX itself reachable.
+    new CompoundDiscreteParameter("Water Density", 100, 0, WATER_DENSITY_PARAMETER_MAX + 1)
     .setDescription("Water droplet density as a percentage of the base pools");
 
   public final CompoundParameter streak =
@@ -403,7 +406,7 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
     for (int i = 0; i < this.activeRockCount; ++i) {
       this.rocks[i].visibility = 1;
     }
-    setWaterDensity((int) Math.round(this.waterDensity.getValue()));
+    setWaterDensity(this.waterDensity.getValuei());
   }
 
   private void initializeProjectedOutput() {
@@ -772,7 +775,7 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
     }
     final double dt = Math.min(MAX_DELTA_SECONDS, deltaMs * .001);
     updateDerivedValues();
-    setWaterDensity((int) Math.round(this.waterDensity.getValue()));
+    setWaterDensity(this.waterDensity.getValuei());
     updateRockProperties();
     updateRockVisibility(dt);
     this.rockColor.update();
