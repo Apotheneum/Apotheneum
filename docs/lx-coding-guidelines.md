@@ -267,17 +267,34 @@ they throw `IllegalArgumentException` only for construction-time config errors
 the initial value into `Range` rather than rejecting it. Don't write
 verification logic that assumes the value you set is the value you read back.
 
-**Performance-facing parameters must be `CompoundParameter`.** LX only allows
+**Performance-facing parameters must be a compound type.** LX only allows
 modulation (modulators, macros, envelopes, MIDI-mapped macro chains) to
-terminate on compound parameters — a `DiscreteParameter` accepts manual edits
-and OSC but can never be driven by a modulator, and the failure only surfaces
-when someone tries to automate it, often long after the parameter shipped.
-Reach for `DiscreteParameter` only for genuine enumerations: mode selectors,
-or counts that index a fixed array of qualitatively different options. A
-continuous-feeling quantity — density, count, size, amount, speed — must be
-`CompoundParameter` even when the implementation ultimately rounds to an int;
-round at the point of use (`(int) Math.round(param.getValue())`), not by
-choosing the parameter type.
+terminate on compound parameters — a plain `DiscreteParameter` accepts manual
+edits and OSC but can never be driven by a modulator, and the failure only
+surfaces when someone tries to automate it, often long after the parameter
+shipped. Reach for plain `DiscreteParameter` only for genuine enumerations:
+mode selectors, or counts that index a fixed array of qualitatively different
+options.
+
+A continuous-feeling quantity — density, count, size, amount, speed — needs
+whichever compound type matches its underlying value:
+
+- **`CompoundParameter`** for a quantity that's inherently a `double`
+  (speed, amount, level, a fractional scale).
+- **`CompoundDiscreteParameter`** for a quantity that's inherently an integer
+  count with its own min/max (droplet density, particle counts, a number of
+  repetitions). It extends `DiscreteParameter` — so `getValuei()`/`getIndex()`
+  keep working and the UI shows integer steps — while also implementing
+  `LXCompoundModulation.Target` like `CompoundParameter` does, so it
+  terminates modulation directly. Don't reach for `CompoundParameter` on an
+  int-valued field and round at the read site instead; that was tried for
+  `Rockfall.waterDensity` in #104 and reviewed back to
+  `CompoundDiscreteParameter`, which needs no rounding logic at all.
+
+One gotcha when converting: `DiscreteParameter`'s `(value, min, max)`
+constructor (which `CompoundDiscreteParameter` inherits) treats `max` as
+**exclusive**, unlike `CompoundParameter`'s inclusive `max` — pass `max + 1`
+if the old inclusive top value must stay reachable.
 
 ### 14. Serialization: `LXSerializable`, `KEY_*` constants, `Utils` helpers
 
@@ -394,8 +411,10 @@ it.
 - **Parameters are `public final` and registered** with `addParameter` in the
   constructor; no read-back logic that assumes no clamping (§13).
 - **Any new `DiscreteParameter`: is it a true enumeration?** If it's a
-  continuous quantity (density, count, size, amount, speed), it must be
-  `CompoundParameter` or it can never be modulated (§13).
+  continuous quantity (density, count, size, amount, speed), it must be a
+  compound type — `CompoundParameter` for a `double`-valued quantity,
+  `CompoundDiscreteParameter` for an int-valued count — or it can never be
+  modulated (§13).
 - **Serialized state uses `KEY_*` constants, `Utils` helpers, and `obj.has(key)`
   guards** on every read (§14).
 - **Mutations that must be known to have applied read state back** —
