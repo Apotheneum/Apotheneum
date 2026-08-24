@@ -56,10 +56,6 @@ public class ApotheneumVideo extends LXComponent {
     new BoundedParameter("FPS", 30, 1, 60)
     .setDescription("Frames per second sent to connected viewers");
 
-  public final BooleanParameter maskDoor =
-    new BooleanParameter("Mask Door", true)
-    .setDescription("Black out the door cutouts, so the stream matches what is physically lit");
-
   /** How the cropped source is arranged onto the wall's 2688x336 usable picture area. */
   public enum Layout {
     /** Splits the source into four faces, each stretched to fill its own panel, with gaps in between. */
@@ -135,7 +131,6 @@ public class ApotheneumVideo extends LXComponent {
     addParameter("cropWidth", this.cropWidth);
     addParameter("cropHeight", this.cropHeight);
     addParameter("fps", this.fps);
-    addParameter("maskDoor", this.maskDoor);
     addParameter("activePreset", this.activePreset);
     addChild("presetA", this.presetA);
     addChild("presetB", this.presetB);

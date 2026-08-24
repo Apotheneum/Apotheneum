@@ -158,8 +158,7 @@ final class RawVideoServer {
             this.config.cropX.getValuei(),
             this.config.cropY.getValuei(),
             cropWidth,
-            cropHeight,
-            this.config.maskDoor.isOn()
+            cropHeight
           );
           fill(buffer, frame.getMain(), indices);
         } else {

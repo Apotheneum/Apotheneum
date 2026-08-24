@@ -101,7 +101,7 @@ public class ApotheneumVideoPlugin implements LXPlugin {
       + existing.getClass().getName());
   }
 
-  /** Fraction of the crop that is actually lit, for the same source/crop/mask a viewer would receive right now. */
+  /** Fraction of the crop that is actually lit, for the same source and crop a viewer would receive right now. */
   private void sampleLitFraction(double deltaMs) {
     if (!this.config.enabled.isOn()) {
       this.config.setLitFraction(0.0);
@@ -115,8 +115,7 @@ public class ApotheneumVideoPlugin implements LXPlugin {
       this.config.cropX.getValuei(),
       this.config.cropY.getValuei(),
       this.config.cropWidth.getValuei(),
-      this.config.cropHeight.getValuei(),
-      this.config.maskDoor.isOn()
+      this.config.cropHeight.getValuei()
     );
     this.config.setLitFraction(litFraction(indices, this.litFrame.getMain()));
   }
