@@ -2,7 +2,7 @@
 set -euo pipefail
 
 usage() {
-  echo "Usage: ./scripts/render-ui <fully-qualified LXPattern class> [output-directory]" >&2
+  echo "Usage: ./scripts/render-ui <fully-qualified LXPattern or LXMidiTemplate class> [output-directory]" >&2
 }
 
 if [[ $# -lt 1 || $# -gt 2 ]]; then
