@@ -56,6 +56,8 @@ public final class RenderDeviceUI {
   private static final Duration STARTUP_TIMEOUT = Duration.ofSeconds(30);
   private static final int DRAW_FRAMES_BEFORE_READBACK = 60;
   private static final int READBACK_SETTLE_FRAMES = 30;
+  // 4 columns × 52px, plus UIMidiTemplate's 8px horizontal content inset.
+  private static final int MIDI_TEMPLATE_WIDTH = 216;
   private static final String FIXTURE_NAME = "Apotheneum";
   private static final Path SOURCE_FIXTURE =
     Path.of("src", "main", "resources", "fixtures", FIXTURE_NAME + ".lxf");
@@ -294,7 +296,7 @@ public final class RenderDeviceUI {
     private CaptureLayer(LXStudio.UI ui, LXStudio studio, LXMidiTemplate template) {
       super(ui, 20, 100, 600, 900);
       this.studio = studio;
-      this.device = new UIMidiTemplate(ui, template, 200);
+      this.device = new UIMidiTemplate(ui, template, MIDI_TEMPLATE_WIDTH);
       this.device.addToContainer(this);
 
       setSize(this.device.getWidth(), this.device.getHeight());
