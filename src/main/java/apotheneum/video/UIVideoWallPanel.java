@@ -44,8 +44,9 @@ import heronarts.lx.parameter.LXParameterListener;
  * <p>Editing any of the five preset-owned controls edits the <i>active</i>
  * preset, never a copied-out live set — so switching {@link
  * ApotheneumVideo#activePreset} only ever rebinds which preset's parameters
- * the widgets point at and restarts the pipeline once, rather than copying
- * five values onto five live parameters and firing five separate restarts.
+ * the widgets point at and requests one make-before-break layout change,
+ * rather than copying five values onto five live parameters and firing five
+ * separate changes.
  *
  * <p>Display names come from {@code system_profiler}, run once in a
  * background thread at construction — never on the UI thread, and never
@@ -135,42 +136,42 @@ class UIVideoWallPanel extends UICollapsibleSection {
 
     this.displayIndex = new DiscreteParameter("Display", genericLabels(DEFAULT_DISPLAY_COUNT));
     // If already playing, the operator plainly means "show it there instead" —
-    // restart on the new setting rather than leaving ffplay running on the old one.
-    this.displayChangeListener = p -> enqueueEngineTask(this::restartIfRunningElseUpdateStatus);
+    // apply the new setting rather than leaving ffplay running on the old one.
+    this.displayChangeListener = p -> enqueueEngineTask(this::applyIfRunningElseUpdateStatus);
     this.displayIndex.addListener(this.displayChangeListener);
 
     // Raw rgb24 carries no timing metadata. Both ffmpeg and ffplay snapshot
     // the configured rate at launch, so a live FPS edit must restart an active
     // pipeline before the producer and consumers drift apart.
-    this.fpsChangeListener = p -> enqueueEngineTask(this::restartIfRunningElseUpdateStatus);
+    this.fpsChangeListener = p -> enqueueEngineTask(this::applyIfRunningElseUpdateStatus);
     this.config.fps.addListener(this.fpsChangeListener);
 
     // A rawvideo connection has no header: both endpoints snapshot its frame
     // dimensions when it is opened. A live crop-size edit therefore needs the
     // same reconnect as an FPS edit before the producer and consumer disagree
     // about how many bytes make up a frame.
-    this.cropDimensionsChangeListener = p -> enqueueEngineTask(this::restartIfRunningElseUpdateStatus);
+    this.cropDimensionsChangeListener = p -> enqueueEngineTask(this::applyIfRunningElseUpdateStatus);
     this.config.cropWidth.addListener(this.cropDimensionsChangeListener);
     this.config.cropHeight.addListener(this.cropDimensionsChangeListener);
 
     // Switching which preset is active is the one control whose whole job is
-    // to change five values at once — it must cause exactly one restart, not
+    // to change five values at once — it must cause exactly one apply, not
     // five. That is why it never copies values onto shared live parameters:
     // it only rebinds which preset's own parameters the widgets and listeners
-    // point at, then restarts (or updates status) a single time.
+    // point at, then applies (or updates status) a single time.
     this.activePresetChangeListener = p -> enqueueEngineTask(this::bindActivePreset);
     this.config.activePreset.addListener(this.activePresetChangeListener);
 
     // Same "if playing, apply live; if not, just reflect it in status" rule as
-    // the display picker above — a layout change is only worth a restart
+    // the display picker above — a layout change is only worth applying
     // while ffplay is actually on screen, and it also may reveal/hide Gap and
     // Panel Count.
     this.presetLayoutChangeListener = p -> enqueueEngineTask(() -> {
       updateGapEnabled();
-      restartIfRunningElseUpdateStatus();
+      applyIfRunningElseUpdateStatus();
     });
     // Source/Processor/Gap/Panel Count all follow the same live-apply rule.
-    this.presetFieldChangeListener = p -> enqueueEngineTask(this::restartIfRunningElseUpdateStatus);
+    this.presetFieldChangeListener = p -> enqueueEngineTask(this::applyIfRunningElseUpdateStatus);
 
     this.presetMenu = new UIDropMenu(0, 0, contentWidth, CONTROL_HEIGHT, this.config.activePreset);
     this.sourceMenu = new UIDropMenu(0, 0, contentWidth, CONTROL_HEIGHT, this.config.presetA.source);
@@ -249,7 +250,7 @@ class UIVideoWallPanel extends UICollapsibleSection {
   /**
    * Points every preset-scoped control and listener at the newly active
    * preset, then applies the change exactly once — the hard requirement that
-   * switching presets is a single restart, not one per changed value.
+   * switching presets is a single apply, not one per changed value.
    */
   private void bindActivePreset() {
     final Preset next = this.config.activePreset();
@@ -277,7 +278,7 @@ class UIVideoWallPanel extends UICollapsibleSection {
     this.panelCountBox.setParameter(next.panelCount);
 
     updateGapEnabled();
-    restartIfRunningElseUpdateStatus();
+    applyIfRunningElseUpdateStatus();
   }
 
   /**
@@ -333,7 +334,7 @@ class UIVideoWallPanel extends UICollapsibleSection {
     updateStatus();
   }
 
-  private void restartIfRunningElseUpdateStatus() {
+  private void applyIfRunningElseUpdateStatus() {
     if (this.launcher.isRunning()) {
       this.launcher.start(this.displayIndex.getValuei());
     }
