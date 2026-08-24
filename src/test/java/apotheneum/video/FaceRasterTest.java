@@ -32,6 +32,66 @@ class FaceRasterTest {
     assertEquals(face.children[doorX].points[doorY].index, indices[0]);
   }
 
+  @Test
+  void reconstructsDoorAreaFromAdjacentColumns() {
+    final int width = Apotheneum.GRID_WIDTH;
+    final int height = Apotheneum.GRID_HEIGHT;
+    final byte[] frame = new byte[width * height * 3];
+    final int row = height - 1;
+    setPixel(frame, width, Apotheneum.Cube.DOOR_START_COLUMN - 1, row, 0, 22, 44);
+    setPixel(
+      frame,
+      width,
+      Apotheneum.Cube.DOOR_START_COLUMN + Apotheneum.DOOR_WIDTH,
+      row,
+      110,
+      132,
+      154
+    );
+
+    RawVideoServer.bridgeDoorAreas(
+      frame,
+      VideoSource.EXTERIOR_FRONT,
+      0,
+      0,
+      width,
+      height
+    );
+
+    assertPixel(frame, width, Apotheneum.Cube.DOOR_START_COLUMN, row, 10, 32, 54);
+    assertPixel(
+      frame,
+      width,
+      Apotheneum.Cube.DOOR_START_COLUMN + Apotheneum.DOOR_WIDTH - 1,
+      row,
+      100,
+      122,
+      144
+    );
+  }
+
+  private static void setPixel(byte[] frame, int width, int x, int y, int red, int green, int blue) {
+    final int at = (x + y * width) * 3;
+    frame[at] = (byte) red;
+    frame[at + 1] = (byte) green;
+    frame[at + 2] = (byte) blue;
+  }
+
+  private static void assertPixel(
+    byte[] frame,
+    int width,
+    int x,
+    int y,
+    int red,
+    int green,
+    int blue
+  ) {
+    final int at = (x + y * width) * 3;
+    assertEquals(red, frame[at] & 0xff);
+    assertEquals(green, frame[at + 1] & 0xff);
+    assertEquals(blue, frame[at + 2] & 0xff);
+  }
+
   private static LXModel faceModel(String tag) {
     final LXModel[] columns = new LXModel[Apotheneum.GRID_WIDTH];
     final List<LXPoint> facePoints = new ArrayList<>(

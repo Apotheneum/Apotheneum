@@ -15,6 +15,7 @@ import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
+import apotheneum.Apotheneum;
 import heronarts.lx.LX;
 import heronarts.lx.LXEngine;
 import heronarts.lx.color.LXColor;
@@ -161,6 +162,14 @@ final class RawVideoServer {
             cropHeight
           );
           fill(buffer, frame.getMain(), indices);
+          bridgeDoorAreas(
+            buffer,
+            this.config.source.getEnum(),
+            this.config.cropX.getValuei(),
+            this.config.cropY.getValuei(),
+            cropWidth,
+            cropHeight
+          );
         } else {
           // Hold the connection open so re-enabling resumes without a reconnect.
           Arrays.fill(buffer, (byte) 0);
@@ -202,6 +211,60 @@ final class RawVideoServer {
       buffer[at++] = (byte) ((color >> 16) & 0xff);
       buffer[at++] = (byte) ((color >> 8) & 0xff);
       buffer[at++] = (byte) (color & 0xff);
+    }
+  }
+
+  /**
+   * Reconstructs the virtual picture behind each cube doorway by blending the
+   * nearest real columns on either side. The master {@code Doors} effect has
+   * already blacked the doorway pixels by the time the engine frame reaches
+   * this server, so merely gathering their model indices still leaves a black
+   * door-shaped hole in the exported video.
+   */
+  static void bridgeDoorAreas(
+    byte[] buffer,
+    VideoSource source,
+    int cropX,
+    int cropY,
+    int cropWidth,
+    int cropHeight
+  ) {
+    final int doorTop = Apotheneum.GRID_HEIGHT - Apotheneum.DOOR_HEIGHT;
+    final int firstRow = Math.max(0, doorTop - cropY);
+    if (firstRow >= cropHeight) {
+      return;
+    }
+
+    final int faceCount = source.width() / Apotheneum.GRID_WIDTH;
+    for (int face = 0; face < faceCount; ++face) {
+      final int doorStart = face * Apotheneum.GRID_WIDTH + Apotheneum.Cube.DOOR_START_COLUMN;
+      final int doorEnd = doorStart + Apotheneum.DOOR_WIDTH;
+      final int left = doorStart - 1 - cropX;
+      final int right = doorEnd - cropX;
+      if ((left < 0) || (right >= cropWidth)) {
+        // A partial crop that excludes either side of the doorway does not
+        // contain enough image data to reconstruct the missing span.
+        continue;
+      }
+
+      final int firstColumn = Math.max(0, doorStart - cropX);
+      final int lastColumn = Math.min(cropWidth, doorEnd - cropX);
+      for (int row = firstRow; row < cropHeight; ++row) {
+        final int leftAt = (left + row * cropWidth) * 3;
+        final int rightAt = (right + row * cropWidth) * 3;
+        for (int column = firstColumn; column < lastColumn; ++column) {
+          final int step = column + cropX - doorStart + 1;
+          final int at = (column + row * cropWidth) * 3;
+          for (int channel = 0; channel < 3; ++channel) {
+            final int leftValue = buffer[leftAt + channel] & 0xff;
+            final int rightValue = buffer[rightAt + channel] & 0xff;
+            buffer[at + channel] = (byte) (
+              (leftValue * (Apotheneum.DOOR_WIDTH + 1 - step) + rightValue * step)
+                / (Apotheneum.DOOR_WIDTH + 1)
+            );
+          }
+        }
+      }
     }
   }
 
