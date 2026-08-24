@@ -2,7 +2,6 @@ package apotheneum.video;
 
 import heronarts.lx.LX;
 import heronarts.lx.LXComponent;
-import heronarts.lx.parameter.CompoundDiscreteParameter;
 import heronarts.lx.parameter.DiscreteParameter;
 import heronarts.lx.parameter.EnumParameter;
 
@@ -29,7 +28,7 @@ public class Preset extends LXComponent {
   public final EnumParameter<ApotheneumVideo.Layout> layout;
   public final EnumParameter<ApotheneumVideo.Processor> processor;
   public final DiscreteParameter gap;
-  public final CompoundDiscreteParameter panelCount;
+  public final DiscreteParameter panelCount;
 
   Preset(
     LX lx,
@@ -66,10 +65,10 @@ public class Preset extends LXComponent {
         + "Automatically reduced when the panel count needs the space so faces never shrink below the "
         + "largest size the wall's height allows");
 
-    this.panelCount = new CompoundDiscreteParameter("Panel Count", panelCount, 4, 13)
+    this.panelCount = new DiscreteParameter("Panel Count", panelCount, 4, 13)
       .setDescription(
         "Number of panels to spread across the wall, cycling through the four faces — only used by "
-        + "Panels layout. Supports LX modulation.");
+        + "Panels layout.");
 
     addParameter("source", this.source);
     addParameter("layout", this.layout);

@@ -11,7 +11,6 @@ import org.junit.jupiter.api.Test;
 import apotheneum.HeadlessLxTest;
 import heronarts.lx.LX;
 import heronarts.lx.parameter.LXParameterListener;
-import heronarts.lx.parameter.CompoundDiscreteParameter;
 
 /**
  * Covers the two things a live rig can't demonstrate without a real display
@@ -159,14 +158,6 @@ class VideoWallPresetTest extends HeadlessLxTest {
 
     assertEquals("48", optionValue(launcher.buildFfmpegCommand("/usr/bin/ffmpeg"), "-framerate"));
     assertEquals("48", optionValue(launcher.buildFfplayCommand("/usr/bin/ffplay"), "-framerate"));
-  }
-
-  @Test
-  void panelCountAcceptsLXModulation() {
-    final LX lx = newHeadlessLx();
-    final ApotheneumVideo config = new ApotheneumVideo(lx);
-
-    assertTrue(config.presetA.panelCount instanceof CompoundDiscreteParameter);
   }
 
   @Test
