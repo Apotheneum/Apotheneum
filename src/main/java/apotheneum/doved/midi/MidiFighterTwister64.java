@@ -74,7 +74,7 @@ public class MidiFighterTwister64 extends LXMidiTemplate
       this.index = index;
       setMode(BooleanParameter.Mode.MOMENTARY);
       setDescription("Switch " + (index + 1));
-      addParameter("Switch-" + (index + 1), this);
+      addParameter("switch-" + (index + 1), this);
     }
   }
 
@@ -211,12 +211,13 @@ public class MidiFighterTwister64 extends LXMidiTemplate
     // These CCs are received by the Midi Fighter Utility Factory Reset option.
     final int knobIndex = cc.getCC();
     if (knobIndex < NUM_KNOBS) {
-      activateBank(knobIndex / KNOBS_PER_BANK);
       switch (cc.getChannel()) {
       case KNOB_CHANNEL:
+        activateBank(knobIndex / KNOBS_PER_BANK);
         this.knobs[knobIndex].setNormalized(cc.getNormalized());
         break;
       case SWITCH_CHANNEL:
+        activateBank(knobIndex / KNOBS_PER_BANK);
         this.switches[knobIndex].setValue(cc.getValue() > 0);
         break;
       default:

@@ -9,6 +9,7 @@ public class ApotheneumMidiTemplatesPlugin implements LXPlugin {
 
   @Override
   public void initialize(LX lx) {
+    // LXMidiEngine has no unregisterTemplate API; registrations live for the engine lifetime.
     lx.engine.midi.registerTemplate(MidiFighterTwister64.class);
   }
 }

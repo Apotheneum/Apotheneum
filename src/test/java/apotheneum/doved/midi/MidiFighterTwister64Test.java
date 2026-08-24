@@ -50,7 +50,7 @@ class MidiFighterTwister64Test extends HeadlessLxTest {
     assertTrue(template instanceof UIMidiTemplateControls<?>);
     for (int index = 0; index < MidiFighterTwister64.NUM_KNOBS; ++index) {
       assertEquals(template.knobs[index], template.getParameter("knob-" + (index + 1)));
-      assertEquals(template.switches[index], template.getParameter("Switch-" + (index + 1)));
+      assertEquals(template.switches[index], template.getParameter("switch-" + (index + 1)));
       assertEquals(template.lights[index], template.getParameter("light-" + (index + 1)));
 
       final int value = (index * 2) % 128;
@@ -116,6 +116,19 @@ class MidiFighterTwister64Test extends HeadlessLxTest {
     assertEquals(List.of(
       new ControlChange(MidiFighterTwister64.SWITCH_CHANNEL, 0, 127),
       new ControlChange(MidiFighterTwister64.SWITCH_CHANNEL, 0, 0)), template.output);
+  }
+
+  @Test
+  void ignoresUnrecognizedChannelsWithoutChangingTheOpenBank() throws InvalidMidiDataException {
+    final MidiFighterTwister64 template = new MidiFighterTwister64(newHeadlessLx());
+
+    template.controlChangeReceived(new MidiControlChange(MidiFighterTwister64.KNOB_CHANNEL, 48, 127));
+    assertBankExpanded(template, 3);
+
+    template.controlChangeReceived(new MidiControlChange(2, 0, 127));
+    assertBankExpanded(template, 3);
+    assertEquals(0, template.knobs[0].getValue());
+    assertFalse(template.switches[0].isOn());
   }
 
   @Test
