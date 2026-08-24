@@ -74,6 +74,31 @@ jobs:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           plugin_marketplaces: ${{ runner.temp }}/review-plugin-marketplace
           plugins: 'code-review@pinned-claude-code-plugins'
+          # The action owns publishing the summary, rather than the reviewer
+          # shelling out to `gh pr comment` and hoping the quoting survives.
+          #
+          # A review summary is multi-line markdown, which is exactly the shape
+          # that wants a heredoc — and heredocs, command substitution and
+          # redirection are all refused by the permission system's static
+          # analysis, even under a matching Bash(gh pr comment:*) rule. That has
+          # now cost three separate silent failures: 13 denials on an 874-line
+          # diff, then 14 denials on PR #118, each ending with a green check and
+          # an empty PR. The last attempt at a fix was the paragraph of warning
+          # text in --append-system-prompt below, and the reviewer walked into it
+          # anyway, because a prompt asking a model to avoid a shell idiom is a
+          # request, not a constraint.
+          #
+          # track_progress makes the action maintain a tracking comment on the PR
+          # and deliver the reviewer's final report into it. Publishing stops
+          # depending on a command the reviewer has to construct correctly, so
+          # the failure mode is gone rather than warned about. Inline comments
+          # were never affected: those go through the MCP tool, which needs no
+          # shell. Applies to pull_request opened/synchronize/ready_for_review/
+          # reopened/labeled, which covers this workflow's whole trigger set —
+          # the first four.
+          track_progress: true
+          # One comment that gets updated, instead of a new one per push.
+          use_sticky_comment: true
           prompt: '/code-review:code-review --comment ${{ github.repository }}/pull/${{ github.event.pull_request.number }}'
           # --allowedTools is a whitelist, not an addition: what is listed here is
           # the only thing the reviewer can call, and there is no prompt to fall
@@ -90,8 +115,12 @@ jobs:
           #   Read/Grep/Glob - reading the changed files, the CLAUDE.md files it
           #                 checks compliance against, and docs/lx-coding-guidelines.md
           #                 as instructed by --append-system-prompt below.
-          #   gh pr/issue/search - fetching the PR and its diff, and posting the
-          #                 "no issues found" summary when the review comes up clean.
+          #   gh pr/issue/search - fetching the PR and its diff. Note that
+          #                 Bash(gh pr comment:*) is deliberately NOT here: it
+          #                 existed only to publish the summary, which
+          #                 track_progress now owns. Re-adding it would restore
+          #                 the trap described above, and a "fallback" that has
+          #                 failed silently three times is not a fallback.
           #   git         - diff scoping, history context, and the full SHA that
           #                 permalinks in inline comments require.
           #   ls/cat/find/git status - what the review subagents reach for to orient
@@ -113,7 +142,7 @@ jobs:
           # goes in claude_args rather than prompt so the slash command above still
           # parses as a command.
           claude_args: >-
-            --allowedTools "Task,Agent,TodoWrite,Read,Grep,Glob,Bash(ls:*),Bash(cat:*),Bash(find:*),Bash(git status:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(git blame:*),Bash(git rev-parse:*),Bash(git merge-base:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr list:*),Bash(gh pr comment:*),Bash(gh issue view:*),Bash(gh issue list:*),Bash(gh search:*),mcp__github_inline_comment__create_inline_comment"
+            --allowedTools "Task,Agent,TodoWrite,Read,Grep,Glob,Bash(ls:*),Bash(cat:*),Bash(find:*),Bash(git status:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(git blame:*),Bash(git rev-parse:*),Bash(git merge-base:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr list:*),Bash(gh issue view:*),Bash(gh issue list:*),Bash(gh search:*),mcp__github_inline_comment__create_inline_comment"
             --append-system-prompt "Before reviewing, read docs/lx-coding-guidelines.md
             and apply its Part 3 review checklist alongside the standard review
             criteria. It records LX idioms specific to this repo that a general review
@@ -121,11 +150,57 @@ jobs:
             instead of magic constants or string maps, framework helpers over
             reinvention, symmetric listener and plugin lifecycle, and staying within
             model bounds including the door cutouts.
-            When you publish the review summary with gh pr comment, write the comment
-            text inline as a single literal --body argument. The permission system
-            refuses any Bash command it cannot analyse statically, so command
-            substitution, heredocs and output redirection are all denied under the
-            Bash(gh pr comment:*) rule. A clean review has no other way to publish, so
-            a command built by any of those means ends the run having posted nothing."
+            Your final assistant message IS the published review. The action delivers
+            it to the pull request as a tracking comment, so end the run with the
+            complete review summary as that final message — not a status line about
+            work you did. There is no gh pr comment available and no other publishing
+            path; do not attempt to shell out to post the summary."
           # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
           # or https://code.claude.com/docs/en/cli-reference for available options
+
+      # The Claude process exits 0 whether or not it managed to do the job, so a
+      # run that was blocked from every tool it needed still reports `pass`. That
+      # is how PR #118 carried a green check for a review that posted nothing.
+      # This step reads the run's own accounting and refuses to call that a pass.
+      #
+      # A denial used to be noise: the review subagents reach for `ls`, `cat`,
+      # `find` and `git status` to orient themselves, and those made up almost all
+      # of the 173 denials across 29 runs. They are now on the allowlist, so a
+      # denial no longer means "the agent tried something incidental" — it means
+      # the reviewer wanted a capability it does not have, and whatever it was
+      # doing with that capability did not happen. Failing loudly is the point:
+      # an incomplete or unpublished review should not look like a clean one.
+      #
+      # If this does turn out to be noisy in practice, downgrade it to a warning
+      # annotation. Do not delete it — without some signal here, the silent
+      # green check comes straight back.
+      - name: Fail on reviewer permission denials
+        if: always()
+        env:
+          EXECUTION_FILE: ${{ steps.claude-review.outputs.execution_file }}
+        run: |
+          set -uo pipefail
+          if [ -z "${EXECUTION_FILE:-}" ] || [ ! -f "$EXECUTION_FILE" ]; then
+            echo "::warning::No Claude execution output file at '${EXECUTION_FILE:-<unset>}' - cannot verify whether the reviewer hit permission denials."
+            exit 0
+          fi
+          # -s tolerates both shapes the file has been seen in: a single JSON
+          # array of messages (slurped to [[...]]) and JSONL (slurped to [...]).
+          # Flattening one level normalises them before looking for the result
+          # object that carries the count.
+          denials="$(jq -s -r '
+            [ .[] | if type == "array" then .[] else . end ]
+            | map(select(type == "object" and .type == "result"))
+            | map(.permission_denials_count // 0)
+            | (max // 0)
+          ' "$EXECUTION_FILE" 2>/dev/null)" || denials=""
+          if [ -z "$denials" ] || ! [ "$denials" -eq "$denials" ] 2>/dev/null; then
+            echo "::warning::Could not parse a permission_denials_count out of '$EXECUTION_FILE' - skipping the check rather than failing on a parse problem."
+            exit 0
+          fi
+          echo "permission_denials_count: $denials"
+          if [ "$denials" -gt 0 ]; then
+            echo "::error::The reviewer was denied $denials tool call(s) it tried to make, so it was blocked from something it needed. The review may be incomplete, and may not have been published to the PR at all. Check the run log for the denied commands and either add them to --allowedTools or remove whatever made the reviewer reach for them."
+            exit 1
+          fi
+          echo "Reviewer completed with no permission denials."
