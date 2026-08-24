@@ -15,21 +15,20 @@ class FaceRasterTest {
 
   @Test
   void includesPixelsInTheDoorArea() {
-    final LXModel face = faceModel("cubeFrontExterior");
-    final LXModel model = new LXModel(new LXModel[] { face }).reindexPoints();
+    final LXModel model = exteriorPerimeterModel();
     final int doorX = Apotheneum.Cube.DOOR_START_COLUMN;
     final int doorY = Apotheneum.GRID_HEIGHT - 1;
 
     final int[] indices = new FaceRaster().resolve(
       model,
-      VideoSource.EXTERIOR_FRONT,
+      VideoSource.EXTERIOR_PERIMETER,
       doorX,
       doorY,
       1,
       1
     );
 
-    assertEquals(face.children[doorX].points[doorY].index, indices[0]);
+    assertEquals(model.sub("cubeFrontExterior").get(0).children[doorX].points[doorY].index, indices[0]);
   }
 
   @Test
@@ -51,7 +50,7 @@ class FaceRasterTest {
 
     RawVideoServer.bridgeDoorAreas(
       frame,
-      VideoSource.EXTERIOR_FRONT,
+      VideoSource.EXTERIOR_PERIMETER,
       0,
       0,
       width,
@@ -107,5 +106,14 @@ class FaceRasterTest {
       columns[x] = new LXModel(points);
     }
     return new LXModel(facePoints, columns, tag);
+  }
+
+  private static LXModel exteriorPerimeterModel() {
+    return new LXModel(new LXModel[] {
+      faceModel("cubeFrontExterior"),
+      faceModel("cubeRightExterior"),
+      faceModel("cubeBackExterior"),
+      faceModel("cubeLeftExterior")
+    }).reindexPoints();
   }
 }

@@ -86,21 +86,6 @@ class VideoWallPresetTest extends HeadlessLxTest {
   }
 
   @Test
-  void panelsFallsBackToFitForASingleFaceSource() {
-    final LX lx = newHeadlessLx();
-    final ApotheneumVideo config = new ApotheneumVideo(lx);
-    lx.engine.registerComponent(ApotheneumVideo.PATH, config);
-    config.presetA.source.setValue(VideoSource.EXTERIOR_FRONT);
-    config.presetA.layout.setValue(ApotheneumVideo.Layout.PANELS);
-
-    final String filter = filterGraph(new VideoWallLauncher(config, 7878));
-
-    assertTrue(filter.contains("force_original_aspect_ratio=decrease"),
-      "single-face Panels must fall back to Fit: " + filter);
-    assertTrue(!filter.contains("split="), "single-face source must not produce panels: " + filter);
-  }
-
-  @Test
   void fitUsesBothWallDimensions() {
     final LX lx = newHeadlessLx();
     final ApotheneumVideo config = new ApotheneumVideo(lx);

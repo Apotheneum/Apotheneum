@@ -209,18 +209,15 @@ final class VideoWallLauncher {
           + WALL_WIDTH + ":" + WALL_HEIGHT + ":(iw-ow)/2:(ih-oh)/2[w]";
       case PANELS:
       default:
-        final VideoSource source = this.config.activePreset().source.getEnum();
-        if ((source.width() != VideoSource.MAX_WIDTH)
-          || (this.config.cropWidth.getValuei() != VideoSource.MAX_WIDTH)
+        if ((this.config.cropWidth.getValuei() != VideoSource.MAX_WIDTH)
           || (this.config.cropX.getValuei() != 0)) {
           // Panels splits the source into four equal-width faces; that only
-          // lands on the real face boundaries when the source and crop are
-          // both the whole perimeter. A single face or partial crop would
-          // create blank/misaligned panels, so fall back to Fit instead.
+          // lands on the real face boundaries when the crop is the whole
+          // perimeter. A partial crop would create blank/misaligned panels,
+          // so fall back to Fit instead.
           ApotheneumVideoPlugin.error(
-            "Panels layout needs a " + VideoSource.MAX_WIDTH + "-column perimeter source and crop; source is "
-            + source + " (" + source.width() + " columns), cropWidth is " + this.config.cropWidth.getValuei()
-            + ", cropX is " + this.config.cropX.getValuei()
+            "Panels layout needs a " + VideoSource.MAX_WIDTH + "-column perimeter crop; cropWidth is "
+            + this.config.cropWidth.getValuei() + ", cropX is " + this.config.cropX.getValuei()
             + ", falling back to Fit");
           return buildFitGraph();
         }
