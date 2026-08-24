@@ -75,6 +75,14 @@ jobs:
           plugin_marketplaces: ${{ runner.temp }}/review-plugin-marketplace
           plugins: 'code-review@pinned-claude-code-plugins'
           prompt: '/code-review:code-review --comment ${{ github.repository }}/pull/${{ github.event.pull_request.number }}'
+          # Without this the final review text only ever reaches the raw
+          # execution log, never the job summary — a run that read the whole
+          # diff and decided to say nothing looked, from the Actions UI,
+          # identical to one that crashed before doing any work. This is a
+          # public repo, so only display_report is set; show_full_output
+          # would echo raw tool output (including anything a malicious diff
+          # tricked a tool into printing) into a page anyone can read.
+          display_report: true
           # --allowedTools is a whitelist, not an addition: what is listed here is
           # the only thing the reviewer can call, and there is no prompt to fall
           # back on in CI, so anything omitted is silently denied. Listing only the
@@ -126,6 +134,80 @@ jobs:
             refuses any Bash command it cannot analyse statically, so command
             substitution, heredocs and output redirection are all denied under the
             Bash(gh pr comment:*) rule. A clean review has no other way to publish, so
-            a command built by any of those means ends the run having posted nothing."
+            a command built by any of those means ends the run having posted nothing.
+            End your final message with exactly one of two markers, alone on its own
+            line: REVIEW_PUBLISHED once a comment has actually been posted to the pull
+            request, whether it lists findings or reports a clean review, or
+            REVIEW_SKIPPED: <short reason> if the review was deliberately not run at
+            all, for example because the pull request is closed, in draft, or was
+            already reviewed. The step after this one reads that marker, and a run
+            carrying neither fails the check."
           # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
           # or https://code.claude.com/docs/en/cli-reference for available options
+
+      # Everything above is a nudge to a model: publish the summary this way,
+      # end with that marker. None of it fails the check when the model does
+      # something else, which is how 29 runs cost $35.96 and published three
+      # times while every one of them reported success (#86). This step is the
+      # part that does not depend on the model complying. It reads the raw SDK
+      # message log rather than the sanitized console output, because that is
+      # the only place the final result text and the permission_denials array
+      # both survive — the console shows a denial count and no names.
+      #
+      # A run may legitimately publish nothing: the plugin's first step bails
+      # on a pull request that is closed, in draft, or already reviewed. That
+      # is what REVIEW_SKIPPED distinguishes from a review that ran and lost
+      # its output, and why the check reads a marker instead of just asking
+      # whether a comment exists.
+      - name: Verify review was published
+        if: always()
+        env:
+          EXECUTION_FILE: ${{ steps.claude-review.outputs.execution_file }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${EXECUTION_FILE:-}" ] || [ ! -f "$EXECUTION_FILE" ]; then
+            echo "No execution file was produced (steps.claude-review.outputs.execution_file is empty or missing) -- skipping the publish check rather than masking whatever earlier step already failed."
+            exit 0
+          fi
+
+          RESULT_JSON=$(jq -c '[.[] | select(.type == "result")] | last' "$EXECUTION_FILE")
+
+          if [ -z "$RESULT_JSON" ] || [ "$RESULT_JSON" = "null" ]; then
+            echo "No .type == \"result\" message found in $EXECUTION_FILE."
+            echo "### Code review verification failed" >> "$GITHUB_STEP_SUMMARY"
+            echo "No result message was found in the execution log." >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+
+          DENIAL_COUNT=$(echo "$RESULT_JSON" | jq '.permission_denials | length')
+
+          if [ "$DENIAL_COUNT" -gt 0 ]; then
+            # Tool names and (for Bash) only the first three tokens of the
+            # command -- this is a public repo, and the full command or any
+            # tool output could carry file contents or credentials pulled in
+            # while handling a PR diff we don't control.
+            echo "The review was denied permission to use one or more tools:"
+            echo "$RESULT_JSON" | jq -r '.permission_denials[] | if .tool_name == "Bash" then "Bash: " + ((.tool_input.command // "") | split(" ") | .[0:3] | join(" ")) else .tool_name end'
+            echo "### Code review verification failed" >> "$GITHUB_STEP_SUMMARY"
+            echo "The review was denied permission to use one or more tools -- see the job log for which ones." >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+
+          RESULT_TEXT=$(echo "$RESULT_JSON" | jq -r '.result // ""')
+
+          if echo "$RESULT_TEXT" | grep -q "REVIEW_SKIPPED"; then
+            echo "Review was deliberately skipped:"
+            echo "$RESULT_TEXT" | grep "REVIEW_SKIPPED"
+            exit 0
+          fi
+
+          if echo "$RESULT_TEXT" | grep -q "REVIEW_PUBLISHED"; then
+            echo "Review was published."
+            exit 0
+          fi
+
+          echo "The review ended without publishing a result or declaring a skip (no REVIEW_PUBLISHED or REVIEW_SKIPPED marker found)."
+          echo "### Code review verification failed" >> "$GITHUB_STEP_SUMMARY"
+          echo "The review ended without a REVIEW_PUBLISHED or REVIEW_SKIPPED marker -- it may have posted nothing." >> "$GITHUB_STEP_SUMMARY"
+          exit 1
