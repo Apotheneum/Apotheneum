@@ -85,4 +85,57 @@ class VideoWallPresetTest extends HeadlessLxTest {
       "switching activePreset must not itself change any preset's own parameters");
   }
 
+  @Test
+  void panelsFallsBackToFitForASingleFaceSource() {
+    final LX lx = newHeadlessLx();
+    final ApotheneumVideo config = new ApotheneumVideo(lx);
+    lx.engine.registerComponent(ApotheneumVideo.PATH, config);
+    config.presetA.source.setValue(VideoSource.EXTERIOR_FRONT);
+    config.presetA.layout.setValue(ApotheneumVideo.Layout.PANELS);
+
+    final String filter = filterGraph(new VideoWallLauncher(config, 7878));
+
+    assertTrue(filter.contains("force_original_aspect_ratio=decrease"),
+      "single-face Panels must fall back to Fit: " + filter);
+    assertTrue(!filter.contains("split="), "single-face source must not produce panels: " + filter);
+  }
+
+  @Test
+  void fitUsesBothWallDimensions() {
+    final LX lx = newHeadlessLx();
+    final ApotheneumVideo config = new ApotheneumVideo(lx);
+    lx.engine.registerComponent(ApotheneumVideo.PATH, config);
+    config.presetA.layout.setValue(ApotheneumVideo.Layout.FIT);
+    config.cropHeight.setValue(20);
+
+    final String filter = filterGraph(new VideoWallLauncher(config, 7878));
+
+    assertTrue(filter.contains("scale=w=2688:h=336:force_original_aspect_ratio=decrease"),
+      "Fit must constrain a wide crop by wall width: " + filter);
+    assertTrue(filter.contains("pad=2688:336:(ow-iw)/2:(oh-ih)/2:black"),
+      "Fit must center the constrained image in the wall: " + filter);
+  }
+
+  @Test
+  void commandsTrackTheConfiguredFrameRate() {
+    final LX lx = newHeadlessLx();
+    final ApotheneumVideo config = new ApotheneumVideo(lx);
+    lx.engine.registerComponent(ApotheneumVideo.PATH, config);
+    config.fps.setValue(48);
+
+    final VideoWallLauncher launcher = new VideoWallLauncher(config, 7878);
+
+    assertEquals("48", optionValue(launcher.buildFfmpegCommand("/usr/bin/ffmpeg"), "-framerate"));
+    assertEquals("48", optionValue(launcher.buildFfplayCommand("/usr/bin/ffplay"), "-framerate"));
+  }
+
+  private static String filterGraph(VideoWallLauncher launcher) {
+    final List<String> command = launcher.buildFfmpegCommand("/usr/bin/ffmpeg");
+    return command.get(command.indexOf("-filter_complex") + 1);
+  }
+
+  private static String optionValue(List<String> command, String option) {
+    return command.get(command.indexOf(option) + 1);
+  }
+
 }

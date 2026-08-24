@@ -172,15 +172,16 @@ final class VideoWallLauncher {
           + WALL_WIDTH + ":" + WALL_HEIGHT + ":0:(ih-" + WALL_HEIGHT + ")/2[w]";
       case PANELS:
       default:
-        if (this.config.cropWidth.getValuei() != VideoSource.MAX_WIDTH) {
+        final VideoSource source = this.config.activePreset().source.getEnum();
+        if ((source.width() != VideoSource.MAX_WIDTH)
+          || (this.config.cropWidth.getValuei() != VideoSource.MAX_WIDTH)) {
           // Panels splits the source into four equal-width faces; that only
-          // lands on the real face boundaries (multiples of GRID_WIDTH) when
-          // the crop is the whole perimeter. A partial crop would slice
-          // every face at the wrong seam, so fall back to Fit instead of
-          // producing silently misaligned panels.
+          // lands on the real face boundaries when the source and crop are
+          // both the whole perimeter. A single face or partial crop would
+          // create blank/misaligned panels, so fall back to Fit instead.
           ApotheneumVideoPlugin.error(
-            "Panels layout needs the full " + VideoSource.MAX_WIDTH + "-column perimeter crop to align "
-            + "with face boundaries; cropWidth is " + this.config.cropWidth.getValuei()
+            "Panels layout needs a " + VideoSource.MAX_WIDTH + "-column perimeter source and crop; source is "
+            + source + " (" + source.width() + " columns), cropWidth is " + this.config.cropWidth.getValuei()
             + ", falling back to Fit");
           return buildFitGraph();
         }
@@ -189,8 +190,9 @@ final class VideoWallLauncher {
   }
 
   private String buildFitGraph() {
-    return "[0:v]scale=-2:" + WALL_HEIGHT + ":flags=bilinear,pad="
-      + WALL_WIDTH + ":" + WALL_HEIGHT + ":(ow-iw)/2:0:black[w]";
+    return "[0:v]scale=w=" + WALL_WIDTH + ":h=" + WALL_HEIGHT
+      + ":force_original_aspect_ratio=decrease:flags=bilinear,pad="
+      + WALL_WIDTH + ":" + WALL_HEIGHT + ":(ow-iw)/2:(oh-ih)/2:black[w]";
   }
 
   private String buildPanelsGraph() {

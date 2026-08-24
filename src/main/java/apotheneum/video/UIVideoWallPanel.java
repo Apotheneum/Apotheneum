@@ -109,6 +109,7 @@ class UIVideoWallPanel extends UICollapsibleSection {
   private final LXLoopTask refreshTask = this::refresh;
 
   private final LXParameterListener displayChangeListener;
+  private final LXParameterListener fpsChangeListener;
   private final LXParameterListener activePresetChangeListener;
   // Bound to whichever preset is currently active; re-bound in bindActivePreset().
   private final LXParameterListener presetLayoutChangeListener;
@@ -135,6 +136,12 @@ class UIVideoWallPanel extends UICollapsibleSection {
     // restart on the new setting rather than leaving ffplay running on the old one.
     this.displayChangeListener = p -> restartIfRunningElseUpdateStatus();
     this.displayIndex.addListener(this.displayChangeListener);
+
+    // Raw rgb24 carries no timing metadata. Both ffmpeg and ffplay snapshot
+    // the configured rate at launch, so a live FPS edit must restart an active
+    // pipeline before the producer and consumers drift apart.
+    this.fpsChangeListener = p -> restartIfRunningElseUpdateStatus();
+    this.config.fps.addListener(this.fpsChangeListener);
 
     // Switching which preset is active is the one control whose whole job is
     // to change five values at once — it must cause exactly one restart, not
@@ -280,6 +287,7 @@ class UIVideoWallPanel extends UICollapsibleSection {
     this.ui.removeLoopTask(this.applyResolvedLabelsTask);
     this.ui.removeLoopTask(this.refreshTask);
     this.displayIndex.removeListener(this.displayChangeListener);
+    this.config.fps.removeListener(this.fpsChangeListener);
     this.config.activePreset.removeListener(this.activePresetChangeListener);
     if (this.boundPreset != null) {
       this.boundPreset.source.removeListener(this.presetFieldChangeListener);

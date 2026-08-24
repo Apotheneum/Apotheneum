@@ -2,6 +2,7 @@ package apotheneum.video;
 
 import apotheneum.Apotheneum;
 import heronarts.lx.LX;
+import heronarts.lx.LXComponent;
 import heronarts.lx.LXEngine;
 import heronarts.lx.LXLoopTask;
 import heronarts.lx.LXPlugin;
@@ -55,8 +56,7 @@ public class ApotheneumVideoPlugin implements LXPlugin {
   public void initialize(LX lx) {
     Apotheneum.initialize(lx);
     this.lx = lx;
-    this.config = new ApotheneumVideo(lx);
-    lx.engine.registerComponent(ApotheneumVideo.PATH, this.config);
+    this.config = getOrRegisterConfig(lx);
     this.server = new RawVideoServer(lx, this.config);
     this.server.start();
     this.config.setPort(this.server.getPort());
@@ -74,7 +74,31 @@ public class ApotheneumVideoPlugin implements LXPlugin {
     if (this.lx != null) {
       this.lx.engine.removeLoopTask(this.sampleLitFractionTask);
     }
-    // The config component is an engine child; LX disposes it with the engine.
+    this.litFrame = null;
+    this.config = null;
+    this.lx = null;
+    // The config component is an engine child; LX owns its eventual disposal.
+  }
+
+  /**
+   * Components registered on the engine outlive an individual plugin enable
+   * cycle. LX exposes registration but no corresponding child removal API, so
+   * re-use the canonical component when the plugin is disabled and re-enabled
+   * rather than replacing it and leaking its parameter/listener graph.
+   */
+  static ApotheneumVideo getOrRegisterConfig(LX lx) {
+    final LXComponent existing = lx.engine.getChild(ApotheneumVideo.PATH);
+    if (existing == null) {
+      final ApotheneumVideo config = new ApotheneumVideo(lx);
+      lx.engine.registerComponent(ApotheneumVideo.PATH, config);
+      return config;
+    }
+    if (existing instanceof ApotheneumVideo) {
+      return (ApotheneumVideo) existing;
+    }
+    throw new IllegalStateException(
+      "Engine child '" + ApotheneumVideo.PATH + "' is not an ApotheneumVideo: "
+      + existing.getClass().getName());
   }
 
   /** Fraction of the crop that is actually lit, for the same source/crop/mask a viewer would receive right now. */
