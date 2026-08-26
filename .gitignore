@@ -30,8 +30,13 @@ target
 hs_err_pid*
 /bin/
 
-# Claude Code local tool settings (personal, not shared project config)
-.claude/
+# Claude Code settings. Personal state under .claude/ stays out of the repo, but
+# settings.json and hooks/ are shared project config and have to be committed: a
+# SessionStart hook only reaches a cloud session if it is on the default branch.
+# See docs/headless-rendering.md.
+.claude/*
+!.claude/settings.json
+!.claude/hooks/
 
 # Render output is review evidence, not documentation. See docs/headless-rendering.md
 docs/renders/

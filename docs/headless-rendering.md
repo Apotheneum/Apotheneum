@@ -57,6 +57,27 @@ rendering dependency, not a package build dependency. The command checks for it 
 loading LX or rendering any frames and fails immediately with installation guidance if
 it is unavailable.
 
+### Prerequisites in a cloud session
+
+Claude Code on the web starts from a container with JDK 21 and no ffmpeg, and neither
+is a Maven dependency, so nothing in the build can pull them in.
+`.claude/hooks/session-start.sh` installs both at session start — ffmpeg,
+`openjdk-25-jdk-headless`, `JAVA_HOME` exported through `$CLAUDE_ENV_FILE`, and a
+Maven warm-up so the first render does not wait on Central. It is a no-op anywhere
+else: it exits at the `$CLAUDE_CODE_REMOTE` guard, because it is apt and most
+contributors are on macOS.
+
+A session that started before the hook reached the default branch has neither, and
+installs them by hand:
+
+```bash
+sudo apt-get update && sudo apt-get install -y ffmpeg openjdk-25-jdk-headless
+export JAVA_HOME=/usr/lib/jvm/java-25-openjdk-amd64
+```
+
+The `apt-get update` is not optional — the image's apt index is stale enough that
+packages in ffmpeg's dependency chain 404 without a refresh first.
+
 Writes to `target/spike/`: `<surface>.gif` and `<surface>-contact.png` for every
 surface that contains a lit usable pixel during the run. For example,
 `cube-exterior.gif` and `cube-exterior-contact.png`. The per-frame PNGs used to
