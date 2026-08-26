@@ -42,6 +42,11 @@ import heronarts.lx.structure.JsonFixture;
  */
 public final class RenderSpike {
 
+  private enum RenderView {
+    UNWRAPPED,
+    LOOKUP
+  }
+
   private enum RenderSurface {
     CUBE_EXTERIOR("cube-exterior", false, true),
     CUBE_INTERIOR("cube-interior", true, true),
@@ -83,9 +88,11 @@ public final class RenderSpike {
   private static final int FACE_BOUNDARY_COLOR = 0x4050a0;
   private static final int CONTACT_COLUMNS = 3;
   private static final int CONTACT_GAP = 8;
+  private static final int LOOKUP_SIZE = 512;
   private static final double REVIEW_GAIN = 2.;
   private static final double REVIEW_GAMMA = .5;
   private static final double FIXED_DELTA_MS = 1000. / 60.;
+  private static final double TWO_PI = 2 * Math.PI;
 
   private RenderSpike() {
   }
@@ -95,6 +102,7 @@ public final class RenderSpike {
     final String parameterAssignments = optionalArgument(args, 1, "params=");
     final List<Class<? extends LXEffect>> effectClasses = resolveEffectClasses(args);
     final String paletteAssignments = optionalArgument(args, 3, "palette=");
+    final RenderView renderView = resolveRenderView(optionalArgument(args, 4, "view="));
     preflightFfmpeg();
 
     final long jvmStartMillis = ManagementFactory.getRuntimeMXBean().getStartTime();
@@ -139,6 +147,7 @@ public final class RenderSpike {
 
       final LXPattern pattern = instantiatePattern(patternClass, lx);
       LX.log("RenderSpike patternClass=" + patternClass.getName());
+      LX.log("RenderSpike view=" + renderView.name().toLowerCase(Locale.ROOT));
       applyParameters(pattern, parameterAssignments);
       final LXChannel channel = lx.engine.mixer.addChannel(new LXPattern[] { pattern });
       final List<LXEffect> effects = addEffects(channel, effectClasses, lx);
@@ -147,13 +156,20 @@ public final class RenderSpike {
       resetOutputDirectory();
       final Path temporaryFramesRoot = mediaPath.resolve("render-frames");
       final List<WrittenArtifact> writtenArtifacts = new ArrayList<>();
+      // Cylinder-interior geometry never changes between the bypass/effects variants, so the
+      // fisheye projection table is resolved once per run rather than once per variant.
+      final LookupProjection lookupProjection =
+        (renderView == RenderView.LOOKUP) ? new LookupProjection() : null;
       if (!effects.isEmpty()) {
         LX.log("RenderSpike variant=bypass");
       }
-      renderVariant(lx, pattern, "bypass", "", temporaryFramesRoot, writtenArtifacts);
+      renderVariant(
+        lx, pattern, renderView, lookupProjection, "bypass", "", temporaryFramesRoot, writtenArtifacts);
       if (!effects.isEmpty()) {
         setEffectsEnabled(effects, true);
-        renderVariant(lx, pattern, "effects", "-effects", temporaryFramesRoot, writtenArtifacts);
+        renderVariant(
+          lx, pattern, renderView, lookupProjection, "effects", "-effects", temporaryFramesRoot,
+          writtenArtifacts);
       }
 
       LX.log("RenderSpike outputDirectory=" + OUTPUT_DIRECTORY.toAbsolutePath());
@@ -173,6 +189,8 @@ public final class RenderSpike {
   private static void renderVariant(
     LX lx,
     LXPattern pattern,
+    RenderView renderView,
+    LookupProjection lookupProjection,
     String variant,
     String fileSuffix,
     Path temporaryFramesRoot,
@@ -210,8 +228,20 @@ public final class RenderSpike {
     }
     LX.log("RenderSpike drivenSurfaces=" + surfaceNames(drivenSurfaces));
     logSkippedSurfaces(pattern, availableSurfaces, drivenSurfaces, peakNonBlackFractions, variant);
-    for (RenderSurface surface : drivenSurfaces) {
-      writeSurfaceArtifacts(surface, gifFrames, variant, fileSuffix, temporaryFramesRoot, writtenArtifacts);
+    if (renderView == RenderView.LOOKUP) {
+      if (drivenSurfaces.contains(RenderSurface.CYLINDER_INTERIOR)) {
+        writeLookupArtifacts(
+          lookupProjection, gifFrames, variant, fileSuffix, temporaryFramesRoot, writtenArtifacts);
+      } else {
+        LX.log(
+          "RenderSpike view=lookup produced no artifacts for variant=" + variant +
+          ": pattern never lit cylinder-interior");
+      }
+    } else {
+      for (RenderSurface surface : drivenSurfaces) {
+        writeSurfaceArtifacts(
+          surface, gifFrames, variant, fileSuffix, temporaryFramesRoot, writtenArtifacts);
+      }
     }
 
     final double meanFrameMs = totalFrameNanos / 1_000_000. / ENGINE_FRAME_COUNT;
@@ -220,10 +250,10 @@ public final class RenderSpike {
   }
 
   private static Class<? extends LXPattern> resolvePatternClass(String[] args) {
-    if (args.length > 4) {
+    if (args.length > 5) {
       throw new IllegalArgumentException(
         "Usage: RenderSpike [fully-qualified LXPattern class] [name=value,name=value] " +
-        "[fully-qualified LXEffect class,...] [hue,saturation,brightness;...]"
+        "[fully-qualified LXEffect class,...] [hue,saturation,brightness;...] [unwrapped|lookup]"
       );
     }
     final String className = (args.length == 0 || args[0].isBlank()) ? DEFAULT_PATTERN_CLASS_NAME : args[0];
@@ -237,6 +267,17 @@ public final class RenderSpike {
       throw new IllegalArgumentException("Pattern class is not an LXPattern: " + className);
     }
     return candidate.asSubclass(LXPattern.class);
+  }
+
+  private static RenderView resolveRenderView(String argument) {
+    if (argument.isBlank() || argument.equalsIgnoreCase("unwrapped")) {
+      return RenderView.UNWRAPPED;
+    }
+    if (argument.equalsIgnoreCase("lookup")) {
+      return RenderView.LOOKUP;
+    }
+    throw new IllegalArgumentException(
+      "Unknown render view '" + argument + "'; expected unwrapped or lookup");
   }
 
   private static List<Class<? extends LXEffect>> resolveEffectClasses(String[] args) {
@@ -653,6 +694,11 @@ public final class RenderSpike {
   private record WrittenArtifact(Path path, String variant) {
   }
 
+  @FunctionalInterface
+  private interface FrameRenderer {
+    BufferedImage render(int[] colors);
+  }
+
   private static String surfaceNames(EnumSet<RenderSurface> surfaces) {
     final StringBuilder names = new StringBuilder();
     for (RenderSurface surface : surfaces) {
@@ -694,11 +740,50 @@ public final class RenderSpike {
     Path temporaryFramesRoot,
     List<WrittenArtifact> writtenArtifacts
   ) throws IOException, InterruptedException {
+    writeArtifacts(
+      surface.fileStem,
+      gifFrames,
+      variant,
+      fileSuffix,
+      temporaryFramesRoot,
+      writtenArtifacts,
+      colors -> renderSurface(surface, colors)
+    );
+  }
+
+  private static void writeLookupArtifacts(
+    LookupProjection projection,
+    List<int[]> gifFrames,
+    String variant,
+    String fileSuffix,
+    Path temporaryFramesRoot,
+    List<WrittenArtifact> writtenArtifacts
+  ) throws IOException, InterruptedException {
+    writeArtifacts(
+      "cylinder-interior-lookup",
+      gifFrames,
+      variant,
+      fileSuffix,
+      temporaryFramesRoot,
+      writtenArtifacts,
+      projection::render
+    );
+  }
+
+  private static void writeArtifacts(
+    String fileStem,
+    List<int[]> gifFrames,
+    String variant,
+    String fileSuffix,
+    Path temporaryFramesRoot,
+    List<WrittenArtifact> writtenArtifacts,
+    FrameRenderer renderer
+  ) throws IOException, InterruptedException {
     final Path frameDirectory =
-      Files.createDirectories(temporaryFramesRoot.resolve(surface.fileStem + fileSuffix));
+      Files.createDirectories(temporaryFramesRoot.resolve(fileStem + fileSuffix));
     final List<BufferedImage> sampledFrames = new ArrayList<>(CONTACT_SAMPLE_COUNT);
     for (int frameIndex = 0; frameIndex < gifFrames.size(); ++frameIndex) {
-      final BufferedImage image = renderSurface(surface, gifFrames.get(frameIndex));
+      final BufferedImage image = renderer.render(gifFrames.get(frameIndex));
       writePng(image, frameDirectory.resolve("frame-%03d.png".formatted(frameIndex + 1)));
       final int engineFrameNumber = (frameIndex + 1) * GIF_FRAME_INTERVAL;
       if (engineFrameNumber % CONTACT_SAMPLE_INTERVAL == 0) {
@@ -711,14 +796,14 @@ public final class RenderSpike {
       );
     }
 
-    final BufferedImage firstFrame = renderSurface(surface, gifFrames.get(0));
-    final Path gifPath = OUTPUT_DIRECTORY.resolve(surface.fileStem + fileSuffix + ".gif");
+    final BufferedImage firstFrame = renderer.render(gifFrames.get(0));
+    final Path gifPath = OUTPUT_DIRECTORY.resolve(fileStem + fileSuffix + ".gif");
     assembleGif(frameDirectory, gifPath);
     logOutput(gifPath, firstFrame.getWidth(), firstFrame.getHeight());
     writtenArtifacts.add(new WrittenArtifact(gifPath.toAbsolutePath(), variant));
 
     final BufferedImage contactSheet = buildContactSheet(sampledFrames);
-    final Path contactPath = OUTPUT_DIRECTORY.resolve(surface.fileStem + fileSuffix + "-contact.png");
+    final Path contactPath = OUTPUT_DIRECTORY.resolve(fileStem + fileSuffix + "-contact.png");
     writePng(contactSheet, contactPath);
     logOutput(contactPath, contactSheet.getWidth(), contactSheet.getHeight());
     writtenArtifacts.add(new WrittenArtifact(contactPath.toAbsolutePath(), variant));
@@ -748,6 +833,157 @@ public final class RenderSpike {
         LX.log("    " + artifact.path);
       }
     }
+  }
+
+  /**
+   * Equidistant 180-degree fisheye projection from the center of the cylinder floor.
+   * Image radius is proportional to the point's polar angle away from straight up.
+   */
+  private static final class LookupProjection {
+
+    private final int[] pointIndices = new int[LOOKUP_SIZE * LOOKUP_SIZE];
+
+    private LookupProjection() {
+      Arrays.fill(this.pointIndices, -1);
+      final Apotheneum.Orientation orientation = Apotheneum.cylinder.interior;
+      final Apotheneum.Column[] columns = orientation.columns();
+      final int width = orientation.width();
+      final int height = orientation.height();
+      final double center = (LOOKUP_SIZE - 1) * .5;
+      final double outerRadius = center;
+
+      // The observer stands on the physical floor (y=0, per every project fixture's
+      // elevationAbsolute), not at the bottom LED row -- the lowest cylinder LEDs sit
+      // above the floor, so averaging their y would place the camera at the LEDs and
+      // force that row to exactly 90 degrees polar angle regardless of true geometry.
+      double centerX = 0;
+      double centerZ = 0;
+      final double observerY = 0;
+      for (Apotheneum.Column column : columns) {
+        final LXPoint bottom = column.points[height - 1];
+        centerX += bottom.x;
+        centerZ += bottom.z;
+      }
+      centerX /= width;
+      centerZ /= width;
+
+      final double[] columnTheta = new double[width];
+      for (int x = 0; x < width; ++x) {
+        final LXPoint point = columns[x].points[height / 2];
+        columnTheta[x] = wrapAngle(Math.atan2(point.z - centerZ, point.x - centerX));
+      }
+
+      final double[] rowRadius = new double[height];
+      for (int y = 0; y < height; ++y) {
+        double radial = 0;
+        double vertical = 0;
+        for (Apotheneum.Column column : columns) {
+          final LXPoint point = column.points[y];
+          radial += Math.hypot(point.x - centerX, point.z - centerZ);
+          vertical += Math.abs(point.y - observerY);
+        }
+        radial /= width;
+        vertical /= width;
+        final double polarAngle = Math.atan2(radial, vertical);
+        rowRadius[y] = outerRadius * polarAngle / (Math.PI * .5);
+        if (y > 0 && rowRadius[y] < rowRadius[y - 1]) {
+          throw new IllegalStateException("Cylinder rows are not monotonic in lookup projection");
+        }
+      }
+
+      // Bound sampling half a row beyond the first and last real rows. The fixture's bottom
+      // LED row sits near an 80-degree polar angle, well inside the 90-degree image rim, so
+      // admitting pixels all the way to outerRadius would let nearestRow clamp that whole
+      // outer annulus onto the last row -- drawing the bottom LEDs several times thicker
+      // than the geometry warrants. Below the physical LED field the image stays black.
+      final int lastRow = rowRadius.length - 1;
+      final double innerRadius = Math.max(
+        0, rowRadius[0] - .5 * (rowRadius[1] - rowRadius[0]));
+      final double sampledOuterRadius = Math.min(
+        outerRadius,
+        rowRadius[lastRow] + .5 * (rowRadius[lastRow] - rowRadius[lastRow - 1]));
+      for (int pixelY = 0; pixelY < LOOKUP_SIZE; ++pixelY) {
+        final double imageY = pixelY - center;
+        for (int pixelX = 0; pixelX < LOOKUP_SIZE; ++pixelX) {
+          final double imageX = pixelX - center;
+          final double radius = Math.hypot(imageX, imageY);
+          if (radius < innerRadius || radius > sampledOuterRadius) {
+            continue;
+          }
+          final int row = nearestRow(rowRadius, radius);
+          final double theta = wrapAngle(Math.atan2(imageY, imageX));
+          final int column = nearestColumn(columnTheta, theta);
+          if (row < orientation.available(column)) {
+            this.pointIndices[pixelY * LOOKUP_SIZE + pixelX] =
+              columns[column].points[row].index;
+          }
+        }
+      }
+
+      LX.log(String.format(
+        Locale.ROOT,
+        "RenderSpike lookupProjection=equidistant-fisheye fovDegrees=180 " +
+        "topRadiusPx=%.2f bottomRadiusPx=%.2f sampledInnerPx=%.2f sampledOuterPx=%.2f " +
+        "imageRimPx=%.2f",
+        rowRadius[0],
+        rowRadius[height - 1],
+        innerRadius,
+        sampledOuterRadius,
+        outerRadius
+      ));
+    }
+
+    private BufferedImage render(int[] colors) {
+      final BufferedImage image =
+        new BufferedImage(LOOKUP_SIZE, LOOKUP_SIZE, BufferedImage.TYPE_INT_RGB);
+      final int[] pixels = ((DataBufferInt) image.getRaster().getDataBuffer()).getData();
+      for (int i = 0; i < pixels.length; ++i) {
+        final int pointIndex = this.pointIndices[i];
+        pixels[i] = (pointIndex < 0) ? LXColor.BLACK : boostForReview(colors[pointIndex]);
+      }
+      return image;
+    }
+  }
+
+  private static int nearestRow(double[] rowRadius, double radius) {
+    // rowRadius is monotonic (enforced in LookupProjection's constructor), so the nearest
+    // value is adjacent to a binary search's insertion point rather than requiring a scan.
+    int insertionPoint = Arrays.binarySearch(rowRadius, radius);
+    if (insertionPoint >= 0) {
+      return insertionPoint;
+    }
+    insertionPoint = -insertionPoint - 1;
+    if (insertionPoint <= 0) {
+      return 0;
+    }
+    if (insertionPoint >= rowRadius.length) {
+      return rowRadius.length - 1;
+    }
+    final double below = radius - rowRadius[insertionPoint - 1];
+    final double above = rowRadius[insertionPoint] - radius;
+    return (below <= above) ? insertionPoint - 1 : insertionPoint;
+  }
+
+  private static int nearestColumn(double[] columnTheta, double theta) {
+    int nearest = 0;
+    double nearestDistance = circularDistance(theta, columnTheta[0]);
+    for (int column = 1; column < columnTheta.length; ++column) {
+      final double distance = circularDistance(theta, columnTheta[column]);
+      if (distance < nearestDistance) {
+        nearest = column;
+        nearestDistance = distance;
+      }
+    }
+    return nearest;
+  }
+
+  private static double circularDistance(double a, double b) {
+    final double distance = Math.abs(a - b);
+    return Math.min(distance, TWO_PI - distance);
+  }
+
+  private static double wrapAngle(double angle) {
+    return (angle < 0) ? angle + TWO_PI : angle;
   }
 
   private static BufferedImage renderSurface(RenderSurface surface, int[] colors) {

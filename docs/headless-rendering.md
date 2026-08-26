@@ -27,6 +27,35 @@ mvn -Ptests test-compile exec:exec \
   -Dparams=shape=Cone,coneAngle=0.35,radius=0.3
 ```
 
+Render the cylinder interior from the center of the floor looking straight up:
+
+```bash
+mvn -Ptests test-compile exec:exec \
+  -Dpattern=apotheneum.doved.patterns.Vortex \
+  -Dview=lookup
+```
+
+The default `unwrapped` view remains unchanged. The `lookup` view writes only
+`cylinder-interior-lookup.gif` and its contact sheet. It uses a 512×512 equidistant
+180-degree fisheye projection: image radius is proportional to the real fixture point's
+polar angle away from straight up, as seen from the cylinder floor center. The top ring
+therefore falls near the image center. Every output pixel samples its nearest real
+cylinder-interior LED with no smoothing.
+
+**The black margin at the rim is correct, not missing output.** Sampling is bounded half a
+row beyond the first and last real rows, so the image only covers where LEDs physically
+are. The fixture's bottom row sits near an 80-degree polar angle rather than at the
+90-degree rim, so on the current geometry the lit field ends around 231 px of a 255.5 px
+radius. Without that bound the outer annulus would clamp onto the final row and draw the
+bottom LEDs several times thicker than they are. The projection logs all four radii so
+this is checkable per run:
+
+```
+RenderSpike lookupProjection=equidistant-fisheye fovDegrees=180 \
+  topRadiusPx=64.48 bottomRadiusPx=227.01 \
+  sampledInnerPx=63.83 sampledOuterPx=231.12 imageRimPx=255.50
+```
+
 Numeric, boolean, discrete-option and enum parameters are supported. Names must match
 the pattern's registered parameter paths exactly; option and enum values are
 case-insensitive. An unknown name fails with the complete list of available names, and
@@ -48,9 +77,10 @@ An effects invocation produces both variants in one run: `<surface>.gif` and
 classes and classes that do not extend `LXEffect` fail before rendering.
 
 The selected class must extend `LXPattern` and have a public constructor accepting
-`LX`. `RenderSpike.main` also accepts the class name as its first argument and the
-parameter list as its second, then the effect class list as its third when invoked
-directly; an absent or blank class name selects Fireflies.
+`LX`. `RenderSpike.main` also accepts these as positional arguments when invoked
+directly: the class name first, then the parameter list, the effect class list, the
+palette assignment, and the view name, in that order; an absent or blank class name
+selects Fireflies.
 
 The renderer requires `ffmpeg` on `PATH` to assemble GIFs. This is an agent-only
 rendering dependency, not a package build dependency. The command checks for it before

@@ -103,6 +103,17 @@ own loop.
 > FYI future reference, `setColors(backgroundColor);` will do that in one line
 > for you.
 
+**Motion is one of these reinventions.** A pattern that wants continuous or
+pulsed movement should expose a plain position/level parameter and let the
+performer drive it with LX's own modulation system — an LFO, an envelope, a
+macro, MIDI — not grow its own built-in rate/speed knob with an internal
+accumulator that free-runs on `deltaMs`. The accumulator duplicates what a
+modulator already does, doubles the parameter surface for one motion (a
+position and a rate that must be kept in sync), and is one more place for a
+runaway-phase or unbounded-accumulation bug to hide. Ship the pattern static
+by default — no motion until something is wired to it — and let the position
+parameter be the single source of truth.
+
 ### 6. Check whether it belongs in core LX first
 
 Some functionality is better contributed upstream than maintained as a local
