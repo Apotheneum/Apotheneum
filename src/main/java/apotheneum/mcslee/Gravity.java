@@ -310,7 +310,7 @@ public class Gravity extends ApotheneumPattern implements UIDeviceControls<Gravi
   }
 
   @Override
-  protected void afterLayers(double deltaMs) {
+  protected void afterRenderLayers(double deltaMs) {
     copyExterior();
     this.oscWall.post();
     this.oscPeak.post();

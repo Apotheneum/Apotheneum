@@ -246,7 +246,7 @@ public class Raindrops extends ApotheneumPattern implements ApotheneumPattern.Mi
   }
 
   @Override
-  protected void afterLayers(double deltaMs) {
+  protected void afterRenderLayers(double deltaMs) {
     copyExterior();
   }
 

@@ -373,6 +373,15 @@ put that geometry in the **channel view** and leave the pattern view at
 `Default`. This lets the pattern inherit the registration model while retaining
 the channel's hard output boundary.
 
+In this repo, `ApotheneumPattern` enforces its own pattern-level view for every
+subclass: `afterLayers` is final there and blacks out the color-buffer indices
+outside the view, from a cached index list rebuilt only when the view or model
+identity changes. Subclasses that need a post-render pass override
+`afterRenderLayers(double)` instead of `afterLayers`. This deliberately covers
+only the pattern's *own* view selector — a channel view is still left to the
+mixer, so patterns that project onto third-party geometry keep inheriting the
+channel model as their registration model, exactly as described above.
+
 During review, trace every color-buffer write rather than assuming
 `getModelView()` makes it safe. If a pattern-level view is supposed to be a hard
 filter, either iterate only resolved-view points or build a reusable membership

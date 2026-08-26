@@ -224,7 +224,7 @@ public class DoorEmanation extends ApotheneumPattern {
   }
 
   @Override
-  protected void afterLayers(double deltaMs) {
+  protected void afterRenderLayers(double deltaMs) {
     copyExterior();
   }
 

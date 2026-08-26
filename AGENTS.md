@@ -161,6 +161,14 @@ The installation has doors that affect pixel availability:
   - `copyCylinderExterior()` - Copy cylinder exterior to interior
   - `copyMirror(from, to)` - Mirror copy with column reversal
   - `setApotheneumColor(color)` - Set entire installation to one color
+- **Model view enforcement**: the helpers above write global point indices, so a
+  pattern-level model view could not constrain them. The base class now applies the
+  pattern's own view as a hard boundary after rendering — points outside it are blacked
+  out from a cached index list, rebuilt only when the view or model changes. With no
+  pattern-level view selected (the default, and every saved project) nothing changes. A
+  *channel* view is still left to the mixer.
+- **Post-render hook**: `afterLayers` is `final`; override `afterRenderLayers(double)`
+  for a pass that must run after `render()` and after layers (e.g. `copyExterior()`).
 
 ### Working with Geometry
 

@@ -142,7 +142,7 @@ public class Wormhole extends ApotheneumPattern implements ApotheneumPattern.Mid
   }
 
   @Override
-  protected void afterLayers(double deltaMs) {
+  protected void afterRenderLayers(double deltaMs) {
     copyExterior();
   }
 

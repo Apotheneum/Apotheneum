@@ -499,7 +499,7 @@ public class CubeBlinks extends ApotheneumPattern implements LXDeviceComponent.M
   }
 
   @Override
-  protected void afterLayers(double deltaMs) {
+  protected void afterRenderLayers(double deltaMs) {
     copyCubeExterior();
   }
 
