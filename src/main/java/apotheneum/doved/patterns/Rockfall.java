@@ -19,33 +19,26 @@
 package apotheneum.doved.patterns;
 
 import java.util.Arrays;
-import java.util.List;
 import java.util.Random;
 
 import apotheneum.Apotheneum;
-import apotheneum.ApotheneumPattern;
-import heronarts.glx.ui.UI2dComponent;
-import heronarts.glx.ui.vg.VGraphics;
 import heronarts.lx.LX;
 import heronarts.lx.LXCategory;
 import heronarts.lx.LXComponent;
 import heronarts.lx.color.LXColor;
-import heronarts.lx.color.LXDynamicColor;
 import heronarts.lx.model.LXModel;
 import heronarts.lx.model.LXPoint;
-import heronarts.lx.osc.LXOscComponent;
 import heronarts.lx.parameter.CompoundDiscreteParameter;
 import heronarts.lx.parameter.CompoundParameter;
 import heronarts.lx.parameter.LXParameterListener;
 import heronarts.lx.studio.LXStudio.UI;
 import heronarts.lx.studio.ui.device.UIDevice;
-import heronarts.lx.studio.ui.device.UIDeviceControls;
 import heronarts.lx.utils.LXUtils;
 
 @LXCategory("Apotheneum/doved")
 @LXComponent.Name("Rockfall")
 @LXComponent.Description("Water falling around a shared, endlessly scrolling field of rocks")
-public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rockfall> {
+public class Rockfall extends ColorNativePattern {
 
   private static final int DEFAULT_ROCK_COUNT = 55;
   private static final int ROCK_HARD_CAP = 700;
@@ -85,8 +78,6 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
   private static final double WATER_TRAIL_CUTOFF = .025;
   private static final double ROCK_VISIBILITY_RATE_PER_SECOND = 3;
   private static final String RENDER_SEED_PROPERTY = "apotheneum.rockfall.seed";
-  private static final double COLOR_BRIGHTNESS_MODULATION = .45;
-  private static final double COLOR_SATURATION_MODULATION = .3;
 
   public final CompoundParameter rockSpacing =
     new CompoundParameter("Spacing", 1, .15, 3)
@@ -159,54 +150,8 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
     new CompoundParameter("Rim Width", .9, .05, 3)
     .setDescription("Rock rim width in rows before rock scaling");
 
-  public final class ColorGroup extends LXComponent implements LXOscComponent {
-
-    public final CompoundParameter amount;
-    private final int paletteStop;
-    private int currentColor;
-    private double currentAmount;
-
-    private ColorGroup(LX lx, String label, int paletteStop, double amount) {
-      super(lx, label);
-      this.paletteStop = paletteStop;
-      this.amount = new CompoundParameter("Amount", amount)
-        .setUnits(CompoundParameter.Units.PERCENT_NORMALIZED);
-      addParameter("amount", this.amount);
-    }
-
-    private void update() {
-      this.currentColor = resolvedPaletteColor(this.paletteStop);
-      this.currentAmount = this.amount.getValue();
-    }
-
-    private int color(double physics) {
-      return modulatedColor(this.currentColor, this.currentAmount, physics);
-    }
-  }
-
-  private static final class PaletteColorPreview extends UI2dComponent {
-
-    private final Rockfall rockfall;
-    private final int paletteStop;
-
-    private PaletteColorPreview(Rockfall rockfall, int paletteStop) {
-      super(0, 0, 40, 18);
-      this.rockfall = rockfall;
-      this.paletteStop = paletteStop;
-      setDescription("Read-only project palette color");
-    }
-
-    @Override
-    protected void onDraw(heronarts.glx.ui.UI ui, VGraphics vg) {
-      vg.beginPath()
-        .roundedRect(0, 0, this.width, this.height, 3)
-        .fillColor(this.rockfall.resolvedPaletteColor(this.paletteStop))
-        .fill();
-    }
-  }
-
-  public final ColorGroup rockColor;
-  public final ColorGroup waterColor;
+  public final ColorRole rockColor;
+  public final ColorRole waterColor;
 
   private static final class Rock {
     private final double[] centerS;
@@ -296,10 +241,9 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
     parameter -> updateActiveRockCount();
 
   public Rockfall(LX lx) {
-    super(lx);
-
-    addChild("rock", this.rockColor = new ColorGroup(lx, "Rock", 0, .7));
-    addChild("water", this.waterColor = new ColorGroup(lx, "Water", 1, .7));
+    super(lx, 1, .7, 2, .7);
+    this.rockColor = this.primary;
+    this.waterColor = this.secondary;
 
     addParameter("rockSpacing", this.rockSpacing);
     addParameter("rockScale", this.rockScale);
@@ -500,8 +444,6 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
   public void dispose() {
     this.rockSpacing.removeListener(this.rockGeometryListener);
     this.rockScale.removeListener(this.rockGeometryListener);
-    this.rockColor.dispose();
-    this.waterColor.dispose();
     super.dispose();
   }
 
@@ -1217,52 +1159,6 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
     }
   }
 
-  private int resolvedPaletteColor(int stop) {
-    return paletteColor(this.lx.engine.palette.swatch.colors, stop);
-  }
-
-  static int paletteColor(List<LXDynamicColor> colors, int stop) {
-    if (colors.isEmpty()) {
-      return LXColor.WHITE;
-    }
-    return colors.get(Math.min(stop, colors.size() - 1)).getColor();
-  }
-
-  static int modulatedColor(int color, double amount, double physics) {
-    if (amount == 0) {
-      return color;
-    }
-    final double modulation = LXUtils.clamp(amount, 0, 1) * LXUtils.clamp(physics, -1, 1);
-    final double shiftedSaturation = LXUtils.clamp(
-      LXColor.s(color) * (1 - COLOR_SATURATION_MODULATION * modulation),
-      0,
-      100
-    );
-    final double shiftedBrightness = LXUtils.clamp(
-      LXColor.b(color) * (1 + COLOR_BRIGHTNESS_MODULATION * modulation),
-      0,
-      100
-    );
-    return LXColor.hsb(LXColor.h(color), shiftedSaturation, shiftedBrightness);
-  }
-
-  static int compositeColors(
-    int rockColor,
-    double rockIntensity,
-    int waterColor,
-    double waterIntensity
-  ) {
-    final int litRock = LXColor.scaleBrightness(
-      rockColor,
-      LXUtils.clamp(rockIntensity, 0, 1)
-    );
-    return waterIntensity <= 0 ? litRock : LXColor.lerp(
-      litRock,
-      waterColor,
-      LXUtils.clamp(waterIntensity, 0, 1)
-    );
-  }
-
   private double surfaceSdf(SurfaceWater surface, double s, double h) {
     final Apotheneum.Orientation orientation = surface.orientation;
     final int x = wrappedColumn(s, orientation.width());
@@ -1503,66 +1399,56 @@ public class Rockfall extends ApotheneumPattern implements UIDeviceControls<Rock
   }
 
   @Override
-  public void buildDeviceControls(UI ui, UIDevice uiDevice, Rockfall rockfall) {
+  public void buildDeviceControls(UI ui, UIDevice uiDevice, ColorNativePattern pattern) {
     uiDevice.setLayout(UIDevice.Layout.HORIZONTAL, 2);
 
     addColumn(uiDevice, "Rock Geometry",
-      newKnob(rockfall.rockSpacing),
-      newKnob(rockfall.rockScale),
-      newKnob(rockfall.craggedness)
+      newKnob(this.rockSpacing),
+      newKnob(this.rockScale),
+      newKnob(this.craggedness)
     ).setChildSpacing(6);
 
     addVerticalBreak(ui, uiDevice);
 
     addColumn(uiDevice, "Rock Motion",
-      newKnob(rockfall.rockSpeed),
-      newKnob(rockfall.variation)
-    ).setChildSpacing(6);
-
-    addVerticalBreak(ui, uiDevice);
-
-    addColumn(uiDevice, "Rock Color",
-      new PaletteColorPreview(rockfall, 0),
-      newKnob(rockfall.rockColor.amount),
-      newKnob(rockfall.rimWidth)
+      newKnob(this.rockSpeed),
+      newKnob(this.variation),
+      newKnob(this.rimWidth)
     ).setChildSpacing(6);
 
     addVerticalBreak(ui, uiDevice);
 
     addColumn(uiDevice, "Water Behavior",
-      newKnob(rockfall.waterDensity),
-      newKnob(rockfall.streak),
-      newKnob(rockfall.spread)
+      newKnob(this.waterDensity),
+      newKnob(this.streak),
+      newKnob(this.spread)
     ).setChildSpacing(6);
 
     addVerticalBreak(ui, uiDevice);
 
     addColumn(uiDevice, "Flow",
-      newKnob(rockfall.gravity),
-      newKnob(rockfall.slideSpeed),
-      newKnob(rockfall.cling)
+      newKnob(this.gravity),
+      newKnob(this.slideSpeed),
+      newKnob(this.cling)
     ).setChildSpacing(6);
 
     addVerticalBreak(ui, uiDevice);
 
     addColumn(uiDevice, "Contact",
-      newKnob(rockfall.converge),
-      newKnob(rockfall.convergeDistance)
-    ).setChildSpacing(6);
-
-    addVerticalBreak(ui, uiDevice);
-
-    addColumn(uiDevice, "Water Color",
-      new PaletteColorPreview(rockfall, 1),
-      newKnob(rockfall.waterColor.amount)
+      newKnob(this.converge),
+      newKnob(this.convergeDistance)
     ).setChildSpacing(6);
 
     addVerticalBreak(ui, uiDevice);
 
     addColumn(uiDevice, "Levels",
-      newKnob(rockfall.waterLevel),
-      newKnob(rockfall.rockLevel),
-      newKnob(rockfall.rim)
+      newKnob(this.waterLevel),
+      newKnob(this.rockLevel),
+      newKnob(this.rim)
     ).setChildSpacing(6);
+
+    // Colour columns are built by the base class, not here (ColorNativePattern owns that UI),
+    // and are appended last so they land at the end of the panel, contiguous with each other.
+    buildColorDeviceControls(ui, uiDevice);
   }
 }
