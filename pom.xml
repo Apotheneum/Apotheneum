@@ -15,6 +15,7 @@
         <effects></effects>
         <palette></palette>
         <view></view>
+        <modulate></modulate>
 
         <lx.version>1.2.2</lx.version>
         <maven-assembly-plugin.version>3.1.0</maven-assembly-plugin.version>
@@ -147,6 +148,7 @@
                                 <argument>effects=${effects}</argument>
                                 <argument>palette=${palette}</argument>
                                 <argument>view=${view}</argument>
+                                <argument>modulate=${modulate}</argument>
                             </arguments>
                         </configuration>
                     </plugin>

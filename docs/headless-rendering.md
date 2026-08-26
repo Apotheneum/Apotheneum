@@ -61,6 +61,36 @@ the pattern's registered parameter paths exactly; option and enum values are
 case-insensitive. An unknown name fails with the complete list of available names, and
 the renderer logs the resolved values so the invocation remains self-describing.
 
+### Drive a static position parameter
+
+Patterns ship static by default under the motion guideline: performers wire LX modulation
+to a plain position parameter rather than relying on a pattern-owned speed accumulator.
+`RenderSpike` can exercise that same performance path with `-Dmodulate=`. Its value is
+`parameter:cyclesPerSecond`; it registers a deterministic 0→1 sawtooth, attaches it through
+`LXCompoundModulation`, moves the target's base to the bottom of its range so the sweep
+covers the whole parameter, and logs the resolved target, rate, period, range, shape and the
+value the sweep starts and ends on. The base is set by normalized position, not by numeric
+value, so a bipolar target such as Gravity's `gravityDirection` (`-1..1`) sweeps its full
+range rather than only the upper half.
+
+For example, this moves Vortex's otherwise-static `spin` through 0.6 of a turn over the
+renderer's five-second run:
+
+```bash
+mvn -Ptests test-compile exec:exec \
+  -Dpattern=apotheneum.doved.patterns.Vortex \
+  -Dmodulate=spin:0.12
+```
+
+The target must be a registered `CompoundParameter` or `CompoundDiscreteParameter`; an
+unknown target lists all available names and a non-modulatable target fails clearly. Without
+`-Dmodulate=`, existing renderer invocations are unchanged. When invoked directly, the
+modulation assignment is the sixth positional argument, after the view name.
+
+Combined with `-Deffects=`, the sawtooth restarts from basis 0 at the top of each variant, so
+`<surface>.gif` and `<surface>-effects.gif` cover the identical parameter sweep and the only
+difference between them is the effect.
+
 Add channel effects by fully-qualified class name with a comma-separated list. They are
 applied in the order given:
 
@@ -79,8 +109,8 @@ classes and classes that do not extend `LXEffect` fail before rendering.
 The selected class must extend `LXPattern` and have a public constructor accepting
 `LX`. `RenderSpike.main` also accepts these as positional arguments when invoked
 directly: the class name first, then the parameter list, the effect class list, the
-palette assignment, and the view name, in that order; an absent or blank class name
-selects Fireflies.
+palette assignment, the view name, and the modulation assignment, in that order; an
+absent or blank class name selects Fireflies.
 
 The renderer requires `ffmpeg` on `PATH` to assemble GIFs. This is an agent-only
 rendering dependency, not a package build dependency. The command checks for it before

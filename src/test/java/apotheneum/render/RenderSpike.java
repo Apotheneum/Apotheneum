@@ -29,6 +29,9 @@ import heronarts.lx.color.LXDynamicColor;
 import heronarts.lx.effect.LXEffect;
 import heronarts.lx.model.LXPoint;
 import heronarts.lx.mixer.LXChannel;
+import heronarts.lx.modulation.LXCompoundModulation;
+import heronarts.lx.modulation.LXParameterModulation.ModulationException;
+import heronarts.lx.modulator.SawLFO;
 import heronarts.lx.parameter.BooleanParameter;
 import heronarts.lx.parameter.DiscreteParameter;
 import heronarts.lx.parameter.EnumParameter;
@@ -103,6 +106,7 @@ public final class RenderSpike {
     final List<Class<? extends LXEffect>> effectClasses = resolveEffectClasses(args);
     final String paletteAssignments = optionalArgument(args, 3, "palette=");
     final RenderView renderView = resolveRenderView(optionalArgument(args, 4, "view="));
+    final String modulationAssignment = optionalArgument(args, 5, "modulate=");
     preflightFfmpeg();
 
     final long jvmStartMillis = ManagementFactory.getRuntimeMXBean().getStartTime();
@@ -150,6 +154,7 @@ public final class RenderSpike {
       LX.log("RenderSpike view=" + renderView.name().toLowerCase(Locale.ROOT));
       applyParameters(pattern, parameterAssignments);
       final LXChannel channel = lx.engine.mixer.addChannel(new LXPattern[] { pattern });
+      final SawLFO modulation = applyModulation(lx, pattern, modulationAssignment);
       final List<LXEffect> effects = addEffects(channel, effectClasses, lx);
       lx.engine.setFixedDeltaMs(FIXED_DELTA_MS);
 
@@ -164,12 +169,13 @@ public final class RenderSpike {
         LX.log("RenderSpike variant=bypass");
       }
       renderVariant(
-        lx, pattern, renderView, lookupProjection, "bypass", "", temporaryFramesRoot, writtenArtifacts);
+        lx, pattern, modulation, renderView, lookupProjection, "bypass", "", temporaryFramesRoot,
+        writtenArtifacts);
       if (!effects.isEmpty()) {
         setEffectsEnabled(effects, true);
         renderVariant(
-          lx, pattern, renderView, lookupProjection, "effects", "-effects", temporaryFramesRoot,
-          writtenArtifacts);
+          lx, pattern, modulation, renderView, lookupProjection, "effects", "-effects",
+          temporaryFramesRoot, writtenArtifacts);
       }
 
       LX.log("RenderSpike outputDirectory=" + OUTPUT_DIRECTORY.toAbsolutePath());
@@ -189,6 +195,7 @@ public final class RenderSpike {
   private static void renderVariant(
     LX lx,
     LXPattern pattern,
+    SawLFO modulation,
     RenderView renderView,
     LookupProjection lookupProjection,
     String variant,
@@ -198,6 +205,13 @@ public final class RenderSpike {
   ) throws IOException, InterruptedException {
     if (!fileSuffix.isEmpty()) {
       LX.log("RenderSpike variant=" + variant);
+    }
+    if (modulation != null) {
+      // The bypass/effects pair is only readable when the effect is the sole difference between
+      // the two renders, so every variant replays the sawtooth from the same basis rather than
+      // resuming wherever the previous variant's frames left it.
+      modulation.setBasis(0);
+      LX.log("RenderSpike modulationBasis=0 variant=" + variant);
     }
     final LXEngine.Frame outputFrame = new LXEngine.Frame(lx);
     outputFrame.setModel(lx.getModel());
@@ -250,10 +264,11 @@ public final class RenderSpike {
   }
 
   private static Class<? extends LXPattern> resolvePatternClass(String[] args) {
-    if (args.length > 5) {
+    if (args.length > 6) {
       throw new IllegalArgumentException(
         "Usage: RenderSpike [fully-qualified LXPattern class] [name=value,name=value] " +
-        "[fully-qualified LXEffect class,...] [hue,saturation,brightness;...] [unwrapped|lookup]"
+        "[fully-qualified LXEffect class,...] [hue,saturation,brightness;...] [unwrapped|lookup] " +
+        "[parameter:cyclesPerSecond]"
       );
     }
     final String className = (args.length == 0 || args[0].isBlank()) ? DEFAULT_PATTERN_CLASS_NAME : args[0];
@@ -418,11 +433,6 @@ public final class RenderSpike {
       return;
     }
 
-    final Map<String, LXParameter> available = new TreeMap<>();
-    for (LXParameter parameter : pattern.getParameters()) {
-      available.put(parameter.getPath(), parameter);
-    }
-
     final List<String> resolved = new ArrayList<>();
     for (String assignment : assignments.split(",", -1)) {
       final int equals = assignment.indexOf('=');
@@ -433,17 +443,101 @@ public final class RenderSpike {
       }
       final String name = assignment.substring(0, equals).strip();
       final String requestedValue = assignment.substring(equals + 1).strip();
-      final LXParameter parameter = available.get(name);
-      if (parameter == null) {
-        throw new IllegalArgumentException(
-          "Unknown pattern parameter '" + name + "'. Available parameter names: " +
-          String.join(", ", available.keySet())
-        );
-      }
+      final LXParameter parameter = resolvePatternParameter(pattern, name);
       setParameterValue(name, parameter, requestedValue);
       resolved.add(name + "=" + formatParameterValue(parameter));
     }
     LX.log("RenderSpike params=" + String.join(",", resolved));
+  }
+
+  /**
+   * Adds a deterministic 0..1 sawtooth to one pattern parameter. The renderer uses a real
+   * modulation connection so static-by-default patterns are reviewed through the same path a
+   * performer uses. Returns the registered sawtooth so each render variant can replay it from
+   * the same basis, or null when no modulation was requested.
+   */
+  static SawLFO applyModulation(LX lx, LXPattern pattern, String assignment)
+    throws ModulationException {
+    if (assignment.isBlank()) {
+      LX.log("RenderSpike modulation=(none)");
+      return null;
+    }
+    final int colon = assignment.indexOf(':');
+    if ((colon <= 0) || (colon == assignment.length() - 1)) {
+      throw new IllegalArgumentException(
+        "Invalid modulation '" + assignment + "'; expected parameter:cyclesPerSecond"
+      );
+    }
+    final String name = assignment.substring(0, colon).strip();
+    final String rawRate = assignment.substring(colon + 1).strip();
+    final double cyclesPerSecond;
+    try {
+      cyclesPerSecond = Double.parseDouble(rawRate);
+    } catch (NumberFormatException nfx) {
+      throw new IllegalArgumentException(
+        "Invalid modulation rate '" + rawRate + "' for pattern parameter '" + name +
+        "': expected a finite positive number",
+        nfx
+      );
+    }
+    if (!Double.isFinite(cyclesPerSecond) || cyclesPerSecond <= 0) {
+      throw new IllegalArgumentException(
+        "Invalid modulation rate '" + rawRate + "' for pattern parameter '" + name +
+        "': expected a finite positive number"
+      );
+    }
+
+    final LXCompoundModulation.Target target = resolveModulationTarget(pattern, name);
+    final double periodMs = 1000. / cyclesPerSecond;
+    // The full-range saw is added on top of the base value, so the base has to sit at the
+    // bottom of the target's normalized range for the documented full sweep. Setting the
+    // numeric value to zero would instead start a bipolar target such as Gravity's -1..1
+    // direction halfway up, leaving the upper half of the saw clipped at the maximum.
+    target.setNormalized(0);
+    final SawLFO saw = lx.engine.modulation.addModulator(
+      new SawLFO("RenderSpike " + name, 0, 1, periodMs));
+    final LXCompoundModulation modulation =
+      new LXCompoundModulation(lx.engine.modulation, saw, target);
+    lx.engine.modulation.addModulation(modulation);
+    modulation.range.setValue(1);
+    saw.start();
+    LX.log(String.format(
+      Locale.ROOT,
+      "RenderSpike modulation=target=%s,shape=saw,sweepStart=%.6f,sweepEnd=%.6f," +
+      "rateHz=%.6f,periodMs=%.3f,range=1",
+      name,
+      target.getValueFromNormalized(0),
+      target.getValueFromNormalized(1),
+      cyclesPerSecond,
+      periodMs
+    ));
+    return saw;
+  }
+
+  static LXCompoundModulation.Target resolveModulationTarget(LXPattern pattern, String name) {
+    final LXParameter parameter = resolvePatternParameter(pattern, name);
+    if (!(parameter instanceof LXCompoundModulation.Target target)) {
+      throw new IllegalArgumentException(
+        "Pattern parameter '" + name + "' is not modulatable; expected a CompoundParameter " +
+        "or CompoundDiscreteParameter"
+      );
+    }
+    return target;
+  }
+
+  private static LXParameter resolvePatternParameter(LXPattern pattern, String name) {
+    final Map<String, LXParameter> available = new TreeMap<>();
+    for (LXParameter parameter : pattern.getParameters()) {
+      available.put(parameter.getPath(), parameter);
+    }
+    final LXParameter parameter = available.get(name);
+    if (parameter == null) {
+      throw new IllegalArgumentException(
+        "Unknown pattern parameter '" + name + "'. Available parameter names: " +
+        String.join(", ", available.keySet())
+      );
+    }
+    return parameter;
   }
 
   private static void setParameterValue(String name, LXParameter parameter, String value) {
