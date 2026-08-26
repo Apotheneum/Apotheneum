@@ -92,13 +92,39 @@ $ brew install maven
 
 #### Building and Installing
 
-After developing new animation content, you may install it by running `update.command` or invoking Maven directly:
+To compile without installing:
+
+```bash
+$ mvn compile
+```
+
+To install the package for a running Chromatik, run `update.command` or invoke Maven directly:
 
 ```bash
 $ mvn -Pinstall install
 ```
 
 This builds the JAR file and copies it to `~/Chromatik/Packages` for automatic loading in Chromatik.
+Chromatik reads packages at launch, so restart it to pick up a newly installed JAR.
+
+**Install only when something needs the JAR.** That path —
+`~/Chromatik/Packages/apotheneum-2.0.0-SNAPSHOT.jar` — is keyed on artifact ID and version,
+not on branch or worktree, so every checkout writes the same file and the last install wins.
+If you keep several worktrees open, or run coding agents against this repo, an install
+silently replaces whatever was there. Compiling, running the tests and rendering a pattern
+all work from the build tree and need no installed package. See
+[AGENTS.md](AGENTS.md#build-commands) for the full note.
+
+#### Testing
+
+Tests are **opt-in**, so a normal build never waits on them — `maven.test.skip` defaults to
+true, which skips test *compilation* as well. Run them explicitly:
+
+```bash
+$ mvn -Ptests test
+```
+
+If you add tests and they appear not to run, you almost certainly omitted `-Ptests`.
 
 #### Releasing
 
@@ -160,6 +186,31 @@ public class MyGeneralPattern extends LXPattern {
 ```
 
 **Coding guidelines:** see [LX/Chromatik coding guidelines](docs/lx-coding-guidelines.md) before opening a PR — LX idioms from past review feedback on this repo (no allocation in the render loop, enums instead of magic constants, framework helpers, lifecycle symmetry), plus a review checklist.
+
+**Every pattern change ends with a render.** A pattern PR without one is not reviewable —
+looking at the output is the only way anyone sees what the change actually does. The renderer
+runs headlessly against the real installation geometry, with no Chromatik running and no
+package installed:
+
+```bash
+$ mvn -Ptests test-compile exec:exec -Dpattern=apotheneum.doved.patterns.Fireflies
+```
+
+It writes stills, a contact sheet and a GIF per surface to `target/spike/`. Check the cheap
+numbers first — non-black fraction, mean brightness, ms/frame — and look at an image once
+those pass. Attach the result to the PR; never commit it. See
+[Headless rendering](docs/headless-rendering.md), which also covers effects and modulators
+(neither has output of its own, so each needs a host pattern and a stated comparison).
+
+**Changing a pattern's controls?** Render the device UI too and inspect it, rather than
+assuming the layout survived:
+
+```bash
+$ ./scripts/render-ui apotheneum.doved.patterns.Fireflies
+```
+
+See [UI rendering](docs/ui-rendering.md) — it uses the real Chromatik UI without installing
+the package, and writes both the panel image and a JSON description of the control tree.
 
 **For audio-reactive patterns:** do envelope-following in the DAW and pipe the result in over OSC rather than reading the internal audio meter — see [Audio-Reactive Patterns](docs/audio-modulation.md).
 
