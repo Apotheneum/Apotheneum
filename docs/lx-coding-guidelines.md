@@ -127,11 +127,27 @@ the first thing a performer does with a phase is drive it from a sawtooth, which
 makes that invented loop visible. `Jungle`, `Rockfall`, `Waterfall`, `Grass` and
 `LavaLamp` all integrate `deltaMs` for this reason, and are right to.
 
-Use discretion. Where a rate is the honest control, keep two things true: expose
+Use discretion. Where a rate is the honest control, keep two things true. Expose
 it as a compound parameter, so a performer can still modulate its strength and
-direction through the modulation graph, and keep the accumulator bounded — wrap
-the phase rather than letting it grow without limit, which is the real defect the
-recommendation exists to prevent.
+direction through the modulation graph. And keep whatever it accumulates bounded,
+which is the real defect this recommendation exists to prevent — the patterns
+above take that exception, but they do not all yet satisfy this half of it:
+
+- `Rockfall` and `LavaLamp` keep no clock at all. They integrate `dt` into
+  simulation state — droplet and blob positions — which the geometry bounds for
+  them. This is the easiest case to get right, because there is nothing to wrap.
+- `Jungle` does keep phases, and wraps both explicitly (`windOffset` at the
+  texture width, `gustPhase` at a multiple of 2π chosen so every harmonic it
+  drives stays continuous across the wrap).
+- `Waterfall` and `Grass` do not. `Waterfall.time` and `Grass.gustPhase` /
+  `gustTime` / `turbulenceTime` grow without limit and are cast to `float` at the
+  point of use. The accumulator is a `double`, so it keeps its own precision; the
+  loss is at the cast. A 60fps frame advances `Waterfall.time` by about .0167,
+  and past 2^19 the spacing between adjacent `float`s exceeds that — so after
+  roughly six days of continuous running the noise coordinate stops moving every
+  frame and the motion quantizes, coarsening from there. On a permanent
+  installation that is a real failure, and these two want wrapping. Cite them as
+  precedent for taking the exception, not for skipping this part of it.
 
 ### 6. Check whether it belongs in core LX first
 
