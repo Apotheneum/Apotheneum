@@ -410,9 +410,6 @@ public class Grass extends ColorNativePattern {
     Apotheneum.Cube.Ring.LENGTH, Apotheneum.GRID_HEIGHT, Apotheneum.GRID_WIDTH);
   private final Field cylinderField = new Field(
     Apotheneum.Cylinder.Ring.LENGTH, Apotheneum.CYLINDER_HEIGHT, 0);
-  private LXModel viewModel;
-  private boolean[] viewMask;
-
   // Per-frame values, resolved once in render() rather than per blade.
   private double windMagnitude;
   private double windX;
@@ -458,27 +455,6 @@ public class Grass extends ColorNativePattern {
   private void reseedFields() {
     this.cubeField.seed();
     this.cylinderField.seed();
-  }
-
-  private void updateViewMask() {
-    final LXModel model = getModelView();
-    if (this.viewModel == model) {
-      return;
-    }
-    Arrays.fill(colors, LXColor.BLACK);
-    this.viewModel = model;
-    if (model == this.lx.getModel()) {
-      this.viewMask = null;
-      return;
-    }
-    this.viewMask = new boolean[this.lx.getModel().size];
-    for (LXPoint point : model.points) {
-      this.viewMask[point.index] = true;
-    }
-  }
-
-  private boolean isViewPoint(int index) {
-    return (this.viewMask == null) || this.viewMask[index];
   }
 
   private double sharpenWeight(double fraction) {
