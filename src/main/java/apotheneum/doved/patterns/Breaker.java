@@ -3,20 +3,16 @@ package apotheneum.doved.patterns;
 import java.util.Arrays;
 
 import apotheneum.Apotheneum;
-import apotheneum.ApotheneumPattern;
 import heronarts.lx.LX;
 import heronarts.lx.LXCategory;
 import heronarts.lx.LXComponent;
 import heronarts.lx.color.LXColor;
-import heronarts.lx.color.LinkedColorParameter;
 import heronarts.lx.model.LXPoint;
 import heronarts.lx.parameter.BooleanParameter;
 import heronarts.lx.parameter.CompoundParameter;
 import heronarts.lx.parameter.TriggerParameter;
 import heronarts.lx.studio.LXStudio.UI;
 import heronarts.lx.studio.ui.device.UIDevice;
-import heronarts.lx.studio.ui.device.UIDeviceControls;
-import heronarts.glx.ui.component.UIKnob;
 import heronarts.lx.utils.LXUtils;
 
 /**
@@ -39,9 +35,13 @@ import heronarts.lx.utils.LXUtils;
  * so the asymmetric profile, the peel and the foam drift all flip together and
  * the steep face keeps leading rather than the wave running backwards.
  *
- * <p>Colors are chosen per-instance rather than fixed by the pattern. Each of
- * the three is a {@link LinkedColorParameter}, so it can be a fixed color or
- * follow the project palette.
+ * <p>Water color follows the project palette through the two {@link ColorNativePattern}
+ * roles -- {@link #surfaceColor} ({@code primary}) and {@link #deepColor} ({@code secondary})
+ * -- both resolved at the same per-column physics argument (see {@link #crestPhysics}) and
+ * blended by depth, the same shape as {@code LavaLamp}'s temperature ramp. The crest line and
+ * the whitewater foam stay a fixed constant, {@link OceanField#MENISCUS_COLOR}: foam is white
+ * because it scatters light rather than because of the water's pigment, so it does not track
+ * a palette stop the way the water body does.
  *
  * <p>Requested break height is capped at 85% of the LED rows between the base
  * waterline and the ceiling, with half a row reserved for the antialiased crest.
@@ -51,7 +51,7 @@ import heronarts.lx.utils.LXUtils;
 @LXCategory("Apotheneum/doved")
 @LXComponent.Name("Breaker")
 @LXComponent.Description("A local spilling wave that travels, breaks, and leaves whitewater")
-public class Breaker extends ApotheneumPattern implements UIDeviceControls<Breaker> {
+public class Breaker extends ColorNativePattern {
 
   static final double APPROACH_SECONDS = 2.2;
   static final double COLLAPSE_SECONDS = .35;
@@ -70,14 +70,8 @@ public class Breaker extends ApotheneumPattern implements UIDeviceControls<Break
   private static final double FOAM_DECAY_RATE = 2.25;
   private static final double FOAM_GRAVITY_ROWS = 18;
   private static final int FOAM_POOL_SIZE = 192;
-  /**
-   * How far a single non-circling pass travels: half the ring, which carries the
-   * wave from one side of the installation to the opposite side. The envelope is
-   * bounded in time, so without this the distance is whatever speed x duration
-   * happens to be - at slow Pace that exceeds a full lap and the wave circles
-   * even with Circle off.
-   */
-  static final double ONE_PASS_LAPS = .5;
+  /** Ring-space width against which the shape's small crest-motion nudges were tuned. */
+  private static final double REFERENCE_WIDTH_S = 50.0 / CUBE_RING_LENGTH;
 
   public final CompoundParameter level =
     new CompoundParameter("Level", .3, .08, .9)
@@ -89,58 +83,61 @@ public class Breaker extends ApotheneumPattern implements UIDeviceControls<Break
     .setDescription("Requested crest height in LED rows, capped by available headroom");
 
   public final CompoundParameter eventWidth =
-    new CompoundParameter("Width", 50, 36, 64)
-    .setDescription("Local event width measured in cube-ring columns");
+    new CompoundParameter("Width", .18, .08, .36)
+    .setUnits(CompoundParameter.Units.PERCENT_NORMALIZED)
+    .setDescription("Planar wave width as a fraction of the full 3D crossing distance (2R)");
 
   public final CompoundParameter breakAzimuth =
     new CompoundParameter("Azimuth", 0, 0, 360)
     .setUnits(CompoundParameter.Units.DEGREES)
     .setWrappable(true)
-    .setDescription("Where the wave sits on the ring; steers it live, including mid-lap");
+    .setDescription("Compass direction the planar wave travels; selects ring position in Circle mode");
 
   public final BooleanParameter snapToFaces =
     new BooleanParameter("Face Snap", false)
-    .setDescription("Round the azimuth to the nearest cube-face centre, so a break lands on one flat face instead of straddling a corner");
+    .setDescription("Circle mode only: round the ring azimuth to the nearest cube-face centre");
+
+  // One crossing per event. Anything faster finishes the crossing before the wash phase
+  // begins, so the wave is already off-model while its foam drains and the tail of the
+  // event renders as dead air -- at .4 crossings/sec the last 2.3s of a 4.8s event were
+  // literally unchanging. At this rate the crest is still on the far side of the room
+  // through the collapse and wash, which is when they actually read.
+  public static final double ONE_CROSSING_PER_EVENT = 1 / EVENT_SECONDS;
 
   public final CompoundParameter travelSpeed =
-    new CompoundParameter("Travel", .14, .04, .32)
-    .setDescription("Footprint travel speed in ring laps per second");
+    new CompoundParameter(
+      "Travel",
+      ONE_CROSSING_PER_EVENT,
+      .5 * ONE_CROSSING_PER_EVENT,
+      3 * ONE_CROSSING_PER_EVENT)
+    .setDescription("Planar travel speed in full crossings per second; the default crosses exactly once per event (Circle mode uses ring laps per second)");
 
   public final BooleanParameter reverse =
     new BooleanParameter("Reverse", false)
-    .setDescription("Travel the other way around the ring; the steep face always leads");
+    .setDescription("Reverse the travel direction; the steep face always leads");
 
   public final BooleanParameter circle =
     new BooleanParameter("Circle", false)
-    .setDescription("Lap the ring continuously instead of making one bounded pass");
+    .setDescription("Use the original continuous ring-lap behavior instead of a straight 3D crossing");
 
   public final CompoundParameter pace =
     new CompoundParameter("Pace", 1, .6, 1.6)
-    .setDescription("Playback rate of the shape envelope; travel stays in real-time laps per second");
+    .setDescription("Playback rate of the shape envelope; travel stays in real-time crossings per second");
 
   public final CompoundParameter foamAmount =
     new CompoundParameter("Foam", .8, 0, 1)
     .setUnits(CompoundParameter.Units.PERCENT_NORMALIZED)
     .setDescription("Density and brightness of the collapse foam burst");
 
-  // Fixed by default so the stock look is unchanged, but each is switchable to
-   // PALETTE mode, so the whole wave can follow the show's swatch instead - the
-   // pattern should not be deciding that this water has to be blue.
-  public final LinkedColorParameter deepColor =
-    new LinkedColorParameter("Deep", OceanField.DEEP_COLOR)
-    .setDescription("Color at the bottom of the water body");
-
-  public final LinkedColorParameter surfaceColor =
-    new LinkedColorParameter("Surface", OceanField.SURFACE_COLOR)
-    .setDescription("Color just beneath the surface");
-
-  public final LinkedColorParameter crestColor =
-    new LinkedColorParameter("Crest", OceanField.MENISCUS_COLOR)
-    .setDescription("Color of the crest line and the whitewater foam");
-
   public final TriggerParameter breakWave =
     new TriggerParameter("Break", this::triggerBreak)
     .setDescription("Launch or restart the breaker at the selected azimuth");
+
+  /** The shallow/surface end of the water ramp. Alias for {@link ColorNativePattern#primary}. */
+  public final ColorRole surfaceColor;
+
+  /** The deep end of the water ramp. Alias for {@link ColorNativePattern#secondary}. */
+  public final ColorRole deepColor;
 
   private final OceanField.GeometryCache geometry = new OceanField.GeometryCache();
   private final FoamParticle[] foamParticles = new FoamParticle[FOAM_POOL_SIZE];
@@ -152,13 +149,23 @@ public class Breaker extends ApotheneumPattern implements UIDeviceControls<Break
   private double eventTravelLaps;
   private double steeredAzimuthS = Double.NaN;
   private double breakCenterS;
+  private double planeCenterX;
+  private double planeCenterZ;
+  private double planeDirX = Double.NaN;
+  private double planeDirZ;
+  private double planeRadius;
+  private double planeFront;
+  private double planeEventHalfWidth;
+  private boolean planeCenterCached;
   private double texturePhase;
   private double foamSpawnAccumulator;
   private int foamPoolCursor;
   private int foamSerial;
 
   public Breaker(LX lx) {
-    super(lx);
+    super(lx, 1, .5, 2, .5);
+    this.surfaceColor = this.primary;
+    this.deepColor = this.secondary;
     // LX assigns the pattern's own colors buffer when it joins a channel, but
     // the model is already available here because ApotheneumPattern initialized
     // it in super(lx). Size the independent feedback buffer from that model.
@@ -177,18 +184,21 @@ public class Breaker extends ApotheneumPattern implements UIDeviceControls<Break
     addParameter("circle", this.circle);
     addParameter("pace", this.pace);
     addParameter("foamAmount", this.foamAmount);
-    addParameter("deepColor", this.deepColor);
-    addParameter("surfaceColor", this.surfaceColor);
-    addParameter("crestColor", this.crestColor);
     addParameter("break", this.breakWave);
   }
 
   private void triggerBreak() {
-    this.breakCenterS = resolvedBreakS(
-      this.breakAzimuth.getValue() / 360.,
-      this.snapToFaces.isOn()
-    );
-    this.steeredAzimuthS = this.breakCenterS;
+    if (this.circle.isOn()) {
+      this.breakCenterS = resolvedBreakS(
+        this.breakAzimuth.getValue() / 360.,
+        this.snapToFaces.isOn()
+      );
+      this.steeredAzimuthS = this.breakCenterS;
+    } else {
+      updatePlaneGeometry();
+      this.planeEventHalfWidth = planarWidth(this.eventWidth.getValue(), this.planeRadius) * .5;
+      this.planeFront = planarStartFront(this.planeRadius, this.planeEventHalfWidth);
+    }
     this.eventSeconds = 0;
     this.eventTravelLaps = 0;
     this.eventActive = true;
@@ -197,8 +207,11 @@ public class Breaker extends ApotheneumPattern implements UIDeviceControls<Break
 
   @Override
   protected void render(double deltaMs) {
-    setColors(LXColor.BLACK);
+    updateViewMask();
+    clearView();
     this.geometry.update();
+    this.primary.update();
+    this.secondary.update();
 
     final double deltaSeconds = Math.max(0, deltaMs) * .001;
     if (this.resetFoam) {
@@ -208,39 +221,44 @@ public class Breaker extends ApotheneumPattern implements UIDeviceControls<Break
     final double foamDecay = feedbackDecay(FOAM_DECAY_RATE, deltaSeconds);
 
     this.texturePhase = (this.texturePhase + deltaSeconds * .72) % LX.TWO_PI;
+    final boolean circular = this.circle.isOn();
     final double direction = travelDirection(this.reverse.isOn());
-    // The azimuth dial steers the wave live rather than only seeding the launch
-    // point, so it can be aimed mid-lap while circling. Only the CHANGE in the
-    // dial is applied, along the shorter way round, so steering composes with
-    // travel instead of fighting it.
-    final double azimuthS = resolvedBreakS(
-      this.breakAzimuth.getValue() / 360.,
-      this.snapToFaces.isOn()
-    );
-    if (Double.isNaN(this.steeredAzimuthS)) {
-      this.steeredAzimuthS = azimuthS;
-    } else if (azimuthS != this.steeredAzimuthS) {
-      this.breakCenterS = wrapRingPosition(
-        this.breakCenterS + signedArcDistance(azimuthS, this.steeredAzimuthS)
-      );
-      this.steeredAzimuthS = azimuthS;
-    }
     // Circle mode is self-starting: switching it on begins a lap without also
     // needing the trigger, which is what "make it circle" asks for.
-    if (this.circle.isOn() && !this.eventActive) {
+    if (circular && !this.eventActive) {
       triggerBreak();
+    }
+    if (!circular) {
+      updatePlaneGeometry();
     }
     if (this.eventActive) {
       this.eventSeconds += deltaSeconds * this.pace.getValue();
-      final double step = boundedTravelStep(
-        this.eventTravelLaps,
-        direction * this.travelSpeed.getValue() * deltaSeconds,
-        this.circle.isOn()
-      );
-      this.eventTravelLaps += Math.abs(step);
-      this.breakCenterS = wrapRingPosition(this.breakCenterS + step);
+      if (circular) {
+        // The ring behavior is intentionally unchanged in Circle mode, including live azimuth steering.
+        final double azimuthS = resolvedBreakS(
+          this.breakAzimuth.getValue() / 360.,
+          this.snapToFaces.isOn()
+        );
+        if (Double.isNaN(this.steeredAzimuthS)) {
+          this.steeredAzimuthS = azimuthS;
+        } else if (azimuthS != this.steeredAzimuthS) {
+          this.breakCenterS = wrapRingPosition(
+            this.breakCenterS + signedArcDistance(azimuthS, this.steeredAzimuthS)
+          );
+          this.steeredAzimuthS = azimuthS;
+        }
+        this.eventTravelLaps += Math.abs(direction * this.travelSpeed.getValue() * deltaSeconds);
+        this.breakCenterS = wrapRingPosition(
+          this.breakCenterS + direction * this.travelSpeed.getValue() * deltaSeconds
+        );
+      } else {
+        this.planeFront = Math.min(
+          planarEndFront(this.planeRadius, this.planeEventHalfWidth),
+          this.planeFront + planarCrossingDistance(this.planeRadius, this.travelSpeed.getValue(), deltaSeconds)
+        );
+      }
       if (this.eventSeconds >= EVENT_SECONDS) {
-        if (this.circle.isOn()) {
+        if (circular) {
           // Carry the remainder so the envelope restarts seamlessly at the
           // position already reached. Foam is deliberately NOT reset here: it
           // belongs to the ring, not the event, so a new lap must not wipe the
@@ -266,19 +284,22 @@ public class Breaker extends ApotheneumPattern implements UIDeviceControls<Break
       this.geometry.ceilingY(),
       this.geometry.rowPitch()
     );
-    final double widthS = this.eventWidth.getValue() / CUBE_RING_LENGTH;
+    final double widthS = circular
+      ? this.eventWidth.getValue()
+      : planarWidth(this.eventWidth.getValue(), this.planeRadius);
     final double faceFraction = this.eventActive
       ? faceFraction(this.eventSeconds)
       : BREAKING_FACE_FRACTION;
     final double crestS = profileCrestS(
-      this.breakCenterS,
+      circular ? this.breakCenterS : this.planeFront,
       widthS,
       faceFraction,
-      this.eventActive ? crestOffset(this.eventSeconds) : WASH_TRAVEL,
+      (this.eventActive ? crestOffset(this.eventSeconds) : WASH_TRAVEL)
+        * (circular ? 1 : widthS / REFERENCE_WIDTH_S),
       direction
     );
 
-    updateFoam(deltaSeconds, baseSurfaceY, crestS, widthS, direction);
+    updateFoam(deltaSeconds, baseSurfaceY, crestS, widthS, direction, circular);
 
     renderOrientation(
       Apotheneum.cube.exterior,
@@ -290,7 +311,8 @@ public class Breaker extends ApotheneumPattern implements UIDeviceControls<Break
       faceFraction,
       OceanField.CUBE_S_OFFSET,
       foamDecay,
-      direction
+      direction,
+      circular
     );
     renderOrientation(
       Apotheneum.cylinder.exterior,
@@ -302,14 +324,16 @@ public class Breaker extends ApotheneumPattern implements UIDeviceControls<Break
       faceFraction,
       0,
       foamDecay,
-      direction
+      direction,
+      circular
     );
 
-    renderFoamOrientation(Apotheneum.cube.exterior, OceanField.CUBE_S_OFFSET);
-    renderFoamOrientation(Apotheneum.cylinder.exterior, 0);
+    renderFoamOrientation(Apotheneum.cube.exterior, OceanField.CUBE_S_OFFSET, circular);
+    renderFoamOrientation(Apotheneum.cylinder.exterior, 0, circular);
     compositeFoam(Apotheneum.cube.exterior);
     compositeFoam(Apotheneum.cylinder.exterior);
-    copyExterior();
+    copyExteriorMasked(Apotheneum.cube.exterior, Apotheneum.cube.interior);
+    copyExteriorMasked(Apotheneum.cylinder.exterior, Apotheneum.cylinder.interior);
   }
 
   private void renderOrientation(
@@ -322,15 +346,11 @@ public class Breaker extends ApotheneumPattern implements UIDeviceControls<Break
       double faceFraction,
       double columnOffset,
       double foamDecay,
-      double direction) {
+      double direction,
+      boolean circular) {
     final int ringLength = orientation.columns().length;
     final double verticalRows =
       (this.geometry.ceilingY() - this.geometry.floorY()) / this.geometry.rowPitch() + 1;
-    // Resolved once per orientation rather than per pixel: calcColor() walks the
-    // palette when a parameter is in PALETTE mode.
-    final int surface = this.surfaceColor.calcColor();
-    final int deep = this.deepColor.calcColor();
-    final int crest = this.crestColor.calcColor();
 
     int columnIndex = 0;
     for (Apotheneum.Column column : orientation.columns()) {
@@ -338,10 +358,18 @@ public class Breaker extends ApotheneumPattern implements UIDeviceControls<Break
       // Mirroring the distance is what makes Reverse work: back/face asymmetry,
       // the peel and the crest mask are all expressed in terms of it, so the
       // steep face keeps leading instead of the wave running backwards.
-      final double distance = direction * signedArcDistance(s, crestS);
+      final double distance = circular
+        ? direction * signedArcDistance(s, crestS)
+        : planarDistance(column.points[0], crestS);
       final double profile = spatialProfile(distance, widthS, faceFraction);
       final double normalizedDistance = distance / widthS;
       final double eventAmount = peeledHeightEnvelope(eventSeconds, normalizedDistance);
+      // Both roles are resolved once per column at the same physics argument -- how much of
+      // the requested break height this column is currently showing -- and lerped per row by
+      // depth below, following LavaLamp's two-stop ramp with depth in place of temperature.
+      final double physics = crestPhysics(eventAmount, profile);
+      final int surface = this.primary.color(physics);
+      final int deep = this.secondary.color(physics);
       final double surfaceY = baseSurfaceY
         + this.geometry.rowPitch() * heightRows * eventAmount * profile;
       final double crestMask = eventAmount * (
@@ -356,7 +384,8 @@ public class Breaker extends ApotheneumPattern implements UIDeviceControls<Break
       for (int row = 0; row < available; ++row) {
         final LXPoint point = column.points[row];
         final int pointIndex = point.index;
-        if (this.foamFeedback[pointIndex] != LXColor.BLACK) {
+        final boolean inView = isViewPoint(pointIndex);
+        if (inView && this.foamFeedback[pointIndex] != LXColor.BLACK) {
           this.foamFeedback[pointIndex] = LXColor.scaleBrightness(
             this.foamFeedback[pointIndex],
             (float) foamDecay
@@ -372,6 +401,9 @@ public class Breaker extends ApotheneumPattern implements UIDeviceControls<Break
         }
 
         final double depth = LXUtils.clamp(signedRows / verticalRows, 0, 1);
+        // LXColor.lerp(a, b, t) returns a at t=0, so primary (surface) goes first and this
+        // depth term must stay 0-at-surface, 1-at-deep -- unchanged from the LinkedColorParameter
+        // lerp this replaces.
         int color = LXColor.lerp(
           surface,
           deep,
@@ -407,17 +439,33 @@ public class Breaker extends ApotheneumPattern implements UIDeviceControls<Break
         );
 
         if (crestLine > 0) {
+          // Foam is a fixed constant, not a palette role -- see OceanField#MENISCUS_COLOR.
           color = LXColor.lightest(
             color,
             LXColor.scaleBrightness(
-              crest,
+              OceanField.MENISCUS_COLOR,
               (float) LXUtils.clamp(.45 + .55 * crestLine, 0, 1)
             )
           );
         }
-        this.colors[pointIndex] = color;
+        if (inView) {
+          this.colors[pointIndex] = color;
+        }
       }
     }
+  }
+
+  /**
+   * Local surface displacement relative to rest, as the [-1, 1] physics scalar the palette
+   * roles couple to. The event height field only ever lifts the surface above rest -- there is
+   * no trough -- so this is {@code eventAmount * profile}: the same fraction of the requested
+   * break height that already scales how far {@code surfaceY} sits above {@code baseSurfaceY}
+   * (the height itself cancels out of that ratio, so this is already normalized by the
+   * amplitude actually driving the surface). 0 at rest, approaching 1 at a full crest. Never
+   * negative for this pattern, which is within the [-1, 1] contract, not a violation of it.
+   */
+  static double crestPhysics(double eventAmount, double profile) {
+    return LXUtils.clamp(eventAmount * profile, -1, 1);
   }
 
   private void updateFoam(
@@ -425,7 +473,8 @@ public class Breaker extends ApotheneumPattern implements UIDeviceControls<Break
       double baseSurfaceY,
       double crestS,
       double widthS,
-      double direction) {
+      double direction,
+      boolean circular) {
     final double pitch = this.geometry.rowPitch();
     for (FoamParticle particle : this.foamParticles) {
       if (!particle.active) {
@@ -436,7 +485,9 @@ public class Breaker extends ApotheneumPattern implements UIDeviceControls<Break
         particle.active = false;
         continue;
       }
-      particle.s = advanceRingPosition(particle.s, particle.velocityS, deltaSeconds);
+      particle.s = circular
+        ? advanceRingPosition(particle.s, particle.velocityS, deltaSeconds)
+        : particle.s + particle.velocityS * deltaSeconds;
       particle.y += particle.velocityY * deltaSeconds;
       particle.velocityY -= FOAM_GRAVITY_ROWS * pitch * deltaSeconds;
     }
@@ -447,7 +498,7 @@ public class Breaker extends ApotheneumPattern implements UIDeviceControls<Break
     final double burst = foamBurst(this.eventSeconds) * this.foamAmount.getValue();
     this.foamSpawnAccumulator += burst * 150 * deltaSeconds;
     while (this.foamSpawnAccumulator >= 1) {
-      spawnFoam(baseSurfaceY, crestS, widthS, faceFraction(this.eventSeconds), direction);
+      spawnFoam(baseSurfaceY, crestS, widthS, faceFraction(this.eventSeconds), direction, circular);
       this.foamSpawnAccumulator -= 1;
     }
   }
@@ -457,7 +508,8 @@ public class Breaker extends ApotheneumPattern implements UIDeviceControls<Break
       double crestS,
       double widthS,
       double faceFraction,
-      double direction) {
+      double direction,
+      boolean circular) {
     FoamParticle particle = null;
     for (int i = 0; i < this.foamParticles.length; ++i) {
       final int index = (this.foamPoolCursor + i) % this.foamParticles.length;
@@ -477,17 +529,25 @@ public class Breaker extends ApotheneumPattern implements UIDeviceControls<Break
     particle.active = true;
     particle.age = 0;
     particle.life = .9 + .8 * random01(serial, 0x1b873593);
-    particle.s = wrapRingPosition(
-      crestS + direction * peelOffset(this.eventSeconds, widthS, faceFraction)
-        + .12 * widthS * lateral
-    );
+    particle.s = crestS + (circular ? direction : 1) * peelOffset(
+      this.eventSeconds, widthS, faceFraction
+    ) + .12 * widthS * lateral;
+    if (circular) {
+      particle.s = wrapRingPosition(particle.s);
+    }
     particle.y = baseSurfaceY + this.geometry.rowPitch() * (.35 + 1.2 * lift);
-    particle.velocityS = direction * (.006 + .024 * random01(serial, 0x51ed270b));
+    particle.velocityS = (circular ? direction : 1) * (.006 + .024 * random01(serial, 0x51ed270b))
+      * (circular ? 1 : 2 * this.planeRadius);
     particle.velocityY = this.geometry.rowPitch() * (1.5 + 3 * random01(serial, 0x7f4a7c15));
     particle.brightness = .55 + .45 * random01(serial, 0x165667b1);
   }
 
-  private void renderFoamOrientation(Apotheneum.Orientation orientation, double columnOffset) {
+  private void renderFoamOrientation(
+      Apotheneum.Orientation orientation, double columnOffset, boolean circular) {
+    if (!circular) {
+      renderPlanarFoamOrientation(orientation);
+      return;
+    }
     final int ringLength = orientation.columns().length;
     for (FoamParticle particle : this.foamParticles) {
       if (!particle.active) {
@@ -515,6 +575,26 @@ public class Breaker extends ApotheneumPattern implements UIDeviceControls<Break
     }
   }
 
+  /** Paint planar foam at its unwrapped world-space coordinate, never around a ring seam. */
+  private void renderPlanarFoamOrientation(Apotheneum.Orientation orientation) {
+    final double pitch = this.geometry.rowPitch();
+    for (FoamParticle particle : this.foamParticles) {
+      if (!particle.active) {
+        continue;
+      }
+      final int row = (int) Math.round((this.geometry.ceilingY() - particle.y) / pitch);
+      final double lifeFade = Math.sin(Math.PI * particle.age / particle.life);
+      final double brightness = particle.brightness * this.foamAmount.getValue()
+        * Math.sqrt(Math.max(0, lifeFade));
+      int columnIndex = 0;
+      for (Apotheneum.Column column : orientation.columns()) {
+        final double distance = Math.abs(planarDistance(column.points[0], particle.s));
+        final double columnBrightness = brightness * (1 - distance / pitch);
+        addFoamPixel(orientation, columnIndex++, row, columnBrightness);
+      }
+    }
+  }
+
   private void addFoamPixel(
       Apotheneum.Orientation orientation,
       int columnIndex,
@@ -524,8 +604,12 @@ public class Breaker extends ApotheneumPattern implements UIDeviceControls<Break
       return;
     }
     final int pointIndex = orientation.columns()[columnIndex].points[row].index;
+    if (!isViewPoint(pointIndex)) {
+      return;
+    }
+    // Foam is a fixed constant, not a palette role -- see OceanField#MENISCUS_COLOR.
     final int foamColor = LXColor.scaleBrightness(
-      this.crestColor.calcColor(),
+      OceanField.MENISCUS_COLOR,
       (float) LXUtils.clamp(brightness, 0, 1)
     );
     this.foamFeedback[pointIndex] = LXColor.blend(
@@ -541,11 +625,40 @@ public class Breaker extends ApotheneumPattern implements UIDeviceControls<Break
       final int available = orientation.available(columnIndex++);
       for (int row = 0; row < available; ++row) {
         final int pointIndex = column.points[row].index;
-        this.colors[pointIndex] = LXColor.lightest(
-          this.colors[pointIndex],
-          this.foamFeedback[pointIndex]
-        );
+        if (isViewPoint(pointIndex)) {
+          this.colors[pointIndex] = LXColor.lightest(
+            this.colors[pointIndex],
+            this.foamFeedback[pointIndex]
+          );
+        }
       }
+    }
+  }
+
+  /**
+   * Mirrors the already-composited exterior colors onto the interior, but only within the
+   * current view. {@code ApotheneumPattern.copyExterior()} is a raw arraycopy over whole
+   * orientations with no {@code isViewPoint()} awareness (see {@link ViewMaskedPattern}'s
+   * class javadoc), so a view that excludes the interior would still have it painted
+   * underneath -- the same hole {@code FireballViewTest} covers for Fireball's old
+   * {@code copyExterior()} call. Point-by-point with the same gate as every other write here
+   * closes it.
+   */
+  private void copyExteriorMasked(Apotheneum.Orientation exterior, Apotheneum.Orientation interior) {
+    if (interior == null) {
+      return;
+    }
+    final Apotheneum.Column[] interiorColumns = interior.columns();
+    int columnIndex = 0;
+    for (Apotheneum.Column column : exterior.columns()) {
+      final LXPoint[] interiorPoints = interiorColumns[columnIndex].points;
+      for (int row = 0; row < column.points.length; ++row) {
+        final int interiorIndex = interiorPoints[row].index;
+        if (isViewPoint(interiorIndex)) {
+          this.colors[interiorIndex] = this.colors[column.points[row].index];
+        }
+      }
+      ++columnIndex;
     }
   }
 
@@ -569,19 +682,6 @@ public class Breaker extends ApotheneumPattern implements UIDeviceControls<Break
     return distance;
   }
 
-  /**
-   * Limits one bounded pass to {@link #ONE_PASS_LAPS}. Speed still controls how
-   * quickly the wave gets there; on arrival it stops advancing and finishes its
-   * wash at the far side rather than continuing around. Circling is unbounded.
-   */
-  static double boundedTravelStep(double travelledLaps, double requestedStep, boolean circle) {
-    if (circle) {
-      return requestedStep;
-    }
-    final double remaining = Math.max(0, ONE_PASS_LAPS - travelledLaps);
-    return Math.signum(requestedStep) * Math.min(Math.abs(requestedStep), remaining);
-  }
-
   static double travelDirection(boolean reverse) {
     return reverse ? -1 : 1;
   }
@@ -592,6 +692,67 @@ public class Breaker extends ApotheneumPattern implements UIDeviceControls<Break
 
   static double wrapRingPosition(double positionS) {
     return positionS - Math.floor(positionS);
+  }
+
+  private void updatePlaneGeometry() {
+    final double theta = Math.toRadians(this.breakAzimuth.getValue());
+    final double reverse = travelDirection(this.reverse.isOn());
+    final double dirX = reverse * Math.cos(theta);
+    final double dirZ = reverse * Math.sin(theta);
+    if (!this.planeCenterCached) {
+      double minX = Double.POSITIVE_INFINITY;
+      double maxX = Double.NEGATIVE_INFINITY;
+      double minZ = Double.POSITIVE_INFINITY;
+      double maxZ = Double.NEGATIVE_INFINITY;
+      for (LXPoint point : this.model.points) {
+        minX = Math.min(minX, point.x);
+        maxX = Math.max(maxX, point.x);
+        minZ = Math.min(minZ, point.z);
+        maxZ = Math.max(maxZ, point.z);
+      }
+      this.planeCenterX = .5 * (minX + maxX);
+      this.planeCenterZ = .5 * (minZ + maxZ);
+      this.planeCenterCached = true;
+    }
+    if (dirX == this.planeDirX && dirZ == this.planeDirZ) {
+      return;
+    }
+    this.planeDirX = dirX;
+    this.planeDirZ = dirZ;
+    double radius = 0;
+    for (LXPoint point : this.model.points) {
+      radius = Math.max(radius, Math.abs(planarProjection(
+        point.x, point.z, this.planeCenterX, this.planeCenterZ, dirX, dirZ
+      )));
+    }
+    this.planeRadius = radius;
+  }
+
+  private double planarDistance(LXPoint point, double front) {
+    return planarProjection(
+      point.x, point.z, this.planeCenterX, this.planeCenterZ, this.planeDirX, this.planeDirZ
+    ) - front;
+  }
+
+  static double planarProjection(
+      double x, double z, double centerX, double centerZ, double dirX, double dirZ) {
+    return (x - centerX) * dirX + (z - centerZ) * dirZ;
+  }
+
+  static double planarWidth(double widthFraction, double radius) {
+    return widthFraction * 2 * radius;
+  }
+
+  static double planarStartFront(double radius, double halfWidth) {
+    return -(radius + halfWidth);
+  }
+
+  static double planarEndFront(double radius, double halfWidth) {
+    return radius + halfWidth;
+  }
+
+  static double planarCrossingDistance(double radius, double crossingsPerSecond, double seconds) {
+    return 2 * radius * crossingsPerSecond * Math.max(0, seconds);
   }
 
   static double spatialProfile(double distance, double width, double faceFraction) {
@@ -750,45 +911,39 @@ public class Breaker extends ApotheneumPattern implements UIDeviceControls<Break
   }
 
   @Override
-  public void buildDeviceControls(UI ui, UIDevice uiDevice, Breaker breaker) {
+  public void buildDeviceControls(UI ui, UIDevice uiDevice, ColorNativePattern pattern) {
     uiDevice.setLayout(UIDevice.Layout.HORIZONTAL, 2);
 
     addColumn(uiDevice, "Water",
-      newKnob(breaker.level),
-      newKnob(breaker.breakHeight),
-      newKnob(breaker.eventWidth)
+      newKnob(this.level),
+      newKnob(this.breakHeight),
+      newKnob(this.eventWidth)
     ).setChildSpacing(6);
 
     addVerticalBreak(ui, uiDevice);
 
     addColumn(uiDevice, "Crash",
-      newButton(breaker.breakWave).setTriggerable(true),
-      newKnob(breaker.breakAzimuth),
-      newButton(breaker.snapToFaces)
+      newButton(this.breakWave).setTriggerable(true),
+      newKnob(this.breakAzimuth),
+      newButton(this.snapToFaces)
     ).setChildSpacing(6);
 
     addVerticalBreak(ui, uiDevice);
 
     addColumn(uiDevice, "Motion",
-      newKnob(breaker.travelSpeed),
-      newButton(breaker.circle),
-      newButton(breaker.reverse)
+      newKnob(this.travelSpeed),
+      newButton(this.circle),
+      newButton(this.reverse)
     ).setChildSpacing(6);
 
     addVerticalBreak(ui, uiDevice);
 
     addColumn(uiDevice, "Shape",
-      newKnob(breaker.pace),
-      newKnob(breaker.foamAmount)
+      newKnob(this.pace),
+      newKnob(this.foamAmount)
     ).setChildSpacing(6);
 
-    addVerticalBreak(ui, uiDevice);
-
-    addColumn(uiDevice, UIKnob.WIDTH, "Color",
-      newColorControl(breaker.deepColor, 0),
-      newColorControl(breaker.surfaceColor, 0),
-      newColorControl(breaker.crestColor, 0)
-    ).setChildSpacing(6);
+    buildColorDeviceControls(ui, uiDevice);
   }
 
   private static final class FoamParticle {

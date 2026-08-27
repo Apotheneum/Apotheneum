@@ -23,8 +23,15 @@ import heronarts.lx.utils.LXUtils;
  */
 public final class OceanField {
 
-  public static final int SURFACE_COLOR = LXColor.hsb(186, 82, 82);
-  public static final int DEEP_COLOR = LXColor.hsb(224, 100, 24);
+  // The surface/shallow and deep water anchors are supplied by the palette-linked
+  // primary/secondary roles on ColorNativePattern (see Flood and Breaker), not by fixed
+  // constants here.
+
+  /**
+   * Foam is white because it is a bubble scatterer, not because of the water's pigment: real
+   * ocean foam is white regardless of the water color beneath it, so unlike the surface/deep
+   * anchors it deliberately does not track a palette stop and stays a fixed constant.
+   */
   public static final int MENISCUS_COLOR = LXColor.hsb(178, 28, 100);
 
   /**
@@ -214,6 +221,122 @@ public final class OceanField {
     void include(LXPoint point) {
       this.minY = Math.min(this.minY, point.y);
       this.maxY = Math.max(this.maxY, point.y);
+    }
+  }
+
+  /**
+   * Caches the world-space geometry a pattern needs to sweep a planar front through the
+   * model along a fixed travel direction: the model's XZ center, the direction's unit vector,
+   * and {@code R} -- the half-extent of the model along that direction, i.e. the max of
+   * {@code |d(point)|} over every point, where {@code d(point) = (point.x - cx) * dirX +
+   * (point.z - cz) * dirZ}.
+   *
+   * <p>The XZ center only depends on the model, so it is recomputed on model change. {@code R}
+   * and the direction vector additionally depend on the travel direction, so they are
+   * recomputed only when {@link #update(double)} is called with a new angle -- not per frame,
+   * not per point. A caller that sweeps the model every frame with an unchanging direction pays
+   * only the cost of the two cached-value comparisons.
+   */
+  public static final class PlanarTravelCache {
+
+    private Apotheneum.Cube cachedCube;
+    private Apotheneum.Cylinder cachedCylinder;
+    private double centerX;
+    private double centerZ;
+    private double cachedDirectionRadians = Double.NaN;
+    private double dirX;
+    private double dirZ;
+    private double halfExtent;
+
+    public void update(double directionRadians) {
+      final boolean modelChanged =
+        (this.cachedCube != Apotheneum.cube) || (this.cachedCylinder != Apotheneum.cylinder);
+      if (modelChanged) {
+        this.cachedCube = Apotheneum.cube;
+        this.cachedCylinder = Apotheneum.cylinder;
+        final double[] xzBounds = {
+          Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY,
+          Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY
+        };
+        includeXZ(Apotheneum.cube.exterior, xzBounds);
+        includeXZ(Apotheneum.cylinder.exterior, xzBounds);
+        this.centerX = .5 * (xzBounds[0] + xzBounds[1]);
+        this.centerZ = .5 * (xzBounds[2] + xzBounds[3]);
+        // Force the extent recompute below even if the direction angle itself did not change.
+        this.cachedDirectionRadians = Double.NaN;
+      }
+      if (!modelChanged && (directionRadians == this.cachedDirectionRadians)) {
+        return;
+      }
+      this.cachedDirectionRadians = directionRadians;
+      this.dirX = Math.cos(directionRadians);
+      this.dirZ = Math.sin(directionRadians);
+
+      double maxAbsD = 0;
+      maxAbsD = maxAbsDistance(Apotheneum.cube.exterior, maxAbsD);
+      maxAbsD = maxAbsDistance(Apotheneum.cylinder.exterior, maxAbsD);
+      this.halfExtent = maxAbsD;
+    }
+
+    public double dirX() {
+      return this.dirX;
+    }
+
+    public double dirZ() {
+      return this.dirZ;
+    }
+
+    public double centerX() {
+      return this.centerX;
+    }
+
+    public double centerZ() {
+      return this.centerZ;
+    }
+
+    /** {@code R}: the model's half-extent along the cached travel direction. */
+    public double halfExtent() {
+      return this.halfExtent;
+    }
+
+    /** Signed distance of world point (x, z) along the cached travel direction. */
+    public double distance(double x, double z) {
+      return (x - this.centerX) * this.dirX + (z - this.centerZ) * this.dirZ;
+    }
+
+    private double maxAbsDistance(Apotheneum.Orientation orientation, double runningMax) {
+      int columnIndex = 0;
+      for (Apotheneum.Column column : orientation.columns()) {
+        final int available = orientation.available(columnIndex++);
+        for (int row = 0; row < available; ++row) {
+          final LXPoint point = column.points[row];
+          final double d = distance(point.x, point.z);
+          runningMax = Math.max(runningMax, Math.abs(d));
+        }
+      }
+      return runningMax;
+    }
+
+    private void includeXZ(Apotheneum.Orientation orientation, double[] xzBounds) {
+      int columnIndex = 0;
+      for (Apotheneum.Column column : orientation.columns()) {
+        final int available = orientation.available(columnIndex++);
+        for (int row = 0; row < available; ++row) {
+          final LXPoint point = column.points[row];
+          if (point.x < xzBounds[0]) {
+            xzBounds[0] = point.x;
+          }
+          if (point.x > xzBounds[1]) {
+            xzBounds[1] = point.x;
+          }
+          if (point.z < xzBounds[2]) {
+            xzBounds[2] = point.z;
+          }
+          if (point.z > xzBounds[3]) {
+            xzBounds[3] = point.z;
+          }
+        }
+      }
     }
   }
 }

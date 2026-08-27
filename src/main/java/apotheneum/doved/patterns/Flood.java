@@ -1,7 +1,6 @@
 package apotheneum.doved.patterns;
 
 import apotheneum.Apotheneum;
-import apotheneum.ApotheneumPattern;
 import heronarts.lx.LX;
 import heronarts.lx.LXCategory;
 import heronarts.lx.LXComponent;
@@ -11,13 +10,19 @@ import heronarts.lx.parameter.CompoundParameter;
 import heronarts.lx.parameter.TriggerParameter;
 import heronarts.lx.studio.LXStudio.UI;
 import heronarts.lx.studio.ui.device.UIDevice;
-import heronarts.lx.studio.ui.device.UIDeviceControls;
 import heronarts.lx.utils.LXUtils;
 
 @LXCategory("Apotheneum/doved")
 @LXComponent.Name("Flood")
 @LXComponent.Description("A continuous world-space waterline filling the cube and cylinder")
-public class Flood extends ApotheneumPattern implements UIDeviceControls<Flood> {
+public class Flood extends ColorNativePattern {
+
+  // waveRows' two-term sum (see OceanField#waveRows) has magnitude at most .82 + .42 = 1.24;
+  // wavePhysics divides the raw wave value by the amplitude actually driving it times this
+  // bound, rather than by the fixed bound alone, so the result is a shape-only signal that
+  // reaches close to +-1 at a genuine crest or trough regardless of how small Agitate is
+  // dialed in.
+  private static final double WAVE_SHAPE_MAGNITUDE = .82 + .42;
 
   public final CompoundParameter level =
     new CompoundParameter("Level", 0, 0, 1)
@@ -65,6 +70,12 @@ public class Flood extends ApotheneumPattern implements UIDeviceControls<Flood> 
     new TriggerParameter("Surge", this::triggerSurge)
     .setDescription("Launch or restart the traveling surge");
 
+  /** The surface/shallow end of the water ramp. Alias for {@link ColorNativePattern#primary}. */
+  public final ColorRole surfaceColor;
+
+  /** The deep end of the water ramp. Alias for {@link ColorNativePattern#secondary}. */
+  public final ColorRole deepColor;
+
   private final OceanField.GeometryCache geometry = new OceanField.GeometryCache();
 
   private double wavePhase;
@@ -74,7 +85,9 @@ public class Flood extends ApotheneumPattern implements UIDeviceControls<Flood> 
   private double surgeStart;
 
   public Flood(LX lx) {
-    super(lx);
+    super(lx, 1, .5, 2, .5);
+    this.surfaceColor = this.primary;
+    this.deepColor = this.secondary;
     addParameter("level", this.level);
     addParameter("meniscusWidth", this.meniscusWidth);
     addParameter("agitation", this.agitation);
@@ -96,8 +109,11 @@ public class Flood extends ApotheneumPattern implements UIDeviceControls<Flood> 
 
   @Override
   protected void render(double deltaMs) {
-    setColors(LXColor.BLACK);
+    updateViewMask();
+    clearView();
     this.geometry.update();
+    this.primary.update();
+    this.secondary.update();
 
     final double agitation = this.agitation.getValue();
     this.wavePhase = (this.wavePhase + deltaMs * .001 * (.18 + 1.4 * agitation)) % LX.TWO_PI;
@@ -135,7 +151,8 @@ public class Flood extends ApotheneumPattern implements UIDeviceControls<Flood> 
       effectiveAgitation,
       0
     );
-    copyExterior();
+    copyExteriorMasked(Apotheneum.cube.exterior, Apotheneum.cube.interior);
+    copyExteriorMasked(Apotheneum.cylinder.exterior, Apotheneum.cylinder.interior);
   }
 
   private void renderOrientation(
@@ -161,9 +178,16 @@ public class Flood extends ApotheneumPattern implements UIDeviceControls<Flood> 
         this.surgePosition,
         surgeWidth
       ) : 0;
+      final double waveRows = OceanField.waveRows(s, this.wavePhase, effectiveAgitation);
       final double surfaceY = baseSurfaceY + this.geometry.rowPitch() * (
-        OceanField.waveRows(s, this.wavePhase, effectiveAgitation) + surgeHeight * surge
+        waveRows + surgeHeight * surge
       );
+      // Both roles are resolved once per column at the same physics argument -- the local
+      // wave shape, not the per-row depth -- and lerped per row by depth below, following
+      // LavaLamp's two-stop ramp with depth in place of temperature.
+      final double physics = wavePhysics(waveRows, effectiveAgitation);
+      final int surfaceColorAtPhysics = this.primary.color(physics);
+      final int deepColorAtPhysics = this.secondary.color(physics);
       final int available = orientation.available(columnIndex);
       ++columnIndex;
 
@@ -181,9 +205,12 @@ public class Flood extends ApotheneumPattern implements UIDeviceControls<Flood> 
         }
 
         final double depth = LXUtils.clamp(signedRows / verticalRows, 0, 1);
+        // LXColor.lerp(a, b, t) returns a at t=0, so primary (surface) goes first and this
+        // depth term must stay 0-at-surface, 1-at-deep -- unchanged from the constant-color
+        // lerp this replaces.
         final int depthColor = LXColor.lerp(
-          OceanField.SURFACE_COLOR,
-          OceanField.DEEP_COLOR,
+          surfaceColorAtPhysics,
+          deepColorAtPhysics,
           (float) Math.sqrt(depth)
         );
         final double attenuation = LXUtils.lerp(
@@ -205,6 +232,7 @@ public class Flood extends ApotheneumPattern implements UIDeviceControls<Flood> 
           );
         }
         if (meniscusBrightness > 0) {
+          // Foam is a fixed constant, not a palette role -- see OceanField#MENISCUS_COLOR.
           color = LXColor.lightest(
             color,
             LXColor.scaleBrightness(
@@ -214,46 +242,94 @@ public class Flood extends ApotheneumPattern implements UIDeviceControls<Flood> 
           );
         }
 
-        this.colors[point.index] = color;
+        if (isViewPoint(point.index)) {
+          this.colors[point.index] = color;
+        }
       }
     }
   }
 
+  /**
+   * Local surface displacement relative to rest, as the signed [-1, 1] scalar the palette
+   * roles couple to: crest positive, trough negative. {@code waveRowsValue} is already the
+   * natural quantity Flood computes for the wave shape itself; dividing it by the amplitude
+   * actually driving it (rather than clamping the raw, amplitude-scaled value) is what keeps
+   * this from hugging zero at a small Agitate setting -- a full crest or trough reads as
+   * physics near +-1 regardless of how much the wave is actually displacing the surface.
+   * Returns exactly 0 at zero amplitude (Agitate effectively off) rather than dividing by
+   * zero: a flat sea has no crest or trough to report.
+   */
+  static double wavePhysics(double waveRowsValue, double amplitude) {
+    if (amplitude <= 0) {
+      return 0;
+    }
+    return LXUtils.clamp(waveRowsValue / (amplitude * WAVE_SHAPE_MAGNITUDE), -1, 1);
+  }
+
+  /**
+   * Mirrors the already-composited exterior colors onto the interior, but only within the
+   * current view. {@code ApotheneumPattern.copyExterior()} is a raw arraycopy over whole
+   * orientations with no {@code isViewPoint()} awareness (see {@link ViewMaskedPattern}'s
+   * class javadoc), so a view that excludes the interior would still have it painted
+   * underneath -- the same hole {@code FireballViewTest} covers for Fireball's old
+   * {@code copyExterior()} call. Point-by-point with the same gate as every other write here
+   * closes it.
+   */
+  private void copyExteriorMasked(Apotheneum.Orientation exterior, Apotheneum.Orientation interior) {
+    if (interior == null) {
+      return;
+    }
+    final Apotheneum.Column[] interiorColumns = interior.columns();
+    int columnIndex = 0;
+    for (Apotheneum.Column column : exterior.columns()) {
+      final LXPoint[] interiorPoints = interiorColumns[columnIndex].points;
+      for (int row = 0; row < column.points.length; ++row) {
+        final int interiorIndex = interiorPoints[row].index;
+        if (isViewPoint(interiorIndex)) {
+          this.colors[interiorIndex] = this.colors[column.points[row].index];
+        }
+      }
+      ++columnIndex;
+    }
+  }
+
   @Override
-  public void buildDeviceControls(UI ui, UIDevice uiDevice, Flood flood) {
+  public void buildDeviceControls(UI ui, UIDevice uiDevice, ColorNativePattern pattern) {
     uiDevice.setLayout(UIDevice.Layout.HORIZONTAL, 2);
 
     addColumn(uiDevice, "Flood",
-      newKnob(flood.level),
-      newKnob(flood.meniscusWidth)
+      newKnob(this.level),
+      newKnob(this.meniscusWidth)
     ).setChildSpacing(6);
 
     addVerticalBreak(ui, uiDevice);
 
     addColumn(uiDevice, "Surface",
-      newKnob(flood.agitation),
-      newKnob(flood.sparkle)
+      newKnob(this.agitation),
+      newKnob(this.sparkle)
     ).setChildSpacing(6);
 
     addVerticalBreak(ui, uiDevice);
 
     addColumn(uiDevice, "Water",
-      newKnob(flood.depthFalloff)
+      newKnob(this.depthFalloff)
     ).setChildSpacing(6);
 
     addVerticalBreak(ui, uiDevice);
 
     addColumn(uiDevice, "Surge",
-      newButton(flood.surge).setTriggerable(true),
-      newKnob(flood.surgeSpeed),
-      newKnob(flood.surgeWidth)
+      newButton(this.surge).setTriggerable(true),
+      newKnob(this.surgeSpeed),
+      newKnob(this.surgeWidth)
     ).setChildSpacing(6);
 
     addVerticalBreak(ui, uiDevice);
 
     addColumn(uiDevice, "Wave",
-      newKnob(flood.surgeHeight),
-      newKnob(flood.surgeAngle)
+      newKnob(this.surgeHeight),
+      newKnob(this.surgeAngle)
     ).setChildSpacing(6);
+
+    buildColorDeviceControls(ui, uiDevice);
   }
 }
