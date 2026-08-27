@@ -177,6 +177,47 @@ public class FireballTest extends HeadlessLxTest {
     }
   }
 
+  /**
+   * The ring wrap must be width-periodic. {@code LXUtils.wrap(x, 0, width - 1)} is not: it
+   * treats both endpoints as inside the range, so its period is {@code width - 1} and it
+   * returns 1 for {@code width}, {@code width - 2} for -1, and drifts a further column every
+   * lap. See docs/lx-coding-guidelines.md section 19.
+   */
+  @Test
+  void columnWrapIsWidthPeriodic() {
+    for (int width : new int[] { WIDTH, 120, 200 }) {
+      assertEquals(width - 1, Fireball.wrapColumn(-1, width), "one before the seam");
+      assertEquals(0, Fireball.wrapColumn(0, width), "the seam itself");
+      assertEquals(width - 1, Fireball.wrapColumn(width - 1, width), "the last column");
+      assertEquals(0, Fireball.wrapColumn(width, width), "one past the last column");
+      assertEquals(width - 1, Fireball.wrapColumn(2 * width - 1, width), "a full lap later");
+    }
+  }
+
+  /**
+   * A stamp centered on column 0 is radially symmetric, so the columns either side of the
+   * seam must receive identical heat. An off-by-one wrap shifts the whole negative side one
+   * column inward, starving the last column and doubling the contribution to its neighbor.
+   */
+  @Test
+  void seamStampIsSymmetricAroundColumnZero() {
+    final Fireball fireball = new Fireball(newHeadlessLx());
+    try {
+      final Fireball.Fire fire = fireball.new Fire(WIDTH, HEIGHT, x -> HEIGHT);
+      fire.step(0f, .45f);
+
+      for (int offset = 1; offset <= 3; ++offset) {
+        for (int y = 0; y < HEIGHT; ++y) {
+          assertEquals(
+            fire.heatAt(offset, y), fire.heatAt(WIDTH - offset, y), EPSILON,
+            "columns " + offset + " and " + (WIDTH - offset) + " straddle the seam symmetrically");
+        }
+      }
+    } finally {
+      fireball.dispose();
+    }
+  }
+
   private static boolean hasHeat(Fireball.Fire fire) {
     for (int x = 0; x < WIDTH; ++x) {
       for (int y = 0; y < HEIGHT; ++y) {

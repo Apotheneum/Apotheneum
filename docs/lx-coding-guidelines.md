@@ -390,6 +390,76 @@ filter, either iterate only resolved-view points or build a reusable membership
 mask when the view changes and guard every write, including clears, copies, and
 post-processing passes. Do not build that mask in `run()`/`render()` each frame.
 
+### 19. `LXUtils.wrap` is not modulo — wrap ring indices with `Math.floorMod`
+
+`LXUtils.wrap(v, min, max)` treats **both** endpoints as inside the range, so its
+period is `max - min`, not `max - min + 1`. Wrapping a 120-column ring the
+obvious way, as `wrap(x, 0, 119)`, therefore advances with period 119 over a
+120-wide surface:
+
+```java
+LXUtils.wrap(120, 0, 119)   // 1   — a caller walking off the end wants 0
+LXUtils.wrap(-1,  0, 119)   // 118 — a caller walking off the front wants 119
+```
+
+A walk that steps off the top lands one short and slips another column every
+lap, and `max` itself is never produced again. On the installation that is a
+permanently unlit vertical line at a cube corner plus a doubled contribution one
+column in. It does not show up in whole-surface render statistics — one dark
+column out of 200 moves the non-black fraction by a fraction of a percent — so
+it is only caught by checking per column.
+
+Use `Math.floorMod(x, width)` for any width-based wrap: its period is `width`
+and it handles negatives. Reach for `LXUtils.wrap` only where the range really
+is inclusive at both ends, such as a hue in `0..360` where the endpoints name
+the same colour.
+
+**The worse hazard is mixing wrap styles inside one file.** A dead column at the
+seam is a fixed artifact; two representations of the same position wrapping on
+different periods is a drift that compounds every lap. A prototype ring pattern
+had a float helper correctly wrapping `mod width` alongside five integer call
+sites using `LXUtils.wrap(x, 0, width - 1)`, so a droplet's position wrapped mod
+200 while its own column lookup wrapped mod 199, and the two moved one column
+further apart on each pass. Moving the integer sites to `Math.floorMod` shifted
+the non-black fraction from .504 to .511 and left `meanFrameMs` untouched — no
+aggregate statistic was ever going to catch it. Knowing that `wrap` is off by
+one is therefore not enough on its own: settle on one wrap per quantity and use
+it at every site that wraps that quantity.
+
+**The shared-geometry helpers are unexercised; direct misuse was not.** No call site
+in `src/main/java` passes `wrap=true` to `Surface.column`/`Surface.ring`, so those
+two are a trap rather than a live defect. But the defective form was written out
+directly elsewhere: `Fireball` wrapped its heat field and sparks with
+`LXUtils.wrap(x, 0, this.width - 1)` in five places, a real seam artifact in
+shipped output. Those five now go through a `Fireball.wrapColumn(x, width)` helper
+over `Math.floorMod`, and `FireballTest` pins both the periodicity and the seam
+symmetry that follows from it. `Rockfall` passes `(0, width)` rather than
+`(0, width - 1)` and is correct; `ApotheneumDirection` passes `(0, 4)` for four
+faces and is also correct. Grep for the `- 1` form, not for the helper name. The
+error compounds once hit: at width 200, `wrap(399, 0, 199)` returns 1 where 199 is
+correct, and `wrap(400, ...)` returns 2 where 0 is correct -- one column per lap.
+
+Fireball is also the worked example of why per-column measurement is the only way
+to see this. Its default `Azimuth` of .25 parks the fireball 30 columns from the
+seam, so the default headless render is byte-identical before and after the fix
+and proves nothing; the defect only appears with the head driven onto the seam.
+Summing luminosity per column over 300 frames at `Azimuth = 0`, where the stamp is
+radially symmetric about column 0, the cylinder read 356,354 at column 1 against
+334,423 at column 119 — column 119 had been handed column 2's value (334,808), the
+whole negative side shifted one column inward. After the fix the pair is 377,713
+and 375,290, and the cube's 199/1 pair likewise closes from 317,648/337,471 to
+366,108/364,127.
+
+**Treat this as latent in the shared geometry, not fixed.**
+`Apotheneum.Surface.column(int, boolean)` and `Surface.ring(int, boolean)` both
+wrap with `LXUtils.wrap(index, 0, length - 1)`, so every `column(i, true)` /
+`ring(i, true)` caller inherits the off-by-one — including
+`Column.next(true)`/`previous(true)` and the `Ring` and `Row` overrides, where
+`next(true)` off the last column lands on column 1 rather than column 0. Until
+that is corrected under its own review, a pattern that depends on correct
+wrapping should compute the index itself with `Math.floorMod` and call the
+unwrapped `column(index)` / `ring(index)`.
+
 ---
 
 ## Part 3 — Review checklist
@@ -409,6 +479,10 @@ it.
   labels, subclassing existing components (§5).
 - **Model bounds respected** — no drawing outside the geometry; door columns use
   `available(columnIndex)` (§7, AGENTS.md).
+- **Ring and column wrapping uses `Math.floorMod(x, width)`**, not
+  `LXUtils.wrap(x, 0, width - 1)`, whose range is inclusive at both ends and so
+  skips a column per lap. The same trap is latent in
+  `Apotheneum.Surface.column(i, true)` / `ring(i, true)` (§19).
 - **Model views are actually honored** — `getModelView()` is an input model, not
   a write mask. Trace direct/global `colors[...]` writes, clears, copies, and
   post-processing; use a channel view as the hard boundary for patterns that
