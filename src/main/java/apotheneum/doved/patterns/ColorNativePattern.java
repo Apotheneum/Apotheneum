@@ -31,6 +31,7 @@ import heronarts.lx.color.LXSwatch;
 import heronarts.lx.osc.LXOscComponent;
 import heronarts.lx.parameter.CompoundDiscreteParameter;
 import heronarts.lx.parameter.CompoundParameter;
+import heronarts.lx.parameter.BooleanParameter;
 import heronarts.lx.parameter.LXListenableParameter;
 import heronarts.lx.parameter.LXParameter;
 import heronarts.lx.parameter.LXParameterListener;
@@ -151,11 +152,16 @@ public abstract class ColorNativePattern extends ApotheneumPattern
 
     private int currentColor;
     private double currentAmount;
+    private boolean colorEnabled;
+    private final BooleanParameter colorToggle;
 
     private final LXParameterListener paletteLabelListener = p -> refreshPaletteIndexOptions();
 
-    private ColorRole(LX lx, String label, int defaultPaletteIndex, double defaultAmount) {
+    private ColorRole(
+      LX lx, String label, int defaultPaletteIndex, double defaultAmount, BooleanParameter colorToggle
+    ) {
       super(lx, label);
+      this.colorToggle = colorToggle;
 
       this.paletteIndex =
         new CompoundDiscreteParameter("Index", defaultPaletteIndex, 1, LXSwatch.MAX_COLORS + 1)
@@ -208,6 +214,7 @@ public abstract class ColorNativePattern extends ApotheneumPattern
       final int base = resolvedPaletteColor(this.paletteIndex.getValuei());
       this.currentColor = applyOffsets(base, this.hueOffset.getValue(), this.satTrim.getValue());
       this.currentAmount = this.amount.getValue();
+      this.colorEnabled = this.colorToggle.isOn();
     }
 
     private int resolvedPaletteColor(int index) {
@@ -215,7 +222,9 @@ public abstract class ColorNativePattern extends ApotheneumPattern
     }
 
     int color(double physics) {
-      return modulatedColor(this.currentColor, this.currentAmount, physics);
+      return this.colorEnabled
+        ? modulatedColor(this.currentColor, this.currentAmount, physics)
+        : modulatedColor(LXColor.WHITE, this.currentAmount, physics);
     }
 
     @Override
@@ -315,6 +324,10 @@ public abstract class ColorNativePattern extends ApotheneumPattern
   /** The pattern's secondary colour role, attached at the fixed {@code addChild} key "secondary". */
   public final ColorRole secondary;
 
+  /** Enables palette colour; off resolves every role as a neutral tone at the same brightness. */
+  public final BooleanParameter color = new BooleanParameter("Color", true)
+    .setDescription("Enable palette color; off preserves brightness and physics in neutral tones");
+
   protected ColorNativePattern(
     LX lx,
     int primaryPaletteIndex,
@@ -323,12 +336,14 @@ public abstract class ColorNativePattern extends ApotheneumPattern
     double secondaryAmount
   ) {
     super(lx);
+    addParameter("color", this.color);
     this.primary = colorRole(PRIMARY_PATH, PRIMARY_LABEL, primaryPaletteIndex, primaryAmount);
     this.secondary = colorRole(SECONDARY_PATH, SECONDARY_LABEL, secondaryPaletteIndex, secondaryAmount);
   }
 
   private ColorRole colorRole(String path, String label, int defaultPaletteIndex, double defaultAmount) {
-    final ColorRole role = new ColorRole(this.lx, label, defaultPaletteIndex, defaultAmount);
+    final ColorRole role = new ColorRole(
+      this.lx, label, defaultPaletteIndex, defaultAmount, this.color);
     addChild(path, role);
     return role;
   }
@@ -368,6 +383,10 @@ public abstract class ColorNativePattern extends ApotheneumPattern
    * an identical divider there regardless, so it did not actually signal a tighter pairing).</p>
    */
   protected final void buildColorDeviceControls(UI ui, UIDevice uiDevice) {
+    addVerticalBreak(ui, uiDevice);
+    addColumn(uiDevice, "Color",
+      newButton(this.color)
+    ).setChildSpacing(6);
     addRoleColumns(ui, uiDevice, this.primary, PRIMARY_LABEL);
     addRoleColumns(ui, uiDevice, this.secondary, SECONDARY_LABEL);
   }
@@ -453,5 +472,25 @@ public abstract class ColorNativePattern extends ApotheneumPattern
       secondaryColor,
       LXUtils.clamp(secondaryIntensity, 0, 1)
     );
+  }
+
+  /**
+   * Mixes two tones of the same element by their relative energies, then scales the result by
+   * their total energy. Unlike {@link #compositeColors(int, double, int, double)}, which treats
+   * the secondary color as an overlay, a dim pixel made entirely of the secondary tone remains
+   * fully secondary-colored.
+   */
+  static int blendTones(
+    int primaryColor,
+    double primaryIntensity,
+    int secondaryColor,
+    double secondaryIntensity
+  ) {
+    final double total = primaryIntensity + secondaryIntensity;
+    if (total <= 0) {
+      return LXColor.BLACK;
+    }
+    final int tone = LXColor.lerp(primaryColor, secondaryColor, secondaryIntensity / total);
+    return LXColor.scaleBrightness(tone, LXUtils.clamp(total, 0, 1));
   }
 }

@@ -155,18 +155,60 @@ public class ColorNativePatternTest extends HeadlessLxTest {
     final Rockfall rockfall = new Rockfall(lx);
     final LXSwatch swatch = lx.engine.palette.swatch;
 
+    assertTrue(rockfall.color.isOn());
     rockfall.rockColor.update();
     rockfall.waterColor.update();
 
     for (double physics : new double[] { -1, -.5, 0, .3, 1 }) {
       final int expectedRock = ColorNativePattern.modulatedColor(
-        ColorNativePattern.paletteColor(swatch.colors, 0), .7, physics);
+        ColorNativePattern.applyOffsets(
+          ColorNativePattern.paletteColor(swatch.colors, 0),
+          rockfall.rockColor.hueOffset.getValue(), rockfall.rockColor.satTrim.getValue()),
+        .7, physics);
       final int expectedWater = ColorNativePattern.modulatedColor(
-        ColorNativePattern.paletteColor(swatch.colors, 1), .7, physics);
+        ColorNativePattern.applyOffsets(
+          ColorNativePattern.paletteColor(swatch.colors, 1),
+          rockfall.waterColor.hueOffset.getValue(), rockfall.waterColor.satTrim.getValue()),
+        .7, physics);
       assertEquals(expectedRock, rockfall.rockColor.color(physics));
       assertEquals(expectedWater, rockfall.waterColor.color(physics));
     }
     rockfall.dispose();
+  }
+
+  @Test
+  void colorToggleResolvesRolesAsPaletteIndependentNeutralWithPhysicsPerturbation() {
+    final LX lx = newHeadlessLx();
+    final Rockfall rockfall = new Rockfall(lx);
+    rockfall.rockColor.update();
+
+    rockfall.color.setValue(false);
+    rockfall.rockColor.update();
+    final int neutral = rockfall.rockColor.color(1);
+
+    assertEquals(0, LXColor.s(neutral), 1);
+    assertEquals(
+      ColorNativePattern.modulatedColor(LXColor.WHITE, rockfall.rockColor.amount.getValue(), 1),
+      neutral
+    );
+    rockfall.dispose();
+  }
+
+  @Test
+  void blendTonesUsesRelativeEnergyBeforeScalingBrightness() {
+    final int primary = LXColor.hsb(0, 100, 100);
+    final int secondary = LXColor.hsb(240, 100, 100);
+
+    // A dim all-secondary tip remains blue, rather than moving only 30% toward blue.
+    assertEquals(
+      LXColor.scaleBrightness(secondary, .3),
+      ColorNativePattern.blendTones(primary, 0, secondary, .3)
+    );
+    assertEquals(
+      LXColor.scaleBrightness(LXColor.lerp(primary, secondary, .8), .25),
+      ColorNativePattern.blendTones(primary, .05, secondary, .2)
+    );
+    assertEquals(LXColor.BLACK, ColorNativePattern.blendTones(primary, 0, secondary, 0));
   }
 
   @Test
