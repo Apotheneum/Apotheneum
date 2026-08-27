@@ -30,8 +30,16 @@ target
 hs_err_pid*
 /bin/
 
-# Claude Code local tool settings (personal, not shared project config)
-.claude/
+# Claude Code settings. Personal, machine-local config (settings.local.json, caches)
+# stays out of the repo; the shared project config is committed, so every Claude Code
+# on the web session picks up the SessionStart hook that provisions its container.
+# Git cannot re-include a path whose parent directory is excluded, so ignore .claude's
+# *contents* rather than .claude itself, then negate the two files we actually share.
+.claude/*
+!.claude/settings.json
+!.claude/hooks/
+.claude/hooks/*
+!.claude/hooks/session-start.sh
 
 # Render output is review evidence, not documentation. See docs/headless-rendering.md
 docs/renders/
