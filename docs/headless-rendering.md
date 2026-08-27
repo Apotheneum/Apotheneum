@@ -116,6 +116,78 @@ directly: the class name first, then the parameter list, the effect class list, 
 palette assignment, the view name, and the modulation assignment, in that order; an
 absent or blank class name selects Fireflies.
 
+### Colour-native patterns need an explicit `-Dpalette=`
+
+The default project palette has **exactly one swatch stop**, pure red — a fresh
+`LX` reports `lx.engine.palette.swatch.colors.size() == 1` at hue 0 / saturation 100 /
+brightness 100. `ColorNativePattern` gives its two roles default stops 1 and 2, and its
+palette read clamps an out-of-range stop to the last one, so on the default palette
+*both* roles resolve to stop 1. **Every `ColorNativePattern` subclass** therefore renders
+monochrome red by default and reads as broken when it is not. Deliberately not listed by
+name here: the set grows with every colour-native pattern, and a list that goes stale is
+worse than none, because a reviewer checks it, does not find the pattern in hand, and
+concludes the warning does not apply. `git grep -l "extends ColorNativePattern"` is the
+current answer.
+
+Pass a palette. The spec is `hue,sat,bri` per stop, semicolon-separated, appended to the
+swatch as needed:
+
+```bash
+mvn -Ptests test-compile exec:exec \
+  -Dpattern=apotheneum.doved.patterns.Fireball \
+  '-Dpalette=30,95,100;210,92,100'
+```
+
+Quote it — the stop separator is a `;`, which an unquoted shell reads as a command
+separator. On a cube-exterior contact sheet that example is the difference between one
+occupied hue bucket and eight. The renderer logs the resolved stops
+(`RenderSpike palette=…`, or `palette=(project default)`), so which one you got is
+always in the log.
+
+### Invoke `RenderSpike` directly for `-D` properties and tight iteration
+
+The pom's exec plugin forks `java` with a **fixed** argument list — the six positional
+arguments above, plus `-Djava.awt.headless=true`. It has no `<systemProperties>` and no
+pass-through, so an arbitrary `-Dfoo=bar` on the `mvn` command line stays a Maven
+property and never reaches the forked JVM. Anything a pattern reads through
+`System.getProperty` therefore silently does not arrive — `Rockfall`'s
+`apotheneum.rockfall.seed` is the case that matters, because a "same-seed" comparison
+that quietly is not one looks like a real behavioural difference. Two `mvn exec:exec`
+runs with the identical seed produce different frames; two direct runs produce
+bit-identical ones.
+
+Invoke `main` yourself on the already-built classpath. This also skips the Maven round
+trip, which is most of the wall time on a tight edit-render loop:
+
+```bash
+mvn -Ptests test-compile          # once, after each source change
+
+java -Djava.awt.headless=true -Dapotheneum.rockfall.seed=4242 \
+  -cp "target/classes:target/test-classes:/Applications/Chromatik.app/Contents/app/glxstudio-1.2.2-jar-with-dependencies.jar" \
+  apotheneum.render.RenderSpike apotheneum.doved.patterns.Rockfall
+```
+
+The shaded `glxstudio` jar that ships inside Chromatik.app carries `lx`, `glx` and
+`glxstudio` together, which is the whole provided-scope classpath `RenderSpike` needs, and
+it is already on disk. Deriving the classpath with `mvn dependency:build-classpath`
+instead does not work from a clean or offline checkout: `maven-dependency-plugin` is not
+declared in `pom.xml`, so `dependency:` resolves the plugin over the network and fails
+with `No plugin found for prefix 'dependency'` where there is none. If Chromatik is
+installed somewhere else, point at that jar instead.
+
+Arguments after the class name are positional and in the order listed above, so an empty
+string holds a slot:
+
+```bash
+java -Djava.awt.headless=true \
+  -cp "target/classes:target/test-classes:$CP" \
+  apotheneum.render.RenderSpike apotheneum.doved.patterns.Fireball \
+  "" "" "30,95,100;210,92,100"
+```
+
+Use the same JDK the build uses (see AGENTS.md); a `java` that cannot read Chromatik's
+class files fails here exactly as it does in a build.
+
 The renderer requires `ffmpeg` on `PATH` to assemble GIFs. This is an agent-only
 rendering dependency, not a package build dependency. The command checks for it before
 loading LX or rendering any frames and fails immediately with installation guidance if
@@ -278,6 +350,37 @@ judgement the render exists to support.
 - The first version of this doc got it wrong and produced a 10-second GIF of 5
   seconds of animation. If a render looks unexpectedly languid, check this first.
 
+### Those five seconds are simulated — and they are all you get
+
+`RenderSpike` calls `lx.engine.setFixedDeltaMs(1000. / 60.)` before the first
+`lx.engine.run()`. `LXEngine` derives `deltaMs` from the wall clock and then overrides
+it with the fixed value when one is set, so 300 frames is exactly 5000 ms of *pattern*
+time however fast the machine ran them — a render takes well under a second of real
+time.
+
+The fixed step makes simulated *time* deterministic. It does not by itself make two
+invocations byte-identical, and an A/B comparison is only meaningful where the pattern's
+randomness is controlled too. `Fireflies` calls `Math.random()` throughout, and
+`Rockfall.createRandom()` falls back to an unseeded `new Random()` when its seed property
+is absent — two runs of either differ from each other on unchanged code, so a diff proves
+nothing. Patterns that seed from a constant (`Fireball`) or from a property that is
+actually set are reproducible, and those are the ones worth diffing. The logged
+`meanFrameMs` is wall-clock from `System.nanoTime()` regardless, so it varies run to run
+under any pattern; never read a frame-time difference as a behavioural one. Before
+attributing an A/B difference to a change, render the *unchanged* code twice and confirm
+those two agree.
+
+Five seconds is the entire window, and two things follow.
+
+- **Judge slow motion by rendering it faster.** A pattern whose time constants are
+  longer than the window looks frozen or dead in the render when nothing is wrong with
+  it. Render again with the relevant parameter raised — `-Dparams=` for a rate,
+  `-Dmodulate=` for a position — and say in the PR that you did, and at what value.
+- **A pattern starting cold shows only its startup transient.** Five seconds of an empty
+  field filling up is not five seconds of the pattern. Seed a warm initial state at
+  construction. That is worth doing regardless of rendering: it is also what a show
+  operator sees every time the pattern goes active.
+
 The renderer assembles each GIF with ffmpeg — no ImageMagick on this machine. Its
 per-surface command is equivalent to:
 
@@ -338,7 +441,8 @@ Established facts, verified 2026-08-20/21. Don't re-derive them.
 ## Never
 
 - **Never run `mvn -Pinstall install`.** It copies a jar into `~/Chromatik/Packages`,
-  which is shared by every worktree and by the live rig. Plain `mvn -Ptests …` only.
+  which is shared by every worktree and by the live rig. Plain `mvn -Ptests …`, or the
+  direct `java` invocation above, only.
 - **Never commit render output.** It goes to `target/spike/`, which is gitignored. The
   renderer prints the paths for a human to attach; see "Renders are never committed"
   above.
@@ -361,6 +465,26 @@ Review images get a 2× gamma/brightness lift so dim patterns are judgeable, and
 markers separate front/right/back/left on the unwrap. **The lift applies to the image
 only, never to the statistics** — keep it that way, or the numbers stop meaning
 anything.
+
+### A fine-scale claim needs a crop, not the contact sheet
+
+A door cutout is 10 columns by 11 rows of a 200×45 unwrap. A whole-surface contact sheet
+or GIF will not settle a claim at that scale, for two reasons that upscaling does not
+fix:
+
+- **Cells with no model point are drawn `LXColor.BLACK`** — the same black as an LED the
+  pattern left dark. Against a fully-lit field the cutouts do read as clear notches, but
+  against anything sparse you cannot tell "no LED here" from "the pattern wrote nothing
+  here", which is usually the question being asked.
+- **The sheet samples every tenth engine frame.** A transient at a door edge can happen
+  entirely between two samples.
+
+So when the claim is about a handful of pixels, build the evidence ad hoc: crop the
+region of interest, magnify it with nearest-neighbour
+(`scale=iw*8:ih*8:flags=neighbor`), sample every N frames rather than every tenth, and
+tint the model-missing cells so a hole is legible as a hole. It is a throwaway script,
+and it is the only thing that shows the behaviour. Its output is render output like any
+other — it belongs in `target/spike/` and is never committed.
 
 Rough performance, for spotting a regression rather than for benchmarking: **~300–400 ms**
 JVM start plus fixture parse, **~0.22–0.28 ms/frame**. Startup dominates, so a 5-second

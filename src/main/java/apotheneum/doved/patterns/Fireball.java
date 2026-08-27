@@ -333,6 +333,21 @@ public class Fireball extends ColorNativePattern {
     return 1f;
   }
 
+  /**
+   * Wraps a column index onto a ring of {@code width} columns.
+   *
+   * <p>Deliberately not {@code LXUtils.wrap(x, 0, width - 1)}. That helper treats both
+   * endpoints as inside the range, so its period is {@code width - 1}: it returns 1 rather
+   * than 0 one step past the end, {@code width - 2} rather than {@code width - 1} one step
+   * before the start, and drifts a further column every lap. The heat field must wrap on the
+   * same period as the head position and {@link Fire#wrapDelta}, which are continuous and
+   * wrap on the full width; mixing the two periods starves the seam column and double-counts
+   * its neighbour. See docs/lx-coding-guidelines.md section 19.
+   */
+  static int wrapColumn(int x, int width) {
+    return Math.floorMod(x, width);
+  }
+
   private static final class Spark {
     float x, y, vx, vy, life, maxLife;
   }
@@ -549,8 +564,8 @@ public class Fireball extends ColorNativePattern {
       }
 
       final int x0 = (int) Math.floor(x);
-      final int wrappedX0 = LXUtils.wrap(x0, 0, this.width - 1);
-      final int wrappedX1 = LXUtils.wrap(x0 + 1, 0, this.width - 1);
+      final int wrappedX0 = wrapColumn(x0, this.width);
+      final int wrappedX1 = wrapColumn(x0 + 1, this.width);
       final int y0 = (int) Math.floor(y);
       final int y1 = LXUtils.min(y0 + 1, this.height - 1);
       final float tx = x - x0;
@@ -609,7 +624,7 @@ public class Fireball extends ColorNativePattern {
 
       for (int ix = minX; ix <= maxX; ++ix) {
         final float dx = ix - centerX;
-        final int column = LXUtils.wrap(ix, 0, this.width - 1) * this.height;
+        final int column = wrapColumn(ix, this.width) * this.height;
         for (int y = minY; y <= maxY; ++y) {
           final int i = column + y;
           if (!this.usable[i]) {
@@ -671,7 +686,7 @@ public class Fireball extends ColorNativePattern {
 
         boolean dead = (spark.life <= 0) || (i >= target);
         if (!dead) {
-          final int cellX = LXUtils.wrap(Math.round(spark.x), 0, this.width - 1);
+          final int cellX = wrapColumn(Math.round(spark.x), this.width);
           final int cellY = Math.round(spark.y);
           if ((cellY < 0) || (cellY >= this.height)
             || !this.usable[cellX * this.height + cellY]) {
@@ -763,7 +778,7 @@ public class Fireball extends ColorNativePattern {
 
         for (int x = minX; x <= maxX; ++x) {
           final float dx = x - spark.x;
-          final int column = LXUtils.wrap(x, 0, this.width - 1) * this.height;
+          final int column = wrapColumn(x, this.width) * this.height;
           for (int y = minY; y <= maxY; ++y) {
             final int cell = column + y;
             if (!this.usable[cell]) {
