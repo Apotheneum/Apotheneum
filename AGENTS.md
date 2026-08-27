@@ -254,7 +254,7 @@ so prefer implementing the interface directly.
 
 ## Dependencies
 
-- **Build with JDK 25**, even though the project targets Java 21 bytecode (`maven.compiler.release=21`). Chromatik 1.2.2 (`lx`/`glx`/`glxstudio`) ships class-file major version 69, which javac 21 refuses to read off the classpath — installing exactly Java 21 makes every build fail. CI pins JDK 25 for this reason, and `.claude/hooks/session-start.sh` installs it (plus ffmpeg, which the headless render needs) in Claude Code on the web containers, whose base image ships only JDK 21.
+- **Build with JDK 25**, even though the project targets Java 21 bytecode (`maven.compiler.release=21`). Chromatik 1.2.2 (`lx`/`glx`/`glxstudio`) ships class-file major version 69, which javac 21 refuses to read off the classpath — installing exactly Java 21 makes every build fail. CI pins JDK 25 for this reason. Claude Code on the web containers ship only JDK 21, so they need provisioning before they can build at all — see [docs/cloud-environment.md](docs/cloud-environment.md).
 - Maven for build management
 - LX Framework (Chromatik) - provided dependency
 - JUnit 5 for tests, opt-in — see Testing below
