@@ -54,9 +54,9 @@ public abstract class HeadlessLxTest {
    * so it is disposed after the test like any other.
    *
    * <p>The fixture carries the installation's real Art-Net addresses, so output is held off in
-   * two places: {@code OutputMode.INACTIVE} plus an explicit disable before the fixture loads,
-   * and an assertion afterwards that loading it did not turn output back on. A test that renders
-   * this model must never put packets on a network.
+   * two places — {@code OutputMode.INACTIVE} plus an explicit disable before the fixture loads —
+   * and asserted still off once the model is up. A test that renders this model must never put
+   * packets on a network.
    */
   protected LX newApotheneumLx() throws IOException {
     final Path mediaPath = Files.createTempDirectory("apotheneum-headless-");
@@ -72,12 +72,13 @@ public abstract class HeadlessLxTest {
 
     final JsonFixture fixture = new JsonFixture(lx, APOTHENEUM_FIXTURE);
     lx.structure.addFixture(fixture);
+    // addFixture only stages regeneration; without this the model is not there yet.
     lx.structure.beforeEngineRun();
-    assertFalse(fixture.error.isOn(), fixture.errorMessage.getString());
-    assertFalse(lx.engine.output.enabled.isOn(), "fixture load enabled output");
+    assertFalse(fixture.error.isOn(), "fixture load failed: " + fixture.errorMessage.getString());
 
     Apotheneum.initialize(lx);
     assertTrue(Apotheneum.exists, "Apotheneum.exists was false after loading the real fixture");
+    assertFalse(lx.engine.output.enabled.isOn(), "engine output became enabled");
     return lx;
   }
 
@@ -86,20 +87,19 @@ public abstract class HeadlessLxTest {
    * JsonFixture resolves names through {@code <mediaPath>/Fixtures/}, while this repo stores them
    * in a lowercase directory that only resolves on a case-insensitive filesystem.
    *
-   * <p>Cleanup rides on {@link java.io.File#deleteOnExit()}, which deletes in reverse order of
-   * registration — so the deepest paths are registered last and removed first, leaving each
-   * directory empty by the time its own turn comes.
+   * <p>Cleanup rides on {@link java.io.File#deleteOnExit()}, which unwinds LIFO. Walking the
+   * staged tree registers it in pre-order — parents before children — so children are deleted
+   * first and each directory is empty by the time its own turn comes.
    */
   private static void stageFixtureMedia(Path mediaPath) throws IOException {
-    mediaPath.toFile().deleteOnExit();
     final Path destination = Files.createDirectories(mediaPath.resolve("Fixtures"));
-    destination.toFile().deleteOnExit();
     try (Stream<Path> sources = Files.list(SOURCE_FIXTURES)) {
       for (Path source : sources.filter(Files::isRegularFile).toList()) {
-        final Path staged = destination.resolve(source.getFileName());
-        Files.copy(source, staged, StandardCopyOption.REPLACE_EXISTING);
-        staged.toFile().deleteOnExit();
+        Files.copy(source, destination.resolve(source.getFileName()), StandardCopyOption.REPLACE_EXISTING);
       }
+    }
+    try (Stream<Path> tree = Files.walk(mediaPath)) {
+      tree.forEach(path -> path.toFile().deleteOnExit());
     }
   }
 

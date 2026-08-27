@@ -1,13 +1,8 @@
 package apotheneum.doved.patterns;
 
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
-import java.util.stream.Stream;
 
 import org.junit.jupiter.api.Test;
 
@@ -16,7 +11,6 @@ import apotheneum.HeadlessLxTest;
 import heronarts.lx.LX;
 import heronarts.lx.mixer.LXChannel;
 import heronarts.lx.pattern.LXPattern;
-import heronarts.lx.structure.JsonFixture;
 
 /**
  * The bound on a fused <i>rendered</i> blob radius in {@link LavaLamp}, which is a different
@@ -47,9 +41,6 @@ import heronarts.lx.structure.JsonFixture;
  * separate class is a separate JVM and therefore a separate process.</p>
  */
 public class LavaLampFieldSpanTest extends HeadlessLxTest {
-
-  private static final Path SOURCE_FIXTURES = Path.of("src/main/resources/fixtures");
-  private static final String FIXTURE_NAME = "Apotheneum";
 
   private static final double FIXED_DELTA_MS = 1000. / 60;
   /** Frames to grow the lamp to a full population of large bodies before Volume drops. */
@@ -165,45 +156,5 @@ public class LavaLampFieldSpanTest extends HeadlessLxTest {
         + "one on only " + laggingFrames + " of " + COLLAPSE_FRAMES + " frames, so this run "
         + "barely reached the state the fused-radius bound exists for"
     );
-  }
-
-  private LX newApotheneumLx() throws IOException {
-    final Path mediaPath = Files.createTempDirectory("apotheneum-lava-lamp-field-span-test-");
-    // JsonFixture resolves through <mediaPath>/Fixtures/, capitalized; this repo stores them
-    // in a lowercase directory, which only works on a case-insensitive filesystem.
-    final Path destination = Files.createDirectories(mediaPath.resolve("Fixtures"));
-    try (Stream<Path> sources = Files.list(SOURCE_FIXTURES)) {
-      for (Path source : sources.filter(Files::isRegularFile).toList()) {
-        Files.copy(
-          source,
-          destination.resolve(source.getFileName()),
-          StandardCopyOption.REPLACE_EXISTING
-        );
-      }
-    }
-
-    // Deepest-last registration, and deleteOnExit unwinds LIFO, so children go before parents.
-    try (Stream<Path> tree = Files.walk(mediaPath)) {
-      tree.forEach(path -> path.toFile().deleteOnExit());
-    }
-
-    final LX.Flags flags = new LX.Flags();
-    flags.loadPreferences = false;
-    flags.mediaPath = mediaPath.toString();
-    flags.outputMode = LX.Flags.OutputMode.INACTIVE;
-
-    final LX lx = track(new LX(flags));
-    lx.engine.output.enabled.setValue(false);
-
-    final JsonFixture fixture = new JsonFixture(lx, FIXTURE_NAME);
-    lx.structure.addFixture(fixture);
-    // addFixture only stages regeneration; without this the model is not there yet.
-    lx.structure.beforeEngineRun();
-    assertFalse(fixture.error.isOn(), "fixture load failed: " + fixture.errorMessage.getString());
-
-    Apotheneum.initialize(lx);
-    assertTrue(Apotheneum.exists, "Apotheneum.exists was false after loading the real fixture");
-    assertFalse(lx.engine.output.enabled.isOn(), "engine output became enabled");
-    return lx;
   }
 }
