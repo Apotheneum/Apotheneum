@@ -103,16 +103,35 @@ own loop.
 > FYI future reference, `setColors(backgroundColor);` will do that in one line
 > for you.
 
-**Motion is one of these reinventions.** A pattern that wants continuous or
-pulsed movement should expose a plain position/level parameter and let the
-performer drive it with LX's own modulation system — an LFO, an envelope, a
-macro, MIDI — not grow its own built-in rate/speed knob with an internal
-accumulator that free-runs on `deltaMs`. The accumulator duplicates what a
-modulator already does, doubles the parameter surface for one motion (a
-position and a rate that must be kept in sync), and is one more place for a
-runaway-phase or unbounded-accumulation bug to hide. Ship the pattern static
-by default — no motion until something is wired to it — and let the position
-parameter be the single source of truth.
+**Motion is usually one of these reinventions.** A pattern that wants
+continuous or pulsed movement should normally expose a plain position/level
+parameter and let the performer drive it with LX's own modulation system — an
+LFO, an envelope, a macro, MIDI — rather than growing its own built-in
+rate/speed knob with an internal accumulator that free-runs on `deltaMs`. The
+accumulator duplicates what a modulator already does, doubles the parameter
+surface for one motion (a position and a rate that must be kept in sync), and
+is one more place for a runaway-phase or unbounded-accumulation bug to hide.
+Prefer shipping static by default — no motion until something is wired to it —
+with the position parameter as the single source of truth.
+
+**This one is a recommendation, not a requirement.** It fits when the moving
+quantity is a *phase in a cycle*, where scrubbing to a position is a meaningful
+thing to do: `Vortex.spin` is rotation through one turn, and a vortex holding
+still is still a vortex.
+
+It fits badly when the motion is a continuous natural process that the pattern
+is *of* — wind, water, weather. Those have no natural position to scrub to. A
+jungle whose air has stopped is a photograph of a jungle, not a jungle at rest,
+and giving such a pattern a phase invents a cycle the phenomenon does not have:
+the first thing a performer does with a phase is drive it from a sawtooth, which
+makes that invented loop visible. `Jungle`, `Rockfall`, `Waterfall`, `Grass` and
+`LavaLamp` all integrate `deltaMs` for this reason, and are right to.
+
+Use discretion. Where a rate is the honest control, keep two things true: expose
+it as a compound parameter, so a performer can still modulate its strength and
+direction through the modulation graph, and keep the accumulator bounded — wrap
+the phase rather than letting it grow without limit, which is the real defect the
+recommendation exists to prevent.
 
 ### 6. Check whether it belongs in core LX first
 
