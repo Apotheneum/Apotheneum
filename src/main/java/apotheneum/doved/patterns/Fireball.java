@@ -160,10 +160,6 @@ public class Fireball extends ColorNativePattern {
     new EnumParameter<Shape>("Shape", Shape.BOTH)
     .setDescription("Which chambers the fireball burns on");
 
-  public final BooleanParameter interior =
-    new BooleanParameter("Interior", true)
-    .setDescription("Mirror the exterior surfaces onto the interior");
-
   public final TriggerParameter launch =
     new TriggerParameter("Launch", this::onLaunch)
     .setDescription("Punch the fireball upward, letting it arc back down");
@@ -208,7 +204,6 @@ public class Fireball extends ColorNativePattern {
     addParameter("monochrome", this.monochrome);
     addParameter("gamma", this.gamma);
     addParameter("shape", this.shape);
-    addParameter("interior", this.interior);
     addParameter("verticalPunch", this.launch);
     addParameter("clear", this.clear);
   }
@@ -224,17 +219,21 @@ public class Fireball extends ColorNativePattern {
 
   @Override
   protected void render(double deltaMs) {
-    setColors(LXColor.BLACK);
+    // A model view is an input model, not a write mask: this pattern writes by global point
+    // index through cached geometry, so every write below is guarded by isViewPoint(), and
+    // the frame's clear reaches only the view rather than the whole buffer.
+    updateViewMask();
+    clearView();
 
     final Shape shape = this.shape.getEnum();
     final boolean burnCube = (shape != Shape.CYLINDER);
     final boolean burnCylinder = (shape != Shape.CUBE);
 
     if (burnCube) {
-      this.cubeFire.attach(Apotheneum.cube.exterior);
+      this.cubeFire.attach(Apotheneum.cube.exterior, Apotheneum.cube.interior);
     }
     if (burnCylinder) {
-      this.cylinderFire.attach(Apotheneum.cylinder.exterior);
+      this.cylinderFire.attach(Apotheneum.cylinder.exterior, Apotheneum.cylinder.interior);
     }
 
     // Fixed timestep, so advection covers the same number of cells per second
@@ -255,10 +254,6 @@ public class Fireball extends ColorNativePattern {
     }
     if (burnCylinder) {
       this.cylinderFire.render(this.colors);
-    }
-
-    if (this.interior.isOn()) {
-      copyExterior();
     }
   }
 
@@ -362,6 +357,14 @@ public class Fireball extends ColorNativePattern {
     private float[] heat = null;
     private float[] next = null;
     private int[] pointIndex = null;
+    // The interior twin of each cell. The surface is painted and mirrored in one pass rather
+    // than rendered and then block-copied: ApotheneumPattern.copyExterior() is an arraycopy
+    // over whole orientations and cannot be masked from outside, so it would paint interior
+    // points a pattern-level view excludes. Writing both points as the colour is computed
+    // guards each independently, and reads nothing back out of the shared buffer, so an
+    // interior-only view still draws instead of mirroring whatever another pattern left on
+    // the exterior.
+    private int[] mirrorIndex = null;
     private boolean[] usable = null;
 
     private final Spark[] sparks = new Spark[SPARK_POOL];
@@ -386,7 +389,7 @@ public class Fireball extends ColorNativePattern {
      * us. The identity check means this allocates on a model change and never per
      * frame.
      */
-    private void attach(Apotheneum.Orientation orientation) {
+    private void attach(Apotheneum.Orientation orientation, Apotheneum.Orientation mirror) {
       if (this.orientation == orientation) {
         return;
       }
@@ -397,6 +400,7 @@ public class Fireball extends ColorNativePattern {
         for (int y = 0; y < this.height; ++y) {
           final int i = x * this.height + y;
           this.pointIndex[i] = orientation.point(x, y).index;
+          this.mirrorIndex[i] = mirror.point(x, y).index;
         }
       }
     }
@@ -408,6 +412,7 @@ public class Fireball extends ColorNativePattern {
       this.heat = new float[cells];
       this.next = new float[cells];
       this.pointIndex = new int[cells];
+      this.mirrorIndex = new int[cells];
       this.usable = new boolean[cells];
       for (int x = 0; x < width; ++x) {
         final int usableHeight = available.applyAsInt(x);
@@ -702,10 +707,42 @@ public class Fireball extends ColorNativePattern {
           if (value <= HEAT_EPSILON) {
             continue;
           }
-          colors[this.pointIndex[i]] = Fireball.this.colorHeat(value, colorPhysics(x, y));
+          paint(colors, i, Fireball.this.colorHeat(value, colorPhysics(x, y)));
         }
       }
       renderSparks(colors);
+    }
+
+    /**
+     * Writes one cell to its exterior point and to the interior point mirroring it, skipping
+     * either if the pattern's model view excludes it.
+     */
+    private void paint(int[] colors, int cell, int color) {
+      final int exterior = this.pointIndex[cell];
+      if (Fireball.this.isViewPoint(exterior)) {
+        colors[exterior] = color;
+      }
+      final int interior = this.mirrorIndex[cell];
+      if (Fireball.this.isViewPoint(interior)) {
+        colors[interior] = color;
+      }
+    }
+
+    /**
+     * As {@link #paint}, but an ember only ever brightens a cell, never dims one. Both
+     * surfaces carry the same value at every step of the frame, so comparing each against
+     * itself gives the same result the exterior-then-block-copy order used to.
+     */
+    private void paintBrighter(int[] colors, int cell, int color) {
+      final float brightness = LXColor.b(color);
+      final int exterior = this.pointIndex[cell];
+      if (Fireball.this.isViewPoint(exterior) && (brightness > LXColor.b(colors[exterior]))) {
+        colors[exterior] = color;
+      }
+      final int interior = this.mirrorIndex[cell];
+      if (Fireball.this.isViewPoint(interior) && (brightness > LXColor.b(colors[interior]))) {
+        colors[interior] = color;
+      }
     }
 
     /** Draws each live ember only at its current position, never into the heat field. */
@@ -741,11 +778,7 @@ public class Fireball extends ColorNativePattern {
             if (heat <= HEAT_EPSILON) {
               continue;
             }
-            final int color = Fireball.this.colorHeat(heat, colorPhysics(x, y));
-            final int point = this.pointIndex[cell];
-            if (LXColor.b(color) > LXColor.b(colors[point])) {
-              colors[point] = color;
-            }
+            paintBrighter(colors, cell, Fireball.this.colorHeat(heat, colorPhysics(x, y)));
           }
         }
       }
@@ -824,8 +857,7 @@ public class Fireball extends ColorNativePattern {
 
     addVerticalBreak(ui, uiDevice);
 
-    addColumn(uiDevice, "Output",
-      newButton(this.interior),
+    addColumn(uiDevice, "Actions",
       newButton(this.launch).setTriggerable(true),
       newButton(this.clear).setTriggerable(true)).setChildSpacing(6);
 

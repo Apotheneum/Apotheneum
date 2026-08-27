@@ -20,7 +20,6 @@ package apotheneum.doved.patterns;
 
 import java.util.List;
 
-import apotheneum.ApotheneumPattern;
 import heronarts.glx.ui.UI2dComponent;
 import heronarts.glx.ui.vg.VGraphics;
 import heronarts.lx.LX;
@@ -114,8 +113,17 @@ import heronarts.lx.utils.LXUtils;
  * promoting role parameters to top-level {@code addParameter} registrations purely so snapshots
  * see them) — the grouped, addChild-based presentation is intentional and matches the source
  * pattern's existing UI grouping.</p>
+ *
+ * <p><b>Why it extends {@link ViewMaskedPattern} rather than {@code ApotheneumPattern}
+ * directly:</b> most patterns in this family write their colour buffer through global geometry
+ * by point index, which per {@code lx-coding-guidelines.md} &#167;18 means honouring a
+ * pattern-level model view requires a membership mask. That machinery is deliberately kept in a
+ * separate base class rather than folded in here, because view masking is orthogonal to colour —
+ * a brightness-only pattern should be able to inherit it too. It is entirely opt-in by call: a
+ * subclass that never calls {@code updateViewMask()} behaves exactly as it did before this class
+ * was reparented.</p>
  */
-public abstract class ColorNativePattern extends ApotheneumPattern
+public abstract class ColorNativePattern extends ViewMaskedPattern
   implements UIDeviceControls<ColorNativePattern> {
 
   private static final double COLOR_BRIGHTNESS_MODULATION = .45;
