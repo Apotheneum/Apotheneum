@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import apotheneum.HeadlessLxTest;
 import heronarts.lx.LX;
+import heronarts.lx.LXComponent;
 import heronarts.lx.modulator.SawLFO;
 import heronarts.lx.parameter.CompoundParameter;
 import heronarts.lx.parameter.DiscreteParameter;
@@ -56,6 +57,27 @@ public class RenderSpikeTest extends HeadlessLxTest {
       IllegalArgumentException.class,
       () -> RenderSpike.resolveModulationTarget(pattern, "mode")
     );
+  }
+
+  @Test
+  void childComponentParameterResolvesByItsComponentPath() {
+    final ChildParameterPattern pattern = new ChildParameterPattern(newHeadlessLx());
+
+    assertSame(
+      pattern.role.hueOffset,
+      RenderSpike.resolvePatternParameter(pattern, "primary/hueOffset")
+    );
+  }
+
+  @Test
+  void unknownParameterListsAvailableChildComponentPaths() {
+    final ChildParameterPattern pattern = new ChildParameterPattern(newHeadlessLx());
+
+    final IllegalArgumentException error = assertThrows(
+      IllegalArgumentException.class,
+      () -> RenderSpike.resolvePatternParameter(pattern, "missing")
+    );
+    assertTrue(error.getMessage().contains("primary/hueOffset"));
   }
 
   @Test
@@ -121,6 +143,31 @@ public class RenderSpikeTest extends HeadlessLxTest {
 
     @Override
     protected void run(double deltaMs) {
+    }
+  }
+
+  private static class ChildParameterPattern extends LXPattern {
+
+    private final ChildParameterComponent role;
+
+    private ChildParameterPattern(LX lx) {
+      super(lx);
+      this.role = new ChildParameterComponent(lx);
+      addChild("primary", this.role);
+    }
+
+    @Override
+    protected void run(double deltaMs) {
+    }
+  }
+
+  private static class ChildParameterComponent extends LXComponent {
+
+    private final CompoundParameter hueOffset = new CompoundParameter("Hue Offset", 0, -60, 60);
+
+    private ChildParameterComponent(LX lx) {
+      super(lx, "Primary");
+      addParameter("hueOffset", this.hueOffset);
     }
   }
 }

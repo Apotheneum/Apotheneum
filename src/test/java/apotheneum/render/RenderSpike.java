@@ -23,6 +23,7 @@ import javax.imageio.ImageIO;
 
 import apotheneum.Apotheneum;
 import heronarts.lx.LX;
+import heronarts.lx.LXComponent;
 import heronarts.lx.LXEngine;
 import heronarts.lx.color.LXColor;
 import heronarts.lx.color.LXDynamicColor;
@@ -525,10 +526,15 @@ public final class RenderSpike {
     return target;
   }
 
-  private static LXParameter resolvePatternParameter(LXPattern pattern, String name) {
+  static LXParameter resolvePatternParameter(LXPattern pattern, String name) {
     final Map<String, LXParameter> available = new TreeMap<>();
     for (LXParameter parameter : pattern.getParameters()) {
       available.put(parameter.getPath(), parameter);
+    }
+    for (Map.Entry<String, LXComponent> child : pattern.children.entrySet()) {
+      for (LXParameter parameter : child.getValue().getParameters()) {
+        available.put(child.getKey() + "/" + parameter.getPath(), parameter);
+      }
     }
     final LXParameter parameter = available.get(name);
     if (parameter == null) {

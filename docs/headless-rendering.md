@@ -57,9 +57,11 @@ RenderSpike lookupProjection=equidistant-fisheye fovDegrees=180 \
 ```
 
 Numeric, boolean, discrete-option and enum parameters are supported. Names must match
-the pattern's registered parameter paths exactly; option and enum values are
-case-insensitive. An unknown name fails with the complete list of available names, and
-the renderer logs the resolved values so the invocation remains self-describing.
+the pattern's registered parameter paths exactly. A direct child-component parameter is
+addressable as `child/parameter`; for example, Fireball's primary role can be assigned with
+`-Dparams=primary/hueOffset=20`. Option and enum values are case-insensitive. An unknown name
+fails with the complete list of available names, and the renderer logs the resolved values so
+the invocation remains self-describing.
 
 ### Drive a static position parameter
 
@@ -82,10 +84,12 @@ mvn -Ptests test-compile exec:exec \
   -Dmodulate=spin:0.12
 ```
 
-The target must be a registered `CompoundParameter` or `CompoundDiscreteParameter`; an
-unknown target lists all available names and a non-modulatable target fails clearly. Without
-`-Dmodulate=`, existing renderer invocations are unchanged. When invoked directly, the
-modulation assignment is the sixth positional argument, after the view name.
+The target must be a registered `CompoundParameter` or `CompoundDiscreteParameter`; direct
+child-component targets use the same `child/parameter` spelling, such as
+`-Dmodulate=primary/hueOffset:0.2` for Fireball. An unknown target lists all available names
+and a non-modulatable target fails clearly. Without `-Dmodulate=`, existing renderer invocations
+are unchanged. When invoked directly, the modulation assignment is the sixth positional argument,
+after the view name.
 
 Combined with `-Deffects=`, the sawtooth restarts from basis 0 at the top of each variant, so
 `<surface>.gif` and `<surface>-effects.gif` cover the identical parameter sweep and the only
