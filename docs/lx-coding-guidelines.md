@@ -143,11 +143,18 @@ above take that exception, but they do not all yet satisfy this half of it:
   `gustTime` / `turbulenceTime` grow without limit and are cast to `float` at the
   point of use. The accumulator is a `double`, so it keeps its own precision; the
   loss is at the cast. A 60fps frame advances `Waterfall.time` by about .0167,
-  and past 2^19 the spacing between adjacent `float`s exceeds that — so after
-  roughly six days of continuous running the noise coordinate stops moving every
-  frame and the motion quantizes, coarsening from there. On a permanent
-  installation that is a real failure, and these two want wrapping. Cite them as
-  precedent for taking the exception, not for skipping this part of it.
+  and past 2^19 the spacing between adjacent `float`s exceeds that, so the noise
+  coordinate stops moving every frame and the motion quantizes.
+
+  That threshold is about 146 hours of *active* time, not of wall clock. Neither
+  pattern resets its clock when it goes inactive, so the total carries across
+  every activation for the life of the process — but it only advances while the
+  pattern is running. On a two-minute slot in a rotation of twenty, that is on the
+  order of four months of uninterrupted uptime, and any restart clears it. So this
+  is a slow leak rather than an urgent defect. Worth fixing, worth knowing about
+  when a show runs for a long time without a restart, and not worth a panic. Cite
+  these two as precedent for taking the exception, not for skipping this part of
+  it.
 
 ### 6. Check whether it belongs in core LX first
 
