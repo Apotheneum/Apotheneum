@@ -1106,16 +1106,22 @@ public final class RenderSpike {
     return scaled;
   }
 
+  /**
+   * Lifts brightness only, in HSB, so a colored pattern keeps its hue and saturation
+   * under review. The previous version boosted R/G/B independently, which is not a
+   * brightness lift despite the name: any channel past ~25% of full saturates on its
+   * own, so two channels of a moderately bright color commonly clip to 255 while the
+   * third lags behind, reading as a near-white tint instead of the pattern's actual
+   * color. Monochrome patterns are colorless in HSB (hue/saturation don't apply), so
+   * this is a strict fix, not a trade-off against the grayscale patterns the lift was
+   * originally written for.
+   */
   private static int boostForReview(int color) {
-    final int red = boostChannel((color >> 16) & 0xff);
-    final int green = boostChannel((color >> 8) & 0xff);
-    final int blue = boostChannel(color & 0xff);
-    return (red << 16) | (green << 8) | blue;
-  }
-
-  private static int boostChannel(int channel) {
-    final double normalized = channel / 255.;
-    return (int) Math.round(255. * Math.min(1., REVIEW_GAIN * Math.pow(normalized, REVIEW_GAMMA)));
+    final float hue = LXColor.h(color);
+    final float saturation = LXColor.s(color);
+    final float brightness = LXColor.b(color);
+    final double boosted = 100. * Math.min(1., REVIEW_GAIN * Math.pow(brightness / 100., REVIEW_GAMMA));
+    return LXColor.hsb(hue, saturation, boosted);
   }
 
   private static void markFaceBoundaries(BufferedImage image) {
