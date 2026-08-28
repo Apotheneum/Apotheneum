@@ -50,6 +50,12 @@ public class Vortex extends ApotheneumPattern
   static final double TWO_PI = 2 * Math.PI;
   static final double INV_TWO_PI = 1 / TWO_PI;
   static final double SHEAR_GAIN = .5;
+  /**
+   * Steepness of the {@link #curl Curl} warp at full travel. The exponent is
+   * {@code 1 / (1 + CURL_GAIN * curl)}, so 9 reaches 0.1 -- tight enough to reproduce the
+   * winding the earlier synthetic-perspective mapping produced at the throat.
+   */
+  static final double CURL_GAIN = 9;
   private static final String LOG_PREFIX = "[Vortex] ";
 
   public enum Horizon {
@@ -68,6 +74,11 @@ public class Vortex extends ApotheneumPattern
       double zetaSpan(SurfaceState state) {
         return state.topZetaSpan;
       }
+
+      @Override
+      double zetaMin(SurfaceState state) {
+        return state.topZetaMin;
+      }
     },
     BOTTOM {
       @Override
@@ -84,11 +95,17 @@ public class Vortex extends ApotheneumPattern
       double zetaSpan(SurfaceState state) {
         return state.bottomZetaSpan;
       }
+
+      @Override
+      double zetaMin(SurfaceState state) {
+        return state.bottomZetaMin;
+      }
     };
 
     abstract double nearness(double u);
     abstract double zeta(double rowY, double rowRadial, double apexY, double baseY);
     abstract double zetaSpan(SurfaceState state);
+    abstract double zetaMin(SurfaceState state);
   }
 
   public enum Wrap {
@@ -117,6 +134,8 @@ public class Vortex extends ApotheneumPattern
     final double[] env;
     double topZetaSpan;
     double bottomZetaSpan;
+    double topZetaMin;
+    double bottomZetaMin;
 
     SurfaceState(int columns, int rows) {
       this.azimuth = new double[columns];
@@ -313,11 +332,13 @@ public class Vortex extends ApotheneumPattern
       this.cylinderState, cylinder, surfaceCenterX(cylinder), surfaceCenterZ(cylinder));
     log(String.format(Locale.ROOT,
       "geometry apexY=%.6f baseY=%.6f " +
-      "cubeZetaSpan(top/bottom)=%.6f/%.6f " +
-      "cylinderZetaSpan(top/bottom)=%.6f/%.6f",
+      "cubeZetaSpan(top/bottom)=%.6f/%.6f cubeZetaMin(top/bottom)=%.6f/%.6f " +
+      "cylinderZetaSpan(top/bottom)=%.6f/%.6f cylinderZetaMin(top/bottom)=%.6f/%.6f",
       this.apexY, this.baseY,
       this.cubeState.topZetaSpan, this.cubeState.bottomZetaSpan,
-      this.cylinderState.topZetaSpan, this.cylinderState.bottomZetaSpan));
+      this.cubeState.topZetaMin, this.cubeState.bottomZetaMin,
+      this.cylinderState.topZetaSpan, this.cylinderState.bottomZetaSpan,
+      this.cylinderState.topZetaMin, this.cylinderState.bottomZetaMin));
   }
 
   private void includeVerticalBounds(Apotheneum.Orientation orientation) {
@@ -364,6 +385,12 @@ public class Vortex extends ApotheneumPattern
     }
     state.topZetaSpan = maxTopZeta - minTopZeta;
     state.bottomZetaSpan = maxBottomZeta - minBottomZeta;
+    // Curl needs the surface's own near end, not zero. A surface whose top row sits below the
+    // shared installation apex starts at a positive zeta, so normalizing by span alone would
+    // never reach the steep end of the warp -- the tightest winding would fall above the
+    // physical LEDs instead of on them.
+    state.topZetaMin = minTopZeta;
+    state.bottomZetaMin = minBottomZeta;
   }
 
   private void fillAzimuthLut(
@@ -420,8 +447,9 @@ public class Vortex extends ApotheneumPattern
     // double-counting perspective. This restores that look deliberately, as a stylization
     // rather than as a claim about distance. At Curl=0 the exponent is 1 and this is exactly
     // the linear geometry-anchored mapping, so the shipped default is unchanged.
-    final double curlExponent = 1 / (1 + 3 * this.curl.getValue());
+    final double curlExponent = 1 / (1 + CURL_GAIN * this.curl.getValue());
     final double zetaSpan = horizon.zetaSpan(state);
+    final double zetaMin = horizon.zetaMin(state);
     final double invZetaSpan = (zetaSpan > 0) ? 1 / zetaSpan : 0;
 
     for (int y = 0; y < height; ++y) {
@@ -430,10 +458,12 @@ public class Vortex extends ApotheneumPattern
       double zeta = horizon.zeta(
         state.rowY[y], state.rowRadial[y], this.apexY, this.baseY);
       if (curlExponent != 1) {
-        // Warp in normalized axial space so the far endpoint is preserved: Fall still
-        // traverses exactly one full span, and zetaSpan stays the correct descent range.
-        final double t = LXUtils.clamp(zeta * invZetaSpan, 0, 1);
-        zeta = zetaSpan * Math.pow(t, curlExponent);
+        // Warp in normalized axial space so both endpoints are preserved: Fall still traverses
+        // exactly one full span, and zetaSpan stays the correct descent range. Normalizing from
+        // the surface's own near end rather than from zero is what puts the steep part of the
+        // curve on the first real row instead of somewhere above the fixture.
+        final double t = LXUtils.clamp((zeta - zetaMin) * invZetaSpan, 0, 1);
+        zeta = zetaMin + zetaSpan * Math.pow(t, curlExponent);
       }
       final double radius = throat + (1 - throat) * Math.pow(1 - n, 1.5);
       final double boost = Math.min(1 / (radius * radius), 8);
