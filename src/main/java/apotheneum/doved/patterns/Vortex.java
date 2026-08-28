@@ -51,11 +51,17 @@ public class Vortex extends ApotheneumPattern
   static final double INV_TWO_PI = 1 / TWO_PI;
   static final double SHEAR_GAIN = .5;
   /**
-   * Steepness of the {@link #curl Curl} warp at full travel. The exponent is
-   * {@code 1 / (1 + CURL_GAIN * curl)}, so 9 reaches 0.1 -- tight enough to reproduce the
-   * winding the earlier synthetic-perspective mapping produced at the throat.
+   * How much faster the arms wind at the throat than at the far end when {@link #curl Curl} is
+   * at full travel. The warp is {@code 1 - (1 - t)^p} with {@code p = 1 + CURL_GAIN * curl},
+   * whose gradient at the throat is exactly {@code p} -- so winding there scales linearly with
+   * the control and turning Curl up always produces more curl.
+   *
+   * <p>An earlier form, {@code t^(1/(1+gain*curl))}, was not monotonic: its throat gradient
+   * {@code e * t^(e-1)} peaks near {@code e = 0.18} and falls away again, so past roughly
+   * half travel more Curl produced visibly less. Both forms preserve the endpoints; only this
+   * one is monotonic in the control.
    */
-  static final double CURL_GAIN = 9;
+  static final double CURL_GAIN = 20;
   private static final String LOG_PREFIX = "[Vortex] ";
 
   public enum Horizon {
@@ -167,7 +173,7 @@ public class Vortex extends ApotheneumPattern
     .setDescription("Number of spiral arms; zero produces horizontal freefall rings");
 
   public final CompoundParameter twist =
-    new CompoundParameter("Twist", 6, 0, 8)
+    new CompoundParameter("Twist", 6, 0, 20)
     .setDescription("Angular winding per radius of axial travel");
 
   public final CompoundParameter throat =
@@ -447,7 +453,7 @@ public class Vortex extends ApotheneumPattern
     // double-counting perspective. This restores that look deliberately, as a stylization
     // rather than as a claim about distance. At Curl=0 the exponent is 1 and this is exactly
     // the linear geometry-anchored mapping, so the shipped default is unchanged.
-    final double curlExponent = 1 / (1 + CURL_GAIN * this.curl.getValue());
+    final double curlPower = 1 + CURL_GAIN * this.curl.getValue();
     final double zetaSpan = horizon.zetaSpan(state);
     final double zetaMin = horizon.zetaMin(state);
     final double invZetaSpan = (zetaSpan > 0) ? 1 / zetaSpan : 0;
@@ -457,13 +463,13 @@ public class Vortex extends ApotheneumPattern
       final double n = horizon.nearness(u);
       double zeta = horizon.zeta(
         state.rowY[y], state.rowRadial[y], this.apexY, this.baseY);
-      if (curlExponent != 1) {
+      if (curlPower != 1) {
         // Warp in normalized axial space so both endpoints are preserved: Fall still traverses
         // exactly one full span, and zetaSpan stays the correct descent range. Normalizing from
         // the surface's own near end rather than from zero is what puts the steep part of the
         // curve on the first real row instead of somewhere above the fixture.
         final double t = LXUtils.clamp((zeta - zetaMin) * invZetaSpan, 0, 1);
-        zeta = zetaMin + zetaSpan * Math.pow(t, curlExponent);
+        zeta = zetaMin + zetaSpan * (1 - Math.pow(1 - t, curlPower));
       }
       final double radius = throat + (1 - throat) * Math.pow(1 - n, 1.5);
       final double boost = Math.min(1 / (radius * radius), 8);
