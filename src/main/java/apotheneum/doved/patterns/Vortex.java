@@ -155,6 +155,11 @@ public class Vortex extends ApotheneumPattern
     new CompoundParameter("Throat", .25, .05, 1)
     .setDescription("Radius of the narrow end of the funnel");
 
+  public final CompoundParameter curl =
+    new CompoundParameter("Curl", 0)
+    .setDescription(
+      "Tightens the arms as they wind into the throat; zero keeps winding even along the axis");
+
   public final CompoundParameter wobble =
     new CompoundParameter("Wobble", .3)
     .setDescription("Amount the vortex centerline bends and snakes with depth");
@@ -209,6 +214,7 @@ public class Vortex extends ApotheneumPattern
     addParameter("arms", this.arms);
     addParameter("twist", this.twist);
     addParameter("throat", this.throat);
+    addParameter("curl", this.curl);
     addParameter("wobble", this.wobble);
     addParameter("wobblePhase", this.wobblePhase);
     addParameter("sharp", this.sharp);
@@ -407,11 +413,28 @@ public class Vortex extends ApotheneumPattern
     final double descentPhase = this.descent.getValue() * horizon.zetaSpan(state);
     final double wobblePhase = this.wobblePhase.getValue() * TWO_PI;
 
+    // Curl compresses the axial coordinate toward the anchor end, so winding accelerates into
+    // the throat instead of advancing at a constant rate. The geometry-derived zeta is linear
+    // in height, which is physically honest but visually uniform; the earlier synthetic
+    // perspective mapping produced a tight curl at the throat as a side effect of
+    // double-counting perspective. This restores that look deliberately, as a stylization
+    // rather than as a claim about distance. At Curl=0 the exponent is 1 and this is exactly
+    // the linear geometry-anchored mapping, so the shipped default is unchanged.
+    final double curlExponent = 1 / (1 + 3 * this.curl.getValue());
+    final double zetaSpan = horizon.zetaSpan(state);
+    final double invZetaSpan = (zetaSpan > 0) ? 1 / zetaSpan : 0;
+
     for (int y = 0; y < height; ++y) {
       final double u = (y + .5) / height;
       final double n = horizon.nearness(u);
-      final double zeta = horizon.zeta(
+      double zeta = horizon.zeta(
         state.rowY[y], state.rowRadial[y], this.apexY, this.baseY);
+      if (curlExponent != 1) {
+        // Warp in normalized axial space so the far endpoint is preserved: Fall still
+        // traverses exactly one full span, and zetaSpan stays the correct descent range.
+        final double t = LXUtils.clamp(zeta * invZetaSpan, 0, 1);
+        zeta = zetaSpan * Math.pow(t, curlExponent);
+      }
       final double radius = throat + (1 - throat) * Math.pow(1 - n, 1.5);
       final double boost = Math.min(1 / (radius * radius), 8);
       final double shearOffset = shear * SHEAR_GAIN * (boost - 1);
@@ -510,6 +533,7 @@ public class Vortex extends ApotheneumPattern
     addVerticalBreak(ui, uiDevice);
     addColumn(uiDevice, "Funnel",
       newKnob(vortex.throat),
+      newKnob(vortex.curl),
       newKnob(vortex.wobble));
 
     addVerticalBreak(ui, uiDevice);
