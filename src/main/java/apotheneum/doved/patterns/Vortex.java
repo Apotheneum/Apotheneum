@@ -62,6 +62,8 @@ public class Vortex extends ApotheneumPattern
    * one is monotonic in the control.
    */
   static final double CURL_GAIN = 20;
+  /** Below this, Twist contributes no axial winding and Fall cannot be made to matter. */
+  static final double TWIST_EPSILON = 1e-6;
   private static final String LOG_PREFIX = "[Vortex] ";
 
   public enum Horizon {
@@ -232,6 +234,7 @@ public class Vortex extends ApotheneumPattern
   private int armsValue = 0;
   private double spinAngle = 0;
   private LXModel geometryModel = null;
+  private double descentSpan = 0;
   double apexY = 0;
   double baseY = 0;
 
@@ -436,8 +439,39 @@ public class Vortex extends ApotheneumPattern
     updateWaveLut();
     this.armsValue = this.arms.getValuei();
     this.spinAngle = this.spin.getValue() * TWO_PI;
+    this.descentSpan = descentSpan();
     updateRows(this.cubeState);
     updateRows(this.cylinderState);
+  }
+
+  /**
+   * Axial distance one full sweep of {@link #descent Fall} travels, rounded so that the sweep
+   * is a whole number of wave cycles.
+   *
+   * <p>Fall shifts the axial coordinate, so a sweep advances the row phase by
+   * {@code twist * span}. Using the raw geometric span leaves that a fractional number of
+   * cycles -- at the shipped Twist of 6 the cylinder's span gives 2.089 -- so an LFO looping
+   * Fall from 1 back to 0 jumps. Rounding to the nearest whole cycle closes the loop.
+   *
+   * <p>One span is shared by both surfaces rather than rounding each separately. The advance is
+   * {@code twist * span} on either surface, so a single span makes both land on whole cycles at
+   * the same time; rounding per surface would close each loop but let the cube and cylinder
+   * travel at different rates and drift apart. The larger span picks the cycle count so the
+   * sweep stays close to a full traverse of the taller surface.
+   */
+  private double descentSpan() {
+    final Horizon horizon = this.horizon.getEnum();
+    final double referenceSpan = Math.max(
+      horizon.zetaSpan(this.cubeState), horizon.zetaSpan(this.cylinderState));
+    final double twist = this.twist.getValue();
+    if (twist <= TWIST_EPSILON) {
+      // Nothing winds along the axis, so the image does not depend on Fall at all and the
+      // sweep is already trivially cyclical. Keep the geometric span so Fall stays meaningful
+      // if Twist comes back up mid-sweep.
+      return referenceSpan;
+    }
+    final double cycles = Math.max(1, Math.round(twist * referenceSpan * INV_TWO_PI));
+    return cycles * TWO_PI / twist;
   }
 
   private void updateRows(SurfaceState state) {
@@ -447,7 +481,7 @@ public class Vortex extends ApotheneumPattern
     final double shear = this.shear.getValue();
     final double twist = this.twist.getValue();
     final double wobble = this.wobble.getValue();
-    final double descentPhase = this.descent.getValue() * horizon.zetaSpan(state);
+    final double descentPhase = this.descent.getValue() * this.descentSpan;
     final double wobblePhase = this.wobblePhase.getValue() * TWO_PI;
 
     // Curl compresses the axial coordinate toward the anchor end, so winding accelerates into
@@ -509,7 +543,13 @@ public class Vortex extends ApotheneumPattern
   double brightness(SurfaceState state, int x, int y) {
     final double phase =
       this.armsValue * (state.azimuth[x] - this.spinAngle) + state.rowPhase[y];
-    final int waveIndex = (int) (phase * INV_TWO_PI * LUT_SIZE) & (LUT_SIZE - 1);
+    // Floor, not a plain cast. A cast truncates toward zero, which is not translation
+    // invariant across the sign boundary: shifting phase by an exact multiple of LUT_SIZE
+    // lands on a different index once it crosses zero, so a control that advances phase by a
+    // whole number of cycles -- Fall sweeping 0 to 1 -- would fail to close despite the
+    // arithmetic being exact.
+    final int waveIndex =
+      (int) Math.floor(phase * INV_TWO_PI * LUT_SIZE) & (LUT_SIZE - 1);
     return LXUtils.clamp(this.waveLut[waveIndex] * state.env[y], 0, 1);
   }
 
