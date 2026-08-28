@@ -166,7 +166,9 @@ public class Vortex extends ApotheneumPattern
 
   public final CompoundParameter shear =
     new CompoundParameter("Shear", .5)
-    .setDescription("How strongly the narrowing throat accelerates rotation");
+    .setDescription(
+      "How strongly the narrowing throat accelerates rotation. Has no effect at Throat=1, "
+      + "where the funnel does not narrow and there is nothing to accelerate");
 
   public final CompoundDiscreteParameter arms =
     new CompoundDiscreteParameter("Arms", 2, 0, 9)
@@ -178,7 +180,9 @@ public class Vortex extends ApotheneumPattern
 
   public final CompoundParameter throat =
     new CompoundParameter("Throat", .25, .05, 1)
-    .setDescription("Radius of the narrow end of the funnel");
+    .setDescription(
+      "Radius of the narrow end of the funnel. Acts only through Shear, so it has no effect "
+      + "at Shear=0; at Throat=1 the funnel is a cylinder and Shear itself goes flat");
 
   public final CompoundParameter curl =
     new CompoundParameter("Curl", 0)
