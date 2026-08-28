@@ -1,5 +1,7 @@
 package apotheneum.doved.effects;
 
+import com.google.gson.JsonObject;
+
 import heronarts.glx.ui.UI2dComponent;
 import heronarts.glx.ui.UI2dContainer;
 import heronarts.glx.ui.component.UIKnob;
@@ -25,7 +27,7 @@ import heronarts.lx.studio.ui.device.UIDeviceControls;
  *
  * <p>Note this stays form-blind, as every Colorize is — it receives only {@code colors[]},
  * so a pattern's internal distinctions are already gone by the time it runs. Making the stop
- * modulatable changes which colour it applies, not what it can tell apart. Colour that has
+ * modulatable changes which color it applies, not what it can tell apart. Color that has
  * to respect a pattern's own form still belongs in a
  * {@code ColorNativePattern} role.
  *
@@ -50,8 +52,13 @@ public class ModColorize extends ColorizeEffect implements UIDeviceControls<ModC
   /**
    * Defaults to 2, where the stock parameter defaults to {@code MAX_COLORS}. LX's default is
    * the worst case for this rig: a fresh Colorize ramps through every slot including the
-   * accent, which reads as a colour choice rather than as a mistake and so goes unnoticed.
+   * accent, which reads as a color choice rather than as a mistake and so goes unnoticed.
    * Six devices in the RobotHeart project were found sitting at 5 for exactly that reason.
+   *
+   * <p>Only the default differs. The minimum stays at stock's own minimum of 2, so this
+   * shadow can address every value {@code paletteStops} can hold — nothing a project could
+   * legitimately have saved becomes unreachable, and {@link #writeThrough()} can never clamp
+   * a loaded value up.
    */
   public final CompoundDiscreteParameter stops =
     new CompoundDiscreteParameter("Stops", 2, 2, LXSwatch.MAX_COLORS + 1)
@@ -85,7 +92,7 @@ public class ModColorize extends ColorizeEffect implements UIDeviceControls<ModC
   }
 
   @Override
-  public void load(LX lx, com.google.gson.JsonObject obj) {
+  public void load(LX lx, JsonObject obj) {
     super.load(lx, obj);
     // See ModGradient: this parameter is the source of truth, so re-assert it once the
     // inherited paletteIndex has been restored from the project file.
@@ -120,13 +127,13 @@ public class ModColorize extends ColorizeEffect implements UIDeviceControls<ModC
    * paletteStops}, and {@code paletteInvert}. Everything else stock kept configurable —
    * {@code source}, {@code filterThreshold} / {@code filterMode}, {@code blendMode}, {@code
    * colorMode} (Fixed / Linked / Relative / Palette — still the switch that decides which of
-   * the columns below actually does anything), both {@code ColorParameter} colour pickers, the
+   * the columns below actually does anything), both {@code ColorParameter} color pickers, the
    * Linked and Relative H/S/B triplets, and {@code paletteDepth} — is carried over unchanged.
    *
    * <p>Not mode-conditional. Stock hides the Start/End columns that don't match the current
    * {@code colorMode}, rebuilding on every change so only the relevant controls are on screen.
    * This panel skips that: every column is always present. The gap that leaves is cosmetic —
-   * a Linked-mode session still sees the Fixed colour picker doing nothing — not functional,
+   * a Linked-mode session still sees the Fixed color picker doing nothing — not functional,
    * since nothing here is hidden that the current mode needs. Reproducing the rebuild-on-change
    * wiring stock uses (see {@code UIColorizeEffect}'s constructor-captured listener) would
    * mean adding and tearing down an {@code onParameterChanged} hook here for a decluttering

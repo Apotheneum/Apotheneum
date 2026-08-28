@@ -3,6 +3,8 @@ package apotheneum.doved.patterns;
 import heronarts.glx.ui.UI2dComponent;
 import heronarts.glx.ui.UI2dContainer;
 import heronarts.glx.ui.component.UIKnob;
+import com.google.gson.JsonObject;
+
 import heronarts.lx.LX;
 import heronarts.lx.LXCategory;
 import heronarts.lx.LXComponent;
@@ -23,7 +25,7 @@ import heronarts.lx.studio.ui.device.UIDeviceControls;
  * {@link heronarts.lx.parameter.DiscreteParameter}. Only {@code CompoundParameter} and
  * {@code CompoundDiscreteParameter} implement {@code LXCompoundModulation.Target}, so
  * nothing can modulate it — no knob, no LFO, no macro. That is the one thing standing
- * between this rig's colour system and a single master control sweeping the whole room's
+ * between this rig's color system and a single master control sweeping the whole room's
  * palette assignment.
  *
  * <p>The field itself is {@code public final} and cannot be replaced by a subclass, so this
@@ -35,11 +37,10 @@ import heronarts.lx.studio.ui.device.UIDeviceControls;
  * same mechanism as {@link #stop}: each shadows an inherited field LX declared with a type
  * that cannot be modulated ({@code paletteStops} is a plain {@code DiscreteParameter};
  * {@code gradientInvert} and {@code rotate} are {@code BooleanParameter}s) and writes through
- * to it. {@link #stops} defaults to 2 rather than stock's default of {@code MAX_COLORS} for
- * the same reason {@link #stop} exists in the first place: this repo's colour rule pins the
- * stop count at 2 (see {@code design/color-system.md} §3), and a fresh device that defaults to
- * ramping through every slot including the accent reads as a colour choice rather than a
- * mistake, so it goes unnoticed.
+ * to it. {@link #stops} defaults to 2 rather than stock's default of {@code MAX_COLORS}
+ * because a device that ramps through every slot including the accent reads as a color
+ * choice rather than as a mistake, so it goes unnoticed: six devices in the RobotHeart
+ * project were found sitting at 5 for exactly that reason.
  *
  * <p>Write-through runs every frame from {@link #run}, not from a parameter listener — see
  * that method and {@link #writeThrough()} for why a listener is the wrong tool here. It also
@@ -66,7 +67,12 @@ public class ModGradient extends GradientPattern implements UIDeviceControls<Mod
   /**
    * Defaults to 2, where the stock parameter defaults to {@code MAX_COLORS}. LX's default is
    * the worst case for this rig: a fresh Gradient ramps through every slot including the
-   * accent, which reads as a colour choice rather than as a mistake and so goes unnoticed.
+   * accent, which reads as a color choice rather than as a mistake and so goes unnoticed.
+   *
+   * <p>Only the default differs. The minimum stays at stock's own minimum of 2, so this
+   * shadow can address every value {@code paletteStops} can hold — nothing a project could
+   * legitimately have saved becomes unreachable, and {@link #writeThrough()} can never clamp
+   * a loaded value up.
    */
   public final CompoundDiscreteParameter stops =
     new CompoundDiscreteParameter("Stops", 2, 2, LXSwatch.MAX_COLORS + 1)
@@ -113,7 +119,7 @@ public class ModGradient extends GradientPattern implements UIDeviceControls<Mod
   }
 
   @Override
-  public void load(LX lx, com.google.gson.JsonObject obj) {
+  public void load(LX lx, JsonObject obj) {
     super.load(lx, obj);
     // The inherited paletteIndex is restored by super.load() from whatever was saved, which
     // may disagree with a stop value written by an older project or a hand-edited file.
@@ -149,7 +155,7 @@ public class ModGradient extends GradientPattern implements UIDeviceControls<Mod
    * {@link #stops}, and {@link #invert} for the stock Index / Stops / Invert controls, and
    * {@link #spin} for stock Rotate. Everything else the engine exposes is carried over
    * unchanged: {@code blendMode}, {@code colorMode} (Fixed / Linked / Palette — still the
-   * switch that decides which colour source actually reaches the output), both colour
+   * switch that decides which color source actually reaches the output), both color
    * pickers, the gradient shape controls ({@code gradientClamp}, {@code gradientPhase},
    * {@code gradientScale}, {@code gradientCompress}) and its H/S/B range, all three axes'
    * mode/amount/offset, and {@code yaw}/{@code pitch}/{@code roll} — which still turn the
@@ -157,7 +163,7 @@ public class ModGradient extends GradientPattern implements UIDeviceControls<Mod
    *
    * <p>Not mode-conditional, for the same reason and with the same trade-off as
    * {@link apotheneum.doved.effects.ModColorize#buildDeviceControls}: stock rebuilds its Colors
-   * column when {@code colorMode} changes so only the relevant colour controls show; this
+   * column when {@code colorMode} changes so only the relevant color controls show; this
    * panel leaves all of them on screen all the time rather than reproduce that rebuild
    * machinery for a five-column pattern panel that already fits comfortably inside
    * {@link heronarts.lx.studio.ui.device.UIDevice#CONTENT_HEIGHT}.
