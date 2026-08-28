@@ -1,8 +1,9 @@
 # Rendering a component UI
 
-`scripts/render-ui` captures the real Chromatik device panel for a pattern or MIDI template without
-installing the Apotheneum package or opening visible windows. It writes both pixels and
-structure so a developer or coding agent can judge the UI it just changed.
+`scripts/render-ui` captures the real Chromatik device panel for a pattern, effect, MIDI
+template, or modulator without installing the Apotheneum package or opening visible windows.
+It writes both pixels and structure so a developer or coding agent can judge the UI it just
+changed.
 
 ## Run it
 
@@ -16,6 +17,35 @@ MIDI templates render their dedicated MIDI-template panel:
 
 ```bash
 ./scripts/render-ui apotheneum.doved.midi.MidiFighterTwister64
+```
+
+Modulators are wrapped in a real `UIDeviceModulator` — the same class Chromatik builds for a
+modulator added to any device's modulation engine — via LX's own global modulation engine, so
+no host pattern or fixture is needed:
+
+```bash
+./scripts/render-ui apotheneum.doved.modulators.Selector
+```
+
+A modulator class needs a public no-arg constructor, matching how
+`engine.modulation.addModulator(new Foo())` constructs one in real use (patterns and MIDI
+templates instead take the `(LX)` constructor Chromatik itself uses). To render one at a
+non-default parameter state — e.g. comparing a layout that changes above some threshold —
+set `RENDER_UI_PARAM="path=value"` before the command; it is applied to the constructed
+component right after it is added to the engine:
+
+```bash
+RENDER_UI_PARAM="numInputs=4" ./scripts/render-ui apotheneum.doved.modulators.Selector
+```
+
+An effect is captured on a real host bus — `studio.engine.mixer.addChannel()`, LX's own
+default-patterned channel, used purely to give the effect somewhere to sit — via a real
+`UIEffectDevice`, the same class Chromatik builds for any effect added to a bus's effect
+chain. Unlike the pattern path, this needs neither the Apotheneum fixture nor its geometry,
+since an effect's panel is built from the effect's own parameters:
+
+```bash
+./scripts/render-ui apotheneum.doved.effects.ModColorize
 ```
 
 The default output directory is `target/ui-review/`:
@@ -79,11 +109,11 @@ The renderer uses Chromatik's official application runtime to construct the real
 
 - macOS and Chromatik installed in `/Applications`;
 - JDK 25, as used by the Maven build;
-- an `LXPattern` or `LXMidiTemplate` class with a public constructor accepting `LX`.
+- an `LXPattern`, `LXEffect`, or `LXMidiTemplate` class with a public constructor accepting
+  `LX`, or an `LXModulator` class with a public no-arg constructor.
 
 Set `CHROMATIK_JAR` to use an application runtime jar in another location.
 
-Effects need a known host pattern, and modulators need both a host and a named target parameter;
-adding those comparison workflows is separate work. Automated `--changed` discovery and Linux CI are also future work. Linux
-will need a tested Xvfb/software-OpenGL path, while this version deliberately uses the
-known-good macOS Metal readback path.
+Automated `--changed` discovery and Linux CI are future work. Linux will need a tested
+Xvfb/software-OpenGL path, while this version deliberately uses the known-good macOS Metal
+readback path.
