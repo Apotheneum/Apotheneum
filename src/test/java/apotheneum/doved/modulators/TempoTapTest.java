@@ -5,6 +5,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.google.gson.JsonObject;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -360,6 +362,37 @@ public class TempoTapTest extends HeadlessLxTest {
     play(500, 4);
     this.tempoTap.tap.trigger();
     assertEquals(1, this.tempoTap.taps);
+  }
+
+  @Test
+  void loadingDoesNotReplayASavedBeatPosition() {
+    // LX persists every registered parameter with no opt-out, so restoring beat fires its
+    // listener. Unguarded, opening a project moves the global transport to a stale
+    // position before a single OSC packet has arrived. Needs a real engine: load() goes
+    // through lx.componentRegistry.
+    final LX lx = newHeadlessLx();
+    final RecordingTempoTap added = lx.engine.modulation.addModulator(new RecordingTempoTap());
+    added.beatAfterMs(500, 6);
+
+    final JsonObject saved = new JsonObject();
+    added.save(lx, saved);
+    added.beats.clear();
+
+    added.load(lx, saved);
+    assertTrue(added.beats.isEmpty(), "load must not move the transport");
+    assertEquals(0., added.beat.getValue(), EPSILON, "and must come back at rest");
+  }
+
+  @Test
+  void changingThePhraseLengthRecomputesTheBarOutput() {
+    // The output is normalized against the phrase length, so a change leaves the value
+    // describing the old one -- and updateBar() would short-circuit on the matching index.
+    play(500, 4);
+    assertEquals(1 / 3., this.tempoTap.getValue(), EPSILON);
+
+    this.tempoTap.bars.setValue(2);
+    assertEquals(0., this.tempoTap.getValue(), EPSILON,
+      "the stale four-bar normalization must not survive");
   }
 
   // ---- bar output ----

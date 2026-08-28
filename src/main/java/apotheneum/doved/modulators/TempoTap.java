@@ -2,8 +2,11 @@ package apotheneum.doved.modulators;
 
 import java.util.Arrays;
 
+import com.google.gson.JsonObject;
+
 import heronarts.glx.ui.UI2dContainer;
 import heronarts.glx.ui.component.UIKnob;
+import heronarts.lx.LX;
 import heronarts.lx.LXCategory;
 import heronarts.lx.Tempo;
 import heronarts.lx.modulator.LXModulator;
@@ -45,10 +48,12 @@ import heronarts.lx.studio.ui.modulation.UIModulatorControls;
  * A pulse-counting scheme cannot recover: one lost packet shifts the downbeat permanently
  * with nothing to detect it by.
  *
- * <p>Note that k starts at 1, so 0 is never a beat. That is not cosmetic. LX parameters
- * notify listeners only when the value actually changes, so a write of the value already
- * held is silent -- and a scheme sending 0 for the downbeat would drop the first beat after
- * every load, invisibly. Keeping 0 as the resting value means every real beat is a change.
+ * <p><b>Zero is the phrase downbeat, not "no beat."</b> Reserving it to mean "nothing
+ * arrived" drops every downbeat and leaves the whole phrase running one beat late, which is
+ * a difficult fault to see: the show stays musical, just wrong. The one real cost of using
+ * zero is that LX notifies listeners only when a value actually *changes*, so a downbeat
+ * arriving as the very first write after a load is silent. The next beat corrects it, and
+ * {@link #phraseReset} covers it outright if that beat ever matters.
  *
  * <p>The cost of locking to a phrase is that the beat count wraps, so nothing with a cycle
  * longer than the phrase can complete, and the transport jumps rather than slews once per
@@ -139,6 +144,14 @@ public class TempoTap extends LXModulator implements LXOscComponent, UIModulator
   private int intervalIndex = 0;
   private long lastBeatNanos = 0;
 
+  /**
+   * True while {@link #load} is restoring parameters. LX persists every registered
+   * parameter and offers no per-parameter opt-out, so restoring {@link #beat} fires its
+   * listener — which without this would move the global transport to a saved, stale
+   * position on every project open, before a single OSC packet had arrived.
+   */
+  private boolean loading = false;
+
   public TempoTap() {
     this("Tempo Tap");
   }
@@ -165,7 +178,14 @@ public class TempoTap extends LXModulator implements LXOscComponent, UIModulator
     // Arriving mid-bar after a pause would otherwise fold the silence into the window.
     this.sync.addListener(p -> resetWindow());
     this.window.addListener(p -> resetWindow());
-    this.bars.addListener(p -> resetWindow());
+    this.bars.addListener(p -> {
+      resetWindow();
+      // The output is normalized against the phrase length, so changing it leaves the
+      // value describing the old one. Forget the index too, or updateBar() short-circuits
+      // on the next beat and the stale value survives.
+      this.barIndex = -1;
+      updateBar(0);
+    });
 
     setDescription("Taps the master tempo, or syncs it to a beat position sent over OSC");
   }
@@ -222,7 +242,7 @@ public class TempoTap extends LXModulator implements LXOscComponent, UIModulator
   }
 
   private void onBeatInput() {
-    if (!this.sync.isOn()) {
+    if (this.loading || !this.sync.isOn()) {
       return;
     }
     final long now = nanoTime();
@@ -252,7 +272,7 @@ public class TempoTap extends LXModulator implements LXOscComponent, UIModulator
   }
 
   private void onPhraseReset() {
-    if (!this.sync.isOn() || (this.phraseReset.getValue() <= 0)) {
+    if (this.loading || !this.sync.isOn() || (this.phraseReset.getValue() <= 0)) {
       // Zero is the fall back to rest after the pulse, not a second reset.
       return;
     }
@@ -294,6 +314,20 @@ public class TempoTap extends LXModulator implements LXOscComponent, UIModulator
     this.intervalCount = 0;
     this.intervalIndex = 0;
     this.lastBeatNanos = 0;
+  }
+
+  @Override
+  public void load(LX lx, JsonObject obj) {
+    this.loading = true;
+    try {
+      super.load(lx, obj);
+      // A saved beat position describes a moment that has passed. Come back at rest and
+      // wait for the sender, rather than asserting stale musical time over the whole show.
+      this.beat.setValue(0);
+    } finally {
+      this.loading = false;
+    }
+    resetWindow();
   }
 
   @Override
