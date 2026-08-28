@@ -1,5 +1,6 @@
 package apotheneum.doved.modulators;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -12,8 +13,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import com.google.gson.JsonObject;
+
 import apotheneum.HeadlessLxTest;
 import heronarts.lx.LX;
+import heronarts.lx.LXComponent;
 import heronarts.lx.modulation.LXCompoundModulation;
 import heronarts.lx.modulation.LXParameterModulation.ModulationException;
 import heronarts.lx.modulator.LXModulator;
@@ -122,9 +126,13 @@ public class SelectorTest extends HeadlessLxTest {
    */
   @Test
   void shrinkingNumInputsPullsSelectionBackIntoRange() {
-    selectBand(3, Selector.MAX_INPUTS);
-    assertEquals(.4, output(), EPSILON);
-    assertEquals(3, index(), toIndexMessage());
+    // The last band, not a fixed index: this test broke silently when MAX_INPUTS grew from 4
+    // to 8, because band 3 of 4 (the old last band) is no longer band 3 of 8 (now well short
+    // of the end). Anchoring to MAX_INPUTS - 1 keeps "Select points past the new end" true
+    // regardless of how many inputs exist.
+    selectBand(Selector.MAX_INPUTS - 1, Selector.MAX_INPUTS);
+    assertEquals(.1 * Selector.MAX_INPUTS, output(), EPSILON);
+    assertEquals(Selector.MAX_INPUTS - 1, index(), toIndexMessage());
 
     this.selector.numInputs.setValue(2);
     assertEquals(.2, output(), EPSILON);
@@ -474,6 +482,12 @@ public class SelectorTest extends HeadlessLxTest {
 
   @Test
   void everyInputIsRegisteredAndModulatable() {
+    // A regression guard on the number itself, folded in here rather than its own test:
+    // MAX_INPUTS's javadoc explains why 8 is the ceiling given the current UI budget, and
+    // that explanation goes stale silently if the constant drifts without anyone re-checking
+    // the layout math.
+    assertEquals(8, Selector.MAX_INPUTS);
+
     for (int i = 0; i < Selector.MAX_INPUTS; ++i) {
       assertSame(this.selector.input[i], this.selector.getParameter("input" + (i + 1)),
         "inputs must be registered parameters or they will not save, map or restore");
@@ -481,6 +495,95 @@ public class SelectorTest extends HeadlessLxTest {
     }
     assertSame(this.selector.select, this.selector.getParameter("select"));
     assertTrue(this.selector.select.isMappable());
+  }
+
+  /**
+   * Banding, trigger routing, and the activeInput lights, all with Num above
+   * {@code RICH_INPUTS} — the boundary where {@code buildModulatorControls} switches its
+   * on-screen layout to bare knobs with no per-input trigger button or light. None of that UI
+   * split is visible to this class's own routing logic, which is the point of testing it here:
+   * Num=6 must behave exactly like the below-the-boundary cases already covered above, just
+   * with more bands and no on-screen affordance for inputs 5-8. Combined into one test, rather
+   * than three, to keep this file's total headless-LX construct/dispose count down — see
+   * {@link apotheneum.HeadlessLxTest}'s javadoc on the CoreMIDI race that extra instances feed.
+   */
+  @Test
+  void behaviorAboveFourActiveInputs() {
+    this.selector.numInputs.setValue(6);
+
+    // Banding: the sweep covers exactly the six active inputs.
+    selectBand(0, 6);
+    assertEquals(.1, output(), EPSILON);
+    assertEquals(0, index(), toIndexMessage());
+    selectBand(5, 6);
+    assertEquals(.6, output(), EPSILON, "the sixth active input, not the eighth");
+    assertEquals(5, index(), toIndexMessage());
+
+    // Trigger routing: input 6 (index 5) is reachable now that Num allows it; 7 and 8 are not.
+    final AtomicInteger fires = countTriggerOut();
+    output();
+    this.selector.triggerIn[5].trigger();
+    assertEquals(1, fires.get(), "input 6 is active now that Num allows it");
+    this.selector.triggerIn[0].trigger();
+    this.selector.triggerIn[6].trigger();
+    this.selector.triggerIn[7].trigger();
+    assertEquals(1, fires.get(),
+      "an unselected input's trigger is blocked even past RICH_INPUTS");
+    selectBand(2, 6);
+    this.selector.triggerIn[2].trigger();
+    assertEquals(2, fires.get(), "and the newly selected input's trigger passes");
+
+    // activeInput lights: exactly one on at a time, tracked for all MAX_INPUTS regardless of
+    // whether the compact UI gives inputs 5-8 an on-screen light to show it.
+    for (int i = 0; i < 6; ++i) {
+      selectBand(i, 6);
+      output();
+      for (int j = 0; j < Selector.MAX_INPUTS; ++j) {
+        assertEquals(i == j, this.selector.activeInput[j].isOn(),
+          "light " + (j + 1) + " while input " + (i + 1) + " is selected, Num=6");
+      }
+    }
+  }
+
+  /**
+   * A project saved before {@link Selector#MAX_INPUTS} grew from 4 to 8 has no
+   * {@code input5}..{@code input8}, {@code triggerIn5}..{@code triggerIn8}, or
+   * {@code activeInput5}..{@code activeInput8} keys, and its {@code numInputs} was capped at
+   * 4. LX's own parameter loading is what has to tolerate the missing keys — this test exists
+   * to confirm that assumption holds for this component's parameter set rather than take it on
+   * faith, since a component that generated its own keys from a range (like {@code addParameter
+   * ("input" + (i + 1), ...)} in the constructor here) is exactly the shape that would break if
+   * load ever required every registered key to be present.
+   */
+  @Test
+  void loadingAProjectSavedBeforeEightInputsToleratesMissingKeys() {
+    final JsonObject saved = new JsonObject();
+    this.selector.save(this.lx, saved);
+    // Not what this test is about: this.selector's own id is still live in the engine, and
+    // loading it verbatim into a second, already-registered Selector would collide with the
+    // original rather than exercise parameter tolerance. A real project load restores ids into
+    // freshly-deserialized components that do not exist yet, so no such collision arises there.
+    saved.remove(LXComponent.KEY_ID);
+    final JsonObject parameters = saved.getAsJsonObject(LXComponent.KEY_PARAMETERS);
+    for (int i = 5; i <= Selector.MAX_INPUTS; ++i) {
+      parameters.remove("input" + i);
+      parameters.remove("triggerIn" + i);
+      parameters.remove("activeInput" + i);
+    }
+    // A project from before MAX_INPUTS grew could never have saved a Num above the old cap.
+    parameters.addProperty("numInputs", 4);
+
+    final Selector loaded = this.lx.engine.modulation.addModulator(new Selector("Loaded"));
+    assertDoesNotThrow(() -> loaded.load(this.lx, saved),
+      "loading a pre-expansion project must not throw for keys that did not exist yet");
+
+    for (int i = 4; i < Selector.MAX_INPUTS; ++i) {
+      assertEquals(0, loaded.input[i].getValue(), EPSILON,
+        "input " + (i + 1) + " keeps its constructor default; nothing in the saved JSON names it");
+      assertFalse(loaded.activeInput[i].isOn(),
+        "activeInput " + (i + 1) + " keeps its constructor default of off");
+    }
+    assertEquals(4, loaded.numInputs.getValuei(), "the restored Num value carries over normally");
   }
 
   private String toIndexMessage() {

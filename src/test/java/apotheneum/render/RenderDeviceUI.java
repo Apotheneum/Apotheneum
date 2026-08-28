@@ -15,14 +15,19 @@ import heronarts.glx.ui.component.UILabel;
 import heronarts.glx.ui.component.UIParameterComponent;
 import heronarts.glx.ui.vg.VGraphics;
 import heronarts.lx.LX;
+import heronarts.lx.LXComponent;
+import heronarts.lx.effect.LXEffect;
 import heronarts.lx.mixer.LXChannel;
 import heronarts.lx.midi.template.LXMidiTemplate;
+import heronarts.lx.modulator.LXModulator;
 import heronarts.lx.parameter.LXParameter;
 import heronarts.lx.pattern.LXPattern;
 import heronarts.lx.studio.LXStudio;
 import heronarts.lx.studio.ui.device.UIDeviceBin;
+import heronarts.lx.studio.ui.device.UIEffectDevice;
 import heronarts.lx.studio.ui.device.UIPatternDevice;
 import heronarts.lx.studio.ui.midi.template.UIMidiTemplate;
+import heronarts.lx.studio.ui.modulation.UIDeviceModulator;
 import heronarts.lx.structure.JsonFixture;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
@@ -46,7 +51,24 @@ import org.lwjgl.bgfx.BGFX;
 import org.lwjgl.glfw.GLFW;
 
 /**
- * Renders one pattern or MIDI template's real Chromatik device panel to PNG and JSON.
+ * Renders one pattern, effect, MIDI template, or modulator's real Chromatik device panel to
+ * PNG and JSON.
+ *
+ * <p>A modulator is captured the way it actually appears once mapped onto some device: wrapped
+ * in a real {@link UIDeviceModulator}, the same class {@code UIDeviceModulators} instantiates
+ * for any modulator added to a device's modulation engine, via
+ * {@code LXStudio.UI.instantiateModulatorControls} calling the modulator's own
+ * {@code buildModulatorControls}. {@code LXEngine} itself is an {@code LXModulationContainer}
+ * (its global modulation engine), so the modulator is added there rather than to a throwaway
+ * host pattern — no fixture or channel needed for this path.
+ *
+ * <p>An effect needs a host bus the way a pattern needs a host channel — {@code LXEffect} has
+ * no standalone device panel, only {@link UIEffectDevice}, which is built for one effect
+ * sitting in a bus's effect chain. This uses {@code studio.engine.mixer.addChannel()} (the
+ * no-arg overload, which comes with LX's own default pattern already on it) purely as that
+ * host; unlike the pattern path, it needs neither the Apotheneum fixture nor its geometry,
+ * since an effect's device panel is built from the effect's own parameters, not from anything
+ * it draws.
  *
  * <p>This class deliberately lives in test scope. It is launched by {@code scripts/render-ui}
  * against the official Chromatik application runtime and never enters the package jar.
@@ -63,8 +85,14 @@ public final class RenderDeviceUI {
     Path.of("src", "main", "resources", "fixtures", FIXTURE_NAME + ".lxf");
   private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
+  // Set by the RENDER_UI_PARAM environment variable ("path=value"); applied to the rendered
+  // component after construction, e.g. to render a modulator at a non-default parameter state.
+  private static final String PARAM_OVERRIDE_ENV = "RENDER_UI_PARAM";
+
   private static Class<? extends LXPattern> patternClass;
+  private static Class<? extends LXEffect> effectClass;
   private static Class<? extends LXMidiTemplate> midiTemplateClass;
+  private static Class<? extends LXModulator> modulatorClass;
   private static Class<?> componentClass;
   private static Path outputDirectory;
   private static volatile Throwable failure;
@@ -75,7 +103,8 @@ public final class RenderDeviceUI {
   public static void main(String[] args) throws Exception {
     if (args.length < 1 || args.length > 2) {
       throw new IllegalArgumentException(
-        "Usage: RenderDeviceUI <fully-qualified LXPattern or LXMidiTemplate class> [output-directory]");
+        "Usage: RenderDeviceUI <fully-qualified LXPattern, LXEffect, LXMidiTemplate, or "
+          + "LXModulator class> [output-directory]");
     }
     loadComponentClass(args[0]);
     outputDirectory = args.length == 2 ? Path.of(args[1]) : Path.of("target", "ui-review");
@@ -122,14 +151,25 @@ public final class RenderDeviceUI {
   private static void loadComponentClass(String className)
     throws ClassNotFoundException, NoSuchMethodException {
     final Class<?> candidate = RenderDeviceUI.class.getClassLoader().loadClass(className);
-    candidate.getConstructor(LX.class);
     componentClass = candidate;
     if (LXPattern.class.isAssignableFrom(candidate)) {
+      candidate.getConstructor(LX.class);
       patternClass = candidate.asSubclass(LXPattern.class);
+    } else if (LXEffect.class.isAssignableFrom(candidate)) {
+      candidate.getConstructor(LX.class);
+      effectClass = candidate.asSubclass(LXEffect.class);
     } else if (LXMidiTemplate.class.isAssignableFrom(candidate)) {
+      candidate.getConstructor(LX.class);
       midiTemplateClass = candidate.asSubclass(LXMidiTemplate.class);
+    } else if (LXModulator.class.isAssignableFrom(candidate)) {
+      // Modulators are constructed the way engine.modulation.addModulator(new Foo()) does it
+      // in real use — a no-arg constructor, not the (LX) constructor patterns, effects, and
+      // MIDI templates take. LX wires the parent when the modulator is added to an engine.
+      candidate.getConstructor();
+      modulatorClass = candidate.asSubclass(LXModulator.class);
     } else {
-      throw new IllegalArgumentException(className + " does not extend LXPattern or LXMidiTemplate");
+      throw new IllegalArgumentException(
+        className + " does not extend LXPattern, LXEffect, LXMidiTemplate, or LXModulator");
     }
   }
 
@@ -225,7 +265,13 @@ public final class RenderDeviceUI {
   private static void prepareInstallationAndCapture(LXStudio.UI ui, LXStudio studio) {
     try {
       if (patternClass == null) {
-        prepareMidiTemplateAndCapture(ui, studio);
+        if (effectClass != null) {
+          prepareEffectAndCapture(ui, studio);
+        } else if (midiTemplateClass != null) {
+          prepareMidiTemplateAndCapture(ui, studio);
+        } else {
+          prepareModulatorAndCapture(ui, studio);
+        }
         return;
       }
       studio.structure.removeFixtures(List.copyOf(studio.structure.fixtures));
@@ -254,6 +300,23 @@ public final class RenderDeviceUI {
     }
   }
 
+  private static void prepareEffectAndCapture(LXStudio.UI ui, LXStudio studio) {
+    try {
+      // The no-arg addChannel() overload, not addChannel(LXPattern[]) — an effect's device
+      // panel is built from the effect's own parameters, not from anything a pattern draws,
+      // so the channel just needs to exist as a host; LX's own default pattern on it is never
+      // rendered.
+      final LXChannel channel = studio.engine.mixer.addChannel();
+      final LXEffect effect = effectClass.getConstructor(LX.class).newInstance(studio);
+      channel.addEffect(effect);
+      studio.engine.mixer.setFocusedChannel(channel);
+      ui.addLayer(new CaptureLayer(ui, studio, channel, effect));
+      log("effect=" + effectClass.getName());
+    } catch (Throwable x) {
+      fail(studio, x);
+    }
+  }
+
   private static void prepareMidiTemplateAndCapture(LXStudio.UI ui, LXStudio studio) {
     try {
       final LXMidiTemplate template = midiTemplateClass.getConstructor(LX.class).newInstance(studio);
@@ -263,6 +326,47 @@ public final class RenderDeviceUI {
     } catch (Throwable x) {
       fail(studio, x);
     }
+  }
+
+  private static void prepareModulatorAndCapture(LXStudio.UI ui, LXStudio studio) {
+    try {
+      final LXModulator modulator = modulatorClass.getConstructor().newInstance();
+      // The global modulation engine is an LXModulationContainer like any device's own, so
+      // UIDeviceModulator renders it exactly as it would embedded in a real pattern or effect —
+      // same buildModulatorControls call, same width and MAX_CONTROLS_HEIGHT budget.
+      studio.engine.modulation.addModulator(modulator);
+      applyParameterOverride(modulator);
+      ui.addLayer(new CaptureLayer(ui, studio, modulator));
+      log("modulator=" + modulatorClass.getName());
+    } catch (Throwable x) {
+      fail(studio, x);
+    }
+  }
+
+  /**
+   * Applies an optional {@value #PARAM_OVERRIDE_ENV} environment variable ("path=value") to the
+   * just-constructed component, for rendering a non-default state — e.g. a discrete parameter
+   * set below its maximum, to compare a modulator's layout at two different active counts.
+   */
+  private static void applyParameterOverride(LXComponent component) {
+    final String override = System.getenv(PARAM_OVERRIDE_ENV);
+    if (override == null || override.isBlank()) {
+      return;
+    }
+    final int eq = override.indexOf('=');
+    if (eq < 0) {
+      throw new IllegalArgumentException(
+        PARAM_OVERRIDE_ENV + " must be \"path=value\", got: " + override);
+    }
+    final String path = override.substring(0, eq);
+    final double value = Double.parseDouble(override.substring(eq + 1));
+    final LXParameter parameter = component.getParameter(path);
+    if (parameter == null) {
+      throw new IllegalArgumentException(
+        "No parameter \"" + path + "\" on " + component.getClass().getName());
+    }
+    parameter.setValue(value);
+    log(PARAM_OVERRIDE_ENV + ": " + path + " = " + value);
   }
 
   private static final class CaptureLayer extends UI2dContext {
@@ -293,11 +397,53 @@ public final class RenderDeviceUI {
         .order(ByteOrder.nativeOrder());
     }
 
+    private CaptureLayer(
+      LXStudio.UI ui, LXStudio studio, LXChannel channel, LXEffect effect) {
+      // Same UIDeviceBin the pattern constructor uses — a bus's device bin lays out both its
+      // pattern list and its effect chain, so an effect gets a real UIEffectDevice from the
+      // same bin a pattern gets a real UIPatternDevice from.
+      super(ui, 20, 100, 600, UIDeviceBin.HEIGHT);
+      this.studio = studio;
+
+      final UIDeviceBin bin = new UIDeviceBin(ui, channel);
+      bin.addToContainer(this);
+      this.device = findEffectDevice(bin, effect);
+      if (this.device == null) {
+        throw new IllegalStateException("Chromatik did not create a device UI for " + effectClass);
+      }
+
+      setSize(bin.getWidth(), bin.getHeight());
+      this.pixelWidth = Math.round(getWidth() * ui.getContentScaleX());
+      this.pixelHeight = Math.round(getHeight() * ui.getContentScaleY());
+      this.pixels = ByteBuffer.allocateDirect(this.pixelWidth * this.pixelHeight * 4)
+        .order(ByteOrder.nativeOrder());
+    }
+
     private CaptureLayer(LXStudio.UI ui, LXStudio studio, LXMidiTemplate template) {
       super(ui, 20, 100, 600, 900);
       this.studio = studio;
       this.device = new UIMidiTemplate(ui, template, MIDI_TEMPLATE_WIDTH);
       this.device.addToContainer(this);
+
+      setSize(this.device.getWidth(), this.device.getHeight());
+      this.pixelWidth = Math.round(getWidth() * ui.getContentScaleX());
+      this.pixelHeight = Math.round(getHeight() * ui.getContentScaleY());
+      this.pixels = ByteBuffer.allocateDirect(this.pixelWidth * this.pixelHeight * 4)
+        .order(ByteOrder.nativeOrder());
+    }
+
+    private CaptureLayer(LXStudio.UI ui, LXStudio studio, LXModulator modulator) {
+      super(ui, 20, 100, 600, 900);
+      this.studio = studio;
+      // studio.engine is the LXModulationContainer the modulator was added to in
+      // prepareModulatorAndCapture; this is the same wrapper UIDeviceModulators builds for any
+      // modulator mapped onto a real device.
+      this.device = new UIDeviceModulator(ui, studio.engine, modulator);
+      this.device.addToContainer(this);
+      // UIDeviceModulator carries its own TOP_MARGIN (4px), meant for spacing between stacked
+      // modulators in a real list. There is no list here, so cancel it — otherwise the crop
+      // below runs off the bottom of a framebuffer sized to the device's own height.
+      this.device.setPosition(0, 0);
 
       setSize(this.device.getWidth(), this.device.getHeight());
       this.pixelWidth = Math.round(getWidth() * ui.getContentScaleX());
@@ -406,6 +552,21 @@ public final class RenderDeviceUI {
     if (object instanceof UI2dContainer container) {
       for (UIObject child : container.getChildren()) {
         final UIPatternDevice found = findDevice(child, pattern);
+        if (found != null) {
+          return found;
+        }
+      }
+    }
+    return null;
+  }
+
+  private static UIEffectDevice findEffectDevice(UIObject object, LXEffect effect) {
+    if (object instanceof UIEffectDevice device && device.effect == effect) {
+      return device;
+    }
+    if (object instanceof UI2dContainer container) {
+      for (UIObject child : container.getChildren()) {
+        final UIEffectDevice found = findEffectDevice(child, effect);
         if (found != null) {
           return found;
         }
