@@ -127,50 +127,74 @@
     "cub20": { "type": "string", "default": "10.0.1.120", "label": "CUB 20 IP", "description": "CUB-20 IP address" },
     "cyl01On": { "type": "boolean", "default": true, "label": "CYL 01", "description": "CYL-01 Enabled" },
     "cyl01Flip": { "type": "boolean", "default": true, "label": "CYL 01 Flip", "description": "CYL-01 Flip" },
+    "cyl01HackInt": { "type": "boolean", "default": false, "label": "CYL 01 IHack", "description": "CYL-01 Hack Int" },
+    "cyl01HackExt": { "type": "boolean", "default": false, "label": "CYL 01 EHack", "description": "CYL-01 Hack Ext" },
     "cyl01B2F": { "type": "boolean", "default": false, "label": "CYL 01 B2F", "description": "CYL-01 Back to Front" },
     "cyl01": { "type": "string", "default": "10.0.1.121", "label": "CYL 01 IP", "description": "CYL-01 IP address" },
     "cyl02On": { "type": "boolean", "default": true, "label": "CYL 02", "description": "CYL-02 Enabled" },
     "cyl02Flip": { "type": "boolean", "default": true, "label": "CYL 02 Flip", "description": "CYL-02 Flip" },
+    "cyl02HackInt": { "type": "boolean", "default": false, "label": "CYL 02 IHack", "description": "CYL-02 Hack Int" },
+    "cyl02HackExt": { "type": "boolean", "default": false, "label": "CYL 02 EHack", "description": "CYL-02 Hack Ext" },
     "cyl02B2F": { "type": "boolean", "default": false, "label": "CYL 02 B2F", "description": "CYL-02 Back to Front" },
     "cyl02": { "type": "string", "default": "10.0.1.122", "label": "CYL 02 IP", "description": "CYL-02 IP address" },
     "cyl03On": { "type": "boolean", "default": true, "label": "CYL 03", "description": "CYL-03 Enabled" },
     "cyl03Flip": { "type": "boolean", "default": true, "label": "CYL 03 Flip", "description": "CYL-03 Flip" },
+    "cyl03HackInt": { "type": "boolean", "default": false, "label": "CYL 03 IHack", "description": "CYL-03 Hack Int" },
+    "cyl03HackExt": { "type": "boolean", "default": false, "label": "CYL 03 EHack", "description": "CYL-03 Hack Ext" },
     "cyl03B2F": { "type": "boolean", "default": false, "label": "CYL 03 B2F", "description": "CYL-03 Back to Front" },
     "cyl03": { "type": "string", "default": "10.0.1.123", "label": "CYL 03 IP", "description": "CYL-03 IP address" },
     "cyl04On": { "type": "boolean", "default": true, "label": "CYL 04", "description": "CYL-04 Enabled" },
     "cyl04Flip": { "type": "boolean", "default": true, "label": "CYL 04 Flip", "description": "CYL-04 Flip" },
+    "cyl04HackInt": { "type": "boolean", "default": false, "label": "CYL 04 IHack", "description": "CYL-04 Hack Int" },
+    "cyl04HackExt": { "type": "boolean", "default": false, "label": "CYL 04 EHack", "description": "CYL-04 Hack Ext" },
     "cyl04B2F": { "type": "boolean", "default": false, "label": "CYL 04 B2F", "description": "CYL-04 Back to Front" },
     "cyl04": { "type": "string", "default": "10.0.1.124", "label": "CYL 04 IP", "description": "CYL-04 IP address" },
     "cyl05On": { "type": "boolean", "default": true, "label": "CYL 05", "description": "CYL-05 Enabled" },
     "cyl05Flip": { "type": "boolean", "default": true, "label": "CYL 05 Flip", "description": "CYL-05 Flip" },
+    "cyl05HackInt": { "type": "boolean", "default": false, "label": "CYL 05 IHack", "description": "CYL-05 Hack Int" },
+    "cyl05HackExt": { "type": "boolean", "default": false, "label": "CYL 05 EHack", "description": "CYL-05 Hack Ext" },
     "cyl05B2F": { "type": "boolean", "default": false, "label": "CYL 05 B2F", "description": "CYL-05 Back to Front" },
     "cyl05": { "type": "string", "default": "10.0.1.125", "label": "CYL 05 IP", "description": "CYL-05 IP address" },
     "cyl06On": { "type": "boolean", "default": true, "label": "CYL 06", "description": "CYL-06 Enabled" },
     "cyl06Flip": { "type": "boolean", "default": true, "label": "CYL 06 Flip", "description": "CYL-06 Flip" },
+    "cyl06HackInt": { "type": "boolean", "default": false, "label": "CYL 06 IHack", "description": "CYL-06 Hack Int" },
+    "cyl06HackExt": { "type": "boolean", "default": false, "label": "CYL 06 EHack", "description": "CYL-06 Hack Ext" },
     "cyl06B2F": { "type": "boolean", "default": false, "label": "CYL 06 B2F", "description": "CYL-06 Back to Front" },
     "cyl06": { "type": "string", "default": "10.0.1.126", "label": "CYL 06 IP", "description": "CYL-06 IP address" },
     "cyl07On": { "type": "boolean", "default": true, "label": "CYL 07", "description": "CYL-07 Enabled" },
     "cyl07Flip": { "type": "boolean", "default": true, "label": "CYL 07 Flip", "description": "CYL-07 Flip" },
+    "cyl07HackInt": { "type": "boolean", "default": false, "label": "CYL 07 IHack", "description": "CYL-07 Hack Int" },
+    "cyl07HackExt": { "type": "boolean", "default": false, "label": "CYL 07 EHack", "description": "CYL-07 Hack Ext" },
     "cyl07B2F": { "type": "boolean", "default": false, "label": "CYL 07 B2F", "description": "CYL-07 Back to Front" },
     "cyl07": { "type": "string", "default": "10.0.1.127", "label": "CYL 07 IP", "description": "CYL-07 IP address" },
     "cyl08On": { "type": "boolean", "default": true, "label": "CYL 08", "description": "CYL-08 Enabled" },
     "cyl08Flip": { "type": "boolean", "default": true, "label": "CYL 08 Flip", "description": "CYL-08 Flip" },
+    "cyl08HackInt": { "type": "boolean", "default": false, "label": "CYL 08 IHack", "description": "CYL-08 Hack Int" },
+    "cyl08HackExt": { "type": "boolean", "default": false, "label": "CYL 08 EHack", "description": "CYL-08 Hack Ext" },
     "cyl08B2F": { "type": "boolean", "default": false, "label": "CYL 08 B2F", "description": "CYL-08 Back to Front" },
     "cyl08": { "type": "string", "default": "10.0.1.128", "label": "CYL 08 IP", "description": "CYL-08 IP address" },
     "cyl09On": { "type": "boolean", "default": true, "label": "CYL 09", "description": "CYL-09 Enabled" },
     "cyl09Flip": { "type": "boolean", "default": true, "label": "CYL 09 Flip", "description": "CYL-09 Flip" },
+    "cyl09HackInt": { "type": "boolean", "default": false, "label": "CYL 09 IHack", "description": "CYL-09 Hack Int" },
+    "cyl09HackExt": { "type": "boolean", "default": false, "label": "CYL 09 EHack", "description": "CYL-09 Hack Ext" },
     "cyl09B2F": { "type": "boolean", "default": false, "label": "CYL 09 B2F", "description": "CYL-09 Back to Front" },
     "cyl09": { "type": "string", "default": "10.0.1.129", "label": "CYL 09 IP", "description": "CYL-09 IP address" },
     "cyl10On": { "type": "boolean", "default": true, "label": "CYL 10", "description": "CYL-10 Enabled" },
     "cyl10Flip": { "type": "boolean", "default": true, "label": "CYL 10 Flip", "description": "CYL-10 Flip" },
+    "cyl10HackInt": { "type": "boolean", "default": false, "label": "CYL 10 IHack", "description": "CYL-10 Hack Int" },
+    "cyl10HackExt": { "type": "boolean", "default": false, "label": "CYL 10 EHack", "description": "CYL-10 Hack Ext" },
     "cyl10B2F": { "type": "boolean", "default": false, "label": "CYL 10 B2F", "description": "CYL-10 Back to Front" },
     "cyl10": { "type": "string", "default": "10.0.1.130", "label": "CYL 10 IP", "description": "CYL-10 IP address" },
     "cyl11On": { "type": "boolean", "default": true, "label": "CYL 11", "description": "CYL-11 Enabled" },
     "cyl11Flip": { "type": "boolean", "default": true, "label": "CYL 11 Flip", "description": "CYL-11 Flip" },
+    "cyl11HackInt": { "type": "boolean", "default": false, "label": "CYL 11 IHack", "description": "CYL-11 Hack Int" },
+    "cyl11HackExt": { "type": "boolean", "default": false, "label": "CYL 11 EHack", "description": "CYL-11 Hack Ext" },
     "cyl11B2F": { "type": "boolean", "default": false, "label": "CYL 11 B2F", "description": "CYL-11 Back to Front" },
     "cyl11": { "type": "string", "default": "10.0.1.131", "label": "CYL 11 IP", "description": "CYL-11 IP address" },
     "cyl12On": { "type": "boolean", "default": true, "label": "CYL 12", "description": "CYL-12 Enabled" },
     "cyl12Flip": { "type": "boolean", "default": true, "label": "CYL 12 Flip", "description": "CYL-12 Flip" },
+    "cyl12HackInt": { "type": "boolean", "default": false, "label": "CYL 12 IHack", "description": "CYL-12 Hack Int" },
+    "cyl12HackExt": { "type": "boolean", "default": false, "label": "CYL 12 EHack", "description": "CYL-12 Hack Ext" },
     "cyl12B2F": { "type": "boolean", "default": false, "label": "CYL 12 B2F", "description": "CYL-12 Back to Front" },
     "cyl12": { "type": "string", "default": "10.0.1.132", "label": "CYL 12 IP", "description": "CYL-12 IP address" }
   },
@@ -1121,7 +1145,7 @@
       ]
     },
     {
-      "enabled": "$cyl02On & !$cyl02Flip",
+      "enabled": "$cyl02On & !$cyl02Flip & !$cyl02HackExt",
       "protocol": "artnet",
       "host": "$cyl02",
       "universe": 126,
@@ -1139,7 +1163,25 @@
       ]
     },
     {
-      "enabled": "$cyl02On & !$cyl02Flip",
+      "enabled": "$cyl02On & !$cyl02Flip & $cyl02HackExt",
+      "protocol": "artnet",
+      "host": "$cyl02",
+      "universe": 126,
+      "segments": [
+        { "start": 18001, "num": 42 },
+        { "start": 18043, "num": 43, "reverse": true },
+        { "start": 18086, "num": 43 },
+        { "start": 18129, "num": 43, "reverse": true },
+        { "start": 18172, "num": 43 },
+        { "start": 18215, "num": 43, "reverse": true },
+        { "start": 18258, "num": 43 },
+        { "start": 18301, "num": 43, "reverse": true },
+        { "start": 18344, "num": 43 },
+        { "start": 18387, "num": 43, "reverse": true }
+      ]
+    },
+    {
+      "enabled": "$cyl02On & !$cyl02Flip & !$cyl02HackInt",
       "protocol": "artnet",
       "host": "$cyl02",
       "universe": 129,
@@ -1157,7 +1199,25 @@
       ]
     },
     {
-      "enabled": "$cyl03On & !$cyl03Flip",
+      "enabled": "$cyl02On & !$cyl02Flip & $cyl02HackInt",
+      "protocol": "artnet",
+      "host": "$cyl02",
+      "universe": 129,
+      "segments": [
+        { "start": 23161, "num": 42 },
+        { "start": 23203, "num": 43, "reverse": true },
+        { "start": 23246, "num": 43 },
+        { "start": 23289, "num": 43, "reverse": true },
+        { "start": 23332, "num": 43 },
+        { "start": 23375, "num": 43, "reverse": true },
+        { "start": 23418, "num": 43 },
+        { "start": 23461, "num": 43, "reverse": true },
+        { "start": 23504, "num": 43 },
+        { "start": 23547, "num": 43, "reverse": true }
+      ]
+    },
+    {
+      "enabled": "$cyl03On & !$cyl03Flip & !$cyl03HackExt",
       "protocol": "artnet",
       "host": "$cyl03",
       "universe": 132,
@@ -1175,7 +1235,25 @@
       ]
     },
     {
-      "enabled": "$cyl03On & !$cyl03Flip",
+      "enabled": "$cyl03On & !$cyl03Flip & $cyl03HackExt",
+      "protocol": "artnet",
+      "host": "$cyl03",
+      "universe": 132,
+      "segments": [
+        { "start": 18431, "num": 31 },
+        { "start": 18473, "num": 32, "reverse": true },
+        { "start": 18516, "num": 32 },
+        { "start": 18559, "num": 32, "reverse": true },
+        { "start": 18602, "num": 32 },
+        { "start": 18645, "num": 32, "reverse": true },
+        { "start": 18688, "num": 32 },
+        { "start": 18731, "num": 32, "reverse": true },
+        { "start": 18774, "num": 32 },
+        { "start": 18817, "num": 32, "reverse": true }
+      ]
+    },
+    {
+      "enabled": "$cyl03On & !$cyl03Flip & !$cyl03HackInt",
       "protocol": "artnet",
       "host": "$cyl03",
       "universe": 135,
@@ -1193,7 +1271,25 @@
       ]
     },
     {
-      "enabled": "$cyl04On & !$cyl04Flip",
+      "enabled": "$cyl03On & !$cyl03Flip & $cyl03HackInt",
+      "protocol": "artnet",
+      "host": "$cyl03",
+      "universe": 135,
+      "segments": [
+        { "start": 23591, "num": 31 },
+        { "start": 23633, "num": 32, "reverse": true },
+        { "start": 23676, "num": 32 },
+        { "start": 23719, "num": 32, "reverse": true },
+        { "start": 23762, "num": 32 },
+        { "start": 23805, "num": 32, "reverse": true },
+        { "start": 23848, "num": 32 },
+        { "start": 23891, "num": 32, "reverse": true },
+        { "start": 23934, "num": 32 },
+        { "start": 23977, "num": 32, "reverse": true }
+      ]
+    },
+    {
+      "enabled": "$cyl04On & !$cyl04Flip & !$cyl04HackExt",
       "protocol": "artnet",
       "host": "$cyl04",
       "universe": 138,
@@ -1211,7 +1307,25 @@
       ]
     },
     {
-      "enabled": "$cyl04On & !$cyl04Flip",
+      "enabled": "$cyl04On & !$cyl04Flip & $cyl04HackExt",
+      "protocol": "artnet",
+      "host": "$cyl04",
+      "universe": 138,
+      "segments": [
+        { "start": 18861, "num": 42 },
+        { "start": 18903, "num": 43, "reverse": true },
+        { "start": 18946, "num": 43 },
+        { "start": 18989, "num": 43, "reverse": true },
+        { "start": 19032, "num": 43 },
+        { "start": 19075, "num": 43, "reverse": true },
+        { "start": 19118, "num": 43 },
+        { "start": 19161, "num": 43, "reverse": true },
+        { "start": 19204, "num": 43 },
+        { "start": 19247, "num": 43, "reverse": true }
+      ]
+    },
+    {
+      "enabled": "$cyl04On & !$cyl04Flip & !$cyl04HackInt",
       "protocol": "artnet",
       "host": "$cyl04",
       "universe": 141,
@@ -1229,7 +1343,25 @@
       ]
     },
     {
-      "enabled": "$cyl05On & !$cyl05Flip",
+      "enabled": "$cyl04On & !$cyl04Flip & $cyl04HackInt",
+      "protocol": "artnet",
+      "host": "$cyl04",
+      "universe": 141,
+      "segments": [
+        { "start": 24021, "num": 42 },
+        { "start": 24063, "num": 43, "reverse": true },
+        { "start": 24106, "num": 43 },
+        { "start": 24149, "num": 43, "reverse": true },
+        { "start": 24192, "num": 43 },
+        { "start": 24235, "num": 43, "reverse": true },
+        { "start": 24278, "num": 43 },
+        { "start": 24321, "num": 43, "reverse": true },
+        { "start": 24364, "num": 43 },
+        { "start": 24407, "num": 43, "reverse": true }
+      ]
+    },
+    {
+      "enabled": "$cyl05On & !$cyl05Flip & !$cyl05HackExt",
       "protocol": "artnet",
       "host": "$cyl05",
       "universe": 144,
@@ -1247,7 +1379,25 @@
       ]
     },
     {
-      "enabled": "$cyl05On & !$cyl05Flip",
+      "enabled": "$cyl05On & !$cyl05Flip & $cyl05HackExt",
+      "protocol": "artnet",
+      "host": "$cyl05",
+      "universe": 144,
+      "segments": [
+        { "start": 19291, "num": 42 },
+        { "start": 19333, "num": 43, "reverse": true },
+        { "start": 19376, "num": 43 },
+        { "start": 19419, "num": 43, "reverse": true },
+        { "start": 19462, "num": 43 },
+        { "start": 19505, "num": 43, "reverse": true },
+        { "start": 19548, "num": 43 },
+        { "start": 19591, "num": 43, "reverse": true },
+        { "start": 19634, "num": 43 },
+        { "start": 19677, "num": 43, "reverse": true }
+      ]
+    },
+    {
+      "enabled": "$cyl05On & !$cyl05Flip & !$cyl05HackInt",
       "protocol": "artnet",
       "host": "$cyl05",
       "universe": 147,
@@ -1265,7 +1415,25 @@
       ]
     },
     {
-      "enabled": "$cyl06On & !$cyl06Flip",
+      "enabled": "$cyl05On & !$cyl05Flip & $cyl05HackInt",
+      "protocol": "artnet",
+      "host": "$cyl05",
+      "universe": 147,
+      "segments": [
+        { "start": 24451, "num": 42 },
+        { "start": 24493, "num": 43, "reverse": true },
+        { "start": 24536, "num": 43 },
+        { "start": 24579, "num": 43, "reverse": true },
+        { "start": 24622, "num": 43 },
+        { "start": 24665, "num": 43, "reverse": true },
+        { "start": 24708, "num": 43 },
+        { "start": 24751, "num": 43, "reverse": true },
+        { "start": 24794, "num": 43 },
+        { "start": 24837, "num": 43, "reverse": true }
+      ]
+    },
+    {
+      "enabled": "$cyl06On & !$cyl06Flip & !$cyl06HackExt",
       "protocol": "artnet",
       "host": "$cyl06",
       "universe": 150,
@@ -1283,7 +1451,25 @@
       ]
     },
     {
-      "enabled": "$cyl06On & !$cyl06Flip",
+      "enabled": "$cyl06On & !$cyl06Flip & $cyl06HackExt",
+      "protocol": "artnet",
+      "host": "$cyl06",
+      "universe": 150,
+      "segments": [
+        { "start": 19721, "num": 31 },
+        { "start": 19763, "num": 32, "reverse": true },
+        { "start": 19806, "num": 32 },
+        { "start": 19849, "num": 32, "reverse": true },
+        { "start": 19892, "num": 32 },
+        { "start": 19935, "num": 32, "reverse": true },
+        { "start": 19978, "num": 32 },
+        { "start": 20021, "num": 32, "reverse": true },
+        { "start": 20064, "num": 32 },
+        { "start": 20107, "num": 32, "reverse": true }
+      ]
+    },
+    {
+      "enabled": "$cyl06On & !$cyl06Flip & !$cyl06HackInt",
       "protocol": "artnet",
       "host": "$cyl06",
       "universe": 153,
@@ -1301,7 +1487,25 @@
       ]
     },
     {
-      "enabled": "$cyl07On & !$cyl07Flip",
+      "enabled": "$cyl06On & !$cyl06Flip & $cyl06HackInt",
+      "protocol": "artnet",
+      "host": "$cyl06",
+      "universe": 153,
+      "segments": [
+        { "start": 24881, "num": 31 },
+        { "start": 24923, "num": 32, "reverse": true },
+        { "start": 24966, "num": 32 },
+        { "start": 25009, "num": 32, "reverse": true },
+        { "start": 25052, "num": 32 },
+        { "start": 25095, "num": 32, "reverse": true },
+        { "start": 25138, "num": 32 },
+        { "start": 25181, "num": 32, "reverse": true },
+        { "start": 25224, "num": 32 },
+        { "start": 25267, "num": 32, "reverse": true }
+      ]
+    },
+    {
+      "enabled": "$cyl07On & !$cyl07Flip & !$cyl07HackExt",
       "protocol": "artnet",
       "host": "$cyl07",
       "universe": 156,
@@ -1319,7 +1523,25 @@
       ]
     },
     {
-      "enabled": "$cyl07On & !$cyl07Flip",
+      "enabled": "$cyl07On & !$cyl07Flip & $cyl07HackExt",
+      "protocol": "artnet",
+      "host": "$cyl07",
+      "universe": 156,
+      "segments": [
+        { "start": 20151, "num": 42 },
+        { "start": 20193, "num": 43, "reverse": true },
+        { "start": 20236, "num": 43 },
+        { "start": 20279, "num": 43, "reverse": true },
+        { "start": 20322, "num": 43 },
+        { "start": 20365, "num": 43, "reverse": true },
+        { "start": 20408, "num": 43 },
+        { "start": 20451, "num": 43, "reverse": true },
+        { "start": 20494, "num": 43 },
+        { "start": 20537, "num": 43, "reverse": true }
+      ]
+    },
+    {
+      "enabled": "$cyl07On & !$cyl07Flip & !$cyl07HackInt",
       "protocol": "artnet",
       "host": "$cyl07",
       "universe": 159,
@@ -1337,7 +1559,25 @@
       ]
     },
     {
-      "enabled": "$cyl08On & !$cyl08Flip",
+      "enabled": "$cyl07On & !$cyl07Flip & $cyl07HackInt",
+      "protocol": "artnet",
+      "host": "$cyl07",
+      "universe": 159,
+      "segments": [
+        { "start": 25311, "num": 42 },
+        { "start": 25353, "num": 43, "reverse": true },
+        { "start": 25396, "num": 43 },
+        { "start": 25439, "num": 43, "reverse": true },
+        { "start": 25482, "num": 43 },
+        { "start": 25525, "num": 43, "reverse": true },
+        { "start": 25568, "num": 43 },
+        { "start": 25611, "num": 43, "reverse": true },
+        { "start": 25654, "num": 43 },
+        { "start": 25697, "num": 43, "reverse": true }
+      ]
+    },
+    {
+      "enabled": "$cyl08On & !$cyl08Flip & !$cyl08HackExt",
       "protocol": "artnet",
       "host": "$cyl08",
       "universe": 162,
@@ -1355,7 +1595,25 @@
       ]
     },
     {
-      "enabled": "$cyl08On & !$cyl08Flip",
+      "enabled": "$cyl08On & !$cyl08Flip & $cyl08HackExt",
+      "protocol": "artnet",
+      "host": "$cyl08",
+      "universe": 162,
+      "segments": [
+        { "start": 20581, "num": 42 },
+        { "start": 20623, "num": 43, "reverse": true },
+        { "start": 20666, "num": 43 },
+        { "start": 20709, "num": 43, "reverse": true },
+        { "start": 20752, "num": 43 },
+        { "start": 20795, "num": 43, "reverse": true },
+        { "start": 20838, "num": 43 },
+        { "start": 20881, "num": 43, "reverse": true },
+        { "start": 20924, "num": 43 },
+        { "start": 20967, "num": 43, "reverse": true }
+      ]
+    },
+    {
+      "enabled": "$cyl08On & !$cyl08Flip & !$cyl08HackInt",
       "protocol": "artnet",
       "host": "$cyl08",
       "universe": 165,
@@ -1373,7 +1631,25 @@
       ]
     },
     {
-      "enabled": "$cyl09On & !$cyl09Flip",
+      "enabled": "$cyl08On & !$cyl08Flip & $cyl08HackInt",
+      "protocol": "artnet",
+      "host": "$cyl08",
+      "universe": 165,
+      "segments": [
+        { "start": 25741, "num": 42 },
+        { "start": 25783, "num": 43, "reverse": true },
+        { "start": 25826, "num": 43 },
+        { "start": 25869, "num": 43, "reverse": true },
+        { "start": 25912, "num": 43 },
+        { "start": 25955, "num": 43, "reverse": true },
+        { "start": 25998, "num": 43 },
+        { "start": 26041, "num": 43, "reverse": true },
+        { "start": 26084, "num": 43 },
+        { "start": 26127, "num": 43, "reverse": true }
+      ]
+    },
+    {
+      "enabled": "$cyl09On & !$cyl09Flip & !$cyl09HackExt",
       "protocol": "artnet",
       "host": "$cyl09",
       "universe": 168,
@@ -1391,7 +1667,25 @@
       ]
     },
     {
-      "enabled": "$cyl09On & !$cyl09Flip",
+      "enabled": "$cyl09On & !$cyl09Flip & $cyl09HackExt",
+      "protocol": "artnet",
+      "host": "$cyl09",
+      "universe": 168,
+      "segments": [
+        { "start": 21011, "num": 31 },
+        { "start": 21053, "num": 32, "reverse": true },
+        { "start": 21096, "num": 32 },
+        { "start": 21139, "num": 32, "reverse": true },
+        { "start": 21182, "num": 32 },
+        { "start": 21225, "num": 32, "reverse": true },
+        { "start": 21268, "num": 32 },
+        { "start": 21311, "num": 32, "reverse": true },
+        { "start": 21354, "num": 32 },
+        { "start": 21397, "num": 32, "reverse": true }
+      ]
+    },
+    {
+      "enabled": "$cyl09On & !$cyl09Flip & !$cyl09HackInt",
       "protocol": "artnet",
       "host": "$cyl09",
       "universe": 171,
@@ -1409,7 +1703,25 @@
       ]
     },
     {
-      "enabled": "$cyl10On & !$cyl10Flip",
+      "enabled": "$cyl09On & !$cyl09Flip & $cyl09HackInt",
+      "protocol": "artnet",
+      "host": "$cyl09",
+      "universe": 171,
+      "segments": [
+        { "start": 26171, "num": 31 },
+        { "start": 26213, "num": 32, "reverse": true },
+        { "start": 26256, "num": 32 },
+        { "start": 26299, "num": 32, "reverse": true },
+        { "start": 26342, "num": 32 },
+        { "start": 26385, "num": 32, "reverse": true },
+        { "start": 26428, "num": 32 },
+        { "start": 26471, "num": 32, "reverse": true },
+        { "start": 26514, "num": 32 },
+        { "start": 26557, "num": 32, "reverse": true }
+      ]
+    },
+    {
+      "enabled": "$cyl10On & !$cyl10Flip & !$cyl10HackExt",
       "protocol": "artnet",
       "host": "$cyl10",
       "universe": 174,
@@ -1427,7 +1739,25 @@
       ]
     },
     {
-      "enabled": "$cyl10On & !$cyl10Flip",
+      "enabled": "$cyl10On & !$cyl10Flip & $cyl10HackExt",
+      "protocol": "artnet",
+      "host": "$cyl10",
+      "universe": 174,
+      "segments": [
+        { "start": 21441, "num": 42 },
+        { "start": 21483, "num": 43, "reverse": true },
+        { "start": 21526, "num": 43 },
+        { "start": 21569, "num": 43, "reverse": true },
+        { "start": 21612, "num": 43 },
+        { "start": 21655, "num": 43, "reverse": true },
+        { "start": 21698, "num": 43 },
+        { "start": 21741, "num": 43, "reverse": true },
+        { "start": 21784, "num": 43 },
+        { "start": 21827, "num": 43, "reverse": true }
+      ]
+    },
+    {
+      "enabled": "$cyl10On & !$cyl10Flip & !$cyl10HackInt",
       "protocol": "artnet",
       "host": "$cyl10",
       "universe": 177,
@@ -1445,7 +1775,25 @@
       ]
     },
     {
-      "enabled": "$cyl11On & !$cyl11Flip",
+      "enabled": "$cyl10On & !$cyl10Flip & $cyl10HackInt",
+      "protocol": "artnet",
+      "host": "$cyl10",
+      "universe": 177,
+      "segments": [
+        { "start": 26601, "num": 42 },
+        { "start": 26643, "num": 43, "reverse": true },
+        { "start": 26686, "num": 43 },
+        { "start": 26729, "num": 43, "reverse": true },
+        { "start": 26772, "num": 43 },
+        { "start": 26815, "num": 43, "reverse": true },
+        { "start": 26858, "num": 43 },
+        { "start": 26901, "num": 43, "reverse": true },
+        { "start": 26944, "num": 43 },
+        { "start": 26987, "num": 43, "reverse": true }
+      ]
+    },
+    {
+      "enabled": "$cyl11On & !$cyl11Flip & !$cyl11HackExt",
       "protocol": "artnet",
       "host": "$cyl11",
       "universe": 180,
@@ -1463,7 +1811,25 @@
       ]
     },
     {
-      "enabled": "$cyl11On & !$cyl11Flip",
+      "enabled": "$cyl11On & !$cyl11Flip & $cyl11HackExt",
+      "protocol": "artnet",
+      "host": "$cyl11",
+      "universe": 180,
+      "segments": [
+        { "start": 21871, "num": 42 },
+        { "start": 21913, "num": 43, "reverse": true },
+        { "start": 21956, "num": 43 },
+        { "start": 21999, "num": 43, "reverse": true },
+        { "start": 22042, "num": 43 },
+        { "start": 22085, "num": 43, "reverse": true },
+        { "start": 22128, "num": 43 },
+        { "start": 22171, "num": 43, "reverse": true },
+        { "start": 22214, "num": 43 },
+        { "start": 22257, "num": 43, "reverse": true }
+      ]
+    },
+    {
+      "enabled": "$cyl11On & !$cyl11Flip & !$cyl11HackInt",
       "protocol": "artnet",
       "host": "$cyl11",
       "universe": 183,
@@ -1481,7 +1847,25 @@
       ]
     },
     {
-      "enabled": "$cyl12On & !$cyl12Flip",
+      "enabled": "$cyl11On & !$cyl11Flip & $cyl11HackInt",
+      "protocol": "artnet",
+      "host": "$cyl11",
+      "universe": 183,
+      "segments": [
+        { "start": 27031, "num": 42 },
+        { "start": 27073, "num": 43, "reverse": true },
+        { "start": 27116, "num": 43 },
+        { "start": 27159, "num": 43, "reverse": true },
+        { "start": 27202, "num": 43 },
+        { "start": 27245, "num": 43, "reverse": true },
+        { "start": 27288, "num": 43 },
+        { "start": 27331, "num": 43, "reverse": true },
+        { "start": 27374, "num": 43 },
+        { "start": 27417, "num": 43, "reverse": true }
+      ]
+    },
+    {
+      "enabled": "$cyl12On & !$cyl12Flip & !$cyl12HackExt",
       "protocol": "artnet",
       "host": "$cyl12",
       "universe": 186,
@@ -1499,7 +1883,25 @@
       ]
     },
     {
-      "enabled": "$cyl12On & !$cyl12Flip",
+      "enabled": "$cyl12On & !$cyl12Flip & $cyl12HackExt",
+      "protocol": "artnet",
+      "host": "$cyl12",
+      "universe": 186,
+      "segments": [
+        { "start": 22301, "num": 31 },
+        { "start": 22343, "num": 32, "reverse": true },
+        { "start": 22386, "num": 32 },
+        { "start": 22429, "num": 32, "reverse": true },
+        { "start": 22472, "num": 32 },
+        { "start": 22515, "num": 32, "reverse": true },
+        { "start": 22558, "num": 32 },
+        { "start": 22601, "num": 32, "reverse": true },
+        { "start": 22644, "num": 32 },
+        { "start": 22687, "num": 32, "reverse": true }
+      ]
+    },
+    {
+      "enabled": "$cyl12On & !$cyl12Flip & !$cyl12HackInt",
       "protocol": "artnet",
       "host": "$cyl12",
       "universe": 189,
@@ -1517,7 +1919,25 @@
       ]
     },
     {
-      "enabled": "$cyl01On & !$cyl01Flip",
+      "enabled": "$cyl12On & !$cyl12Flip & $cyl12HackInt",
+      "protocol": "artnet",
+      "host": "$cyl12",
+      "universe": 189,
+      "segments": [
+        { "start": 27461, "num": 31 },
+        { "start": 27503, "num": 32, "reverse": true },
+        { "start": 27546, "num": 32 },
+        { "start": 27589, "num": 32, "reverse": true },
+        { "start": 27632, "num": 32 },
+        { "start": 27675, "num": 32, "reverse": true },
+        { "start": 27718, "num": 32 },
+        { "start": 27761, "num": 32, "reverse": true },
+        { "start": 27804, "num": 32 },
+        { "start": 27847, "num": 32, "reverse": true }
+      ]
+    },
+    {
+      "enabled": "$cyl01On & !$cyl01Flip & !$cyl01HackExt",
       "protocol": "artnet",
       "host": "$cyl01",
       "universe": 120,
@@ -1535,12 +1955,48 @@
       ]
     },
     {
-      "enabled": "$cyl01On & !$cyl01Flip",
+      "enabled": "$cyl01On & !$cyl01Flip & $cyl01HackExt",
+      "protocol": "artnet",
+      "host": "$cyl01",
+      "universe": 120,
+      "segments": [
+        { "start": 22731, "num": 42 },
+        { "start": 22773, "num": 43, "reverse": true },
+        { "start": 22816, "num": 43 },
+        { "start": 22859, "num": 43, "reverse": true },
+        { "start": 22902, "num": 43 },
+        { "start": 22945, "num": 43, "reverse": true },
+        { "start": 22988, "num": 43 },
+        { "start": 23031, "num": 43, "reverse": true },
+        { "start": 23074, "num": 43 },
+        { "start": 23117, "num": 43, "reverse": true }
+      ]
+    },
+    {
+      "enabled": "$cyl01On & !$cyl01Flip & !$cyl01HackInt",
       "protocol": "artnet",
       "host": "$cyl01",
       "universe": 123,
       "segments": [
         { "start": 27890, "num": 43 },
+        { "start": 27933, "num": 43, "reverse": true },
+        { "start": 27976, "num": 43 },
+        { "start": 28019, "num": 43, "reverse": true },
+        { "start": 28062, "num": 43 },
+        { "start": 28105, "num": 43, "reverse": true },
+        { "start": 28148, "num": 43 },
+        { "start": 28191, "num": 43, "reverse": true },
+        { "start": 28234, "num": 43 },
+        { "start": 28277, "num": 43, "reverse": true }
+      ]
+    },
+    {
+      "enabled": "$cyl01On & !$cyl01Flip & $cyl01HackInt",
+      "protocol": "artnet",
+      "host": "$cyl01",
+      "universe": 123,
+      "segments": [
+        { "start": 27891, "num": 42 },
         { "start": 27933, "num": 43, "reverse": true },
         { "start": 27976, "num": 43 },
         { "start": 28019, "num": 43, "reverse": true },
@@ -2993,7 +3449,7 @@
       ]
     },
     {
-      "enabled": "$cyl02On & $cyl02Flip",
+      "enabled": "$cyl02On & $cyl02Flip & !$cyl02HackExt",
       "protocol": "artnet",
       "host": "$cyl02",
       "universe": 126,
@@ -3011,7 +3467,25 @@
       ]
     },
     {
-      "enabled": "$cyl02On & $cyl02Flip",
+      "enabled": "$cyl02On & $cyl02Flip & $cyl02HackExt",
+      "protocol": "artnet",
+      "host": "$cyl02",
+      "universe": 126,
+      "segments": [
+        { "start": 18388, "num": 42 },
+        { "start": 18344, "num": 43, "reverse": true },
+        { "start": 18301, "num": 43 },
+        { "start": 18258, "num": 43, "reverse": true },
+        { "start": 18215, "num": 43 },
+        { "start": 18172, "num": 43, "reverse": true },
+        { "start": 18129, "num": 43 },
+        { "start": 18086, "num": 43, "reverse": true },
+        { "start": 18043, "num": 43 },
+        { "start": 18000, "num": 43, "reverse": true }
+      ]
+    },
+    {
+      "enabled": "$cyl02On & $cyl02Flip & !$cyl02HackInt",
       "protocol": "artnet",
       "host": "$cyl02",
       "universe": 129,
@@ -3029,7 +3503,25 @@
       ]
     },
     {
-      "enabled": "$cyl03On & $cyl03Flip",
+      "enabled": "$cyl02On & $cyl02Flip & $cyl02HackInt",
+      "protocol": "artnet",
+      "host": "$cyl02",
+      "universe": 129,
+      "segments": [
+        { "start": 23548, "num": 42 },
+        { "start": 23504, "num": 43, "reverse": true },
+        { "start": 23461, "num": 43 },
+        { "start": 23418, "num": 43, "reverse": true },
+        { "start": 23375, "num": 43 },
+        { "start": 23332, "num": 43, "reverse": true },
+        { "start": 23289, "num": 43 },
+        { "start": 23246, "num": 43, "reverse": true },
+        { "start": 23203, "num": 43 },
+        { "start": 23160, "num": 43, "reverse": true }
+      ]
+    },
+    {
+      "enabled": "$cyl03On & $cyl03Flip & !$cyl03HackExt",
       "protocol": "artnet",
       "host": "$cyl03",
       "universe": 132,
@@ -3047,7 +3539,25 @@
       ]
     },
     {
-      "enabled": "$cyl03On & $cyl03Flip",
+      "enabled": "$cyl03On & $cyl03Flip & $cyl03HackExt",
+      "protocol": "artnet",
+      "host": "$cyl03",
+      "universe": 132,
+      "segments": [
+        { "start": 18818, "num": 31 },
+        { "start": 18774, "num": 32, "reverse": true },
+        { "start": 18731, "num": 32 },
+        { "start": 18688, "num": 32, "reverse": true },
+        { "start": 18645, "num": 32 },
+        { "start": 18602, "num": 32, "reverse": true },
+        { "start": 18559, "num": 32 },
+        { "start": 18516, "num": 32, "reverse": true },
+        { "start": 18473, "num": 32 },
+        { "start": 18430, "num": 32, "reverse": true }
+      ]
+    },
+    {
+      "enabled": "$cyl03On & $cyl03Flip & !$cyl03HackInt",
       "protocol": "artnet",
       "host": "$cyl03",
       "universe": 135,
@@ -3065,7 +3575,25 @@
       ]
     },
     {
-      "enabled": "$cyl04On & $cyl04Flip",
+      "enabled": "$cyl03On & $cyl03Flip & $cyl03HackInt",
+      "protocol": "artnet",
+      "host": "$cyl03",
+      "universe": 135,
+      "segments": [
+        { "start": 23978, "num": 31 },
+        { "start": 23934, "num": 32, "reverse": true },
+        { "start": 23891, "num": 32 },
+        { "start": 23848, "num": 32, "reverse": true },
+        { "start": 23805, "num": 32 },
+        { "start": 23762, "num": 32, "reverse": true },
+        { "start": 23719, "num": 32 },
+        { "start": 23676, "num": 32, "reverse": true },
+        { "start": 23633, "num": 32 },
+        { "start": 23590, "num": 32, "reverse": true }
+      ]
+    },
+    {
+      "enabled": "$cyl04On & $cyl04Flip & !$cyl04HackExt",
       "protocol": "artnet",
       "host": "$cyl04",
       "universe": 138,
@@ -3083,7 +3611,25 @@
       ]
     },
     {
-      "enabled": "$cyl04On & $cyl04Flip",
+      "enabled": "$cyl04On & $cyl04Flip & $cyl04HackExt",
+      "protocol": "artnet",
+      "host": "$cyl04",
+      "universe": 138,
+      "segments": [
+        { "start": 19248, "num": 42 },
+        { "start": 19204, "num": 43, "reverse": true },
+        { "start": 19161, "num": 43 },
+        { "start": 19118, "num": 43, "reverse": true },
+        { "start": 19075, "num": 43 },
+        { "start": 19032, "num": 43, "reverse": true },
+        { "start": 18989, "num": 43 },
+        { "start": 18946, "num": 43, "reverse": true },
+        { "start": 18903, "num": 43 },
+        { "start": 18860, "num": 43, "reverse": true }
+      ]
+    },
+    {
+      "enabled": "$cyl04On & $cyl04Flip & !$cyl04HackInt",
       "protocol": "artnet",
       "host": "$cyl04",
       "universe": 141,
@@ -3101,7 +3647,25 @@
       ]
     },
     {
-      "enabled": "$cyl05On & $cyl05Flip",
+      "enabled": "$cyl04On & $cyl04Flip & $cyl04HackInt",
+      "protocol": "artnet",
+      "host": "$cyl04",
+      "universe": 141,
+      "segments": [
+        { "start": 24408, "num": 42 },
+        { "start": 24364, "num": 43, "reverse": true },
+        { "start": 24321, "num": 43 },
+        { "start": 24278, "num": 43, "reverse": true },
+        { "start": 24235, "num": 43 },
+        { "start": 24192, "num": 43, "reverse": true },
+        { "start": 24149, "num": 43 },
+        { "start": 24106, "num": 43, "reverse": true },
+        { "start": 24063, "num": 43 },
+        { "start": 24020, "num": 43, "reverse": true }
+      ]
+    },
+    {
+      "enabled": "$cyl05On & $cyl05Flip & !$cyl05HackExt",
       "protocol": "artnet",
       "host": "$cyl05",
       "universe": 144,
@@ -3119,7 +3683,25 @@
       ]
     },
     {
-      "enabled": "$cyl05On & $cyl05Flip",
+      "enabled": "$cyl05On & $cyl05Flip & $cyl05HackExt",
+      "protocol": "artnet",
+      "host": "$cyl05",
+      "universe": 144,
+      "segments": [
+        { "start": 19678, "num": 42 },
+        { "start": 19634, "num": 43, "reverse": true },
+        { "start": 19591, "num": 43 },
+        { "start": 19548, "num": 43, "reverse": true },
+        { "start": 19505, "num": 43 },
+        { "start": 19462, "num": 43, "reverse": true },
+        { "start": 19419, "num": 43 },
+        { "start": 19376, "num": 43, "reverse": true },
+        { "start": 19333, "num": 43 },
+        { "start": 19290, "num": 43, "reverse": true }
+      ]
+    },
+    {
+      "enabled": "$cyl05On & $cyl05Flip & !$cyl05HackInt",
       "protocol": "artnet",
       "host": "$cyl05",
       "universe": 147,
@@ -3137,7 +3719,25 @@
       ]
     },
     {
-      "enabled": "$cyl06On & $cyl06Flip",
+      "enabled": "$cyl05On & $cyl05Flip & $cyl05HackInt",
+      "protocol": "artnet",
+      "host": "$cyl05",
+      "universe": 147,
+      "segments": [
+        { "start": 24838, "num": 42 },
+        { "start": 24794, "num": 43, "reverse": true },
+        { "start": 24751, "num": 43 },
+        { "start": 24708, "num": 43, "reverse": true },
+        { "start": 24665, "num": 43 },
+        { "start": 24622, "num": 43, "reverse": true },
+        { "start": 24579, "num": 43 },
+        { "start": 24536, "num": 43, "reverse": true },
+        { "start": 24493, "num": 43 },
+        { "start": 24450, "num": 43, "reverse": true }
+      ]
+    },
+    {
+      "enabled": "$cyl06On & $cyl06Flip & !$cyl06HackExt",
       "protocol": "artnet",
       "host": "$cyl06",
       "universe": 150,
@@ -3155,7 +3755,25 @@
       ]
     },
     {
-      "enabled": "$cyl06On & $cyl06Flip",
+      "enabled": "$cyl06On & $cyl06Flip & $cyl06HackExt",
+      "protocol": "artnet",
+      "host": "$cyl06",
+      "universe": 150,
+      "segments": [
+        { "start": 20108, "num": 31 },
+        { "start": 20064, "num": 32, "reverse": true },
+        { "start": 20021, "num": 32 },
+        { "start": 19978, "num": 32, "reverse": true },
+        { "start": 19935, "num": 32 },
+        { "start": 19892, "num": 32, "reverse": true },
+        { "start": 19849, "num": 32 },
+        { "start": 19806, "num": 32, "reverse": true },
+        { "start": 19763, "num": 32 },
+        { "start": 19720, "num": 32, "reverse": true }
+      ]
+    },
+    {
+      "enabled": "$cyl06On & $cyl06Flip & !$cyl06HackInt",
       "protocol": "artnet",
       "host": "$cyl06",
       "universe": 153,
@@ -3173,7 +3791,25 @@
       ]
     },
     {
-      "enabled": "$cyl07On & $cyl07Flip",
+      "enabled": "$cyl06On & $cyl06Flip & $cyl06HackInt",
+      "protocol": "artnet",
+      "host": "$cyl06",
+      "universe": 153,
+      "segments": [
+        { "start": 25268, "num": 31 },
+        { "start": 25224, "num": 32, "reverse": true },
+        { "start": 25181, "num": 32 },
+        { "start": 25138, "num": 32, "reverse": true },
+        { "start": 25095, "num": 32 },
+        { "start": 25052, "num": 32, "reverse": true },
+        { "start": 25009, "num": 32 },
+        { "start": 24966, "num": 32, "reverse": true },
+        { "start": 24923, "num": 32 },
+        { "start": 24880, "num": 32, "reverse": true }
+      ]
+    },
+    {
+      "enabled": "$cyl07On & $cyl07Flip & !$cyl07HackExt",
       "protocol": "artnet",
       "host": "$cyl07",
       "universe": 156,
@@ -3191,7 +3827,25 @@
       ]
     },
     {
-      "enabled": "$cyl07On & $cyl07Flip",
+      "enabled": "$cyl07On & $cyl07Flip & $cyl07HackExt",
+      "protocol": "artnet",
+      "host": "$cyl07",
+      "universe": 156,
+      "segments": [
+        { "start": 20538, "num": 42 },
+        { "start": 20494, "num": 43, "reverse": true },
+        { "start": 20451, "num": 43 },
+        { "start": 20408, "num": 43, "reverse": true },
+        { "start": 20365, "num": 43 },
+        { "start": 20322, "num": 43, "reverse": true },
+        { "start": 20279, "num": 43 },
+        { "start": 20236, "num": 43, "reverse": true },
+        { "start": 20193, "num": 43 },
+        { "start": 20150, "num": 43, "reverse": true }
+      ]
+    },
+    {
+      "enabled": "$cyl07On & $cyl07Flip & !$cyl07HackInt",
       "protocol": "artnet",
       "host": "$cyl07",
       "universe": 159,
@@ -3209,7 +3863,25 @@
       ]
     },
     {
-      "enabled": "$cyl08On & $cyl08Flip",
+      "enabled": "$cyl07On & $cyl07Flip & $cyl07HackInt",
+      "protocol": "artnet",
+      "host": "$cyl07",
+      "universe": 159,
+      "segments": [
+        { "start": 25698, "num": 42 },
+        { "start": 25654, "num": 43, "reverse": true },
+        { "start": 25611, "num": 43 },
+        { "start": 25568, "num": 43, "reverse": true },
+        { "start": 25525, "num": 43 },
+        { "start": 25482, "num": 43, "reverse": true },
+        { "start": 25439, "num": 43 },
+        { "start": 25396, "num": 43, "reverse": true },
+        { "start": 25353, "num": 43 },
+        { "start": 25310, "num": 43, "reverse": true }
+      ]
+    },
+    {
+      "enabled": "$cyl08On & $cyl08Flip & !$cyl08HackExt",
       "protocol": "artnet",
       "host": "$cyl08",
       "universe": 162,
@@ -3227,7 +3899,25 @@
       ]
     },
     {
-      "enabled": "$cyl08On & $cyl08Flip",
+      "enabled": "$cyl08On & $cyl08Flip & $cyl08HackExt",
+      "protocol": "artnet",
+      "host": "$cyl08",
+      "universe": 162,
+      "segments": [
+        { "start": 20968, "num": 42 },
+        { "start": 20924, "num": 43, "reverse": true },
+        { "start": 20881, "num": 43 },
+        { "start": 20838, "num": 43, "reverse": true },
+        { "start": 20795, "num": 43 },
+        { "start": 20752, "num": 43, "reverse": true },
+        { "start": 20709, "num": 43 },
+        { "start": 20666, "num": 43, "reverse": true },
+        { "start": 20623, "num": 43 },
+        { "start": 20580, "num": 43, "reverse": true }
+      ]
+    },
+    {
+      "enabled": "$cyl08On & $cyl08Flip & !$cyl08HackInt",
       "protocol": "artnet",
       "host": "$cyl08",
       "universe": 165,
@@ -3245,7 +3935,25 @@
       ]
     },
     {
-      "enabled": "$cyl09On & $cyl09Flip",
+      "enabled": "$cyl08On & $cyl08Flip & $cyl08HackInt",
+      "protocol": "artnet",
+      "host": "$cyl08",
+      "universe": 165,
+      "segments": [
+        { "start": 26128, "num": 42 },
+        { "start": 26084, "num": 43, "reverse": true },
+        { "start": 26041, "num": 43 },
+        { "start": 25998, "num": 43, "reverse": true },
+        { "start": 25955, "num": 43 },
+        { "start": 25912, "num": 43, "reverse": true },
+        { "start": 25869, "num": 43 },
+        { "start": 25826, "num": 43, "reverse": true },
+        { "start": 25783, "num": 43 },
+        { "start": 25740, "num": 43, "reverse": true }
+      ]
+    },
+    {
+      "enabled": "$cyl09On & $cyl09Flip & !$cyl09HackExt",
       "protocol": "artnet",
       "host": "$cyl09",
       "universe": 168,
@@ -3263,7 +3971,25 @@
       ]
     },
     {
-      "enabled": "$cyl09On & $cyl09Flip",
+      "enabled": "$cyl09On & $cyl09Flip & $cyl09HackExt",
+      "protocol": "artnet",
+      "host": "$cyl09",
+      "universe": 168,
+      "segments": [
+        { "start": 21398, "num": 31 },
+        { "start": 21354, "num": 32, "reverse": true },
+        { "start": 21311, "num": 32 },
+        { "start": 21268, "num": 32, "reverse": true },
+        { "start": 21225, "num": 32 },
+        { "start": 21182, "num": 32, "reverse": true },
+        { "start": 21139, "num": 32 },
+        { "start": 21096, "num": 32, "reverse": true },
+        { "start": 21053, "num": 32 },
+        { "start": 21010, "num": 32, "reverse": true }
+      ]
+    },
+    {
+      "enabled": "$cyl09On & $cyl09Flip & !$cyl09HackInt",
       "protocol": "artnet",
       "host": "$cyl09",
       "universe": 171,
@@ -3281,7 +4007,25 @@
       ]
     },
     {
-      "enabled": "$cyl10On & $cyl10Flip",
+      "enabled": "$cyl09On & $cyl09Flip & $cyl09HackInt",
+      "protocol": "artnet",
+      "host": "$cyl09",
+      "universe": 171,
+      "segments": [
+        { "start": 26558, "num": 31 },
+        { "start": 26514, "num": 32, "reverse": true },
+        { "start": 26471, "num": 32 },
+        { "start": 26428, "num": 32, "reverse": true },
+        { "start": 26385, "num": 32 },
+        { "start": 26342, "num": 32, "reverse": true },
+        { "start": 26299, "num": 32 },
+        { "start": 26256, "num": 32, "reverse": true },
+        { "start": 26213, "num": 32 },
+        { "start": 26170, "num": 32, "reverse": true }
+      ]
+    },
+    {
+      "enabled": "$cyl10On & $cyl10Flip & !$cyl10HackExt",
       "protocol": "artnet",
       "host": "$cyl10",
       "universe": 174,
@@ -3299,7 +4043,25 @@
       ]
     },
     {
-      "enabled": "$cyl10On & $cyl10Flip",
+      "enabled": "$cyl10On & $cyl10Flip & $cyl10HackExt",
+      "protocol": "artnet",
+      "host": "$cyl10",
+      "universe": 174,
+      "segments": [
+        { "start": 21828, "num": 42 },
+        { "start": 21784, "num": 43, "reverse": true },
+        { "start": 21741, "num": 43 },
+        { "start": 21698, "num": 43, "reverse": true },
+        { "start": 21655, "num": 43 },
+        { "start": 21612, "num": 43, "reverse": true },
+        { "start": 21569, "num": 43 },
+        { "start": 21526, "num": 43, "reverse": true },
+        { "start": 21483, "num": 43 },
+        { "start": 21440, "num": 43, "reverse": true }
+      ]
+    },
+    {
+      "enabled": "$cyl10On & $cyl10Flip & !$cyl10HackInt",
       "protocol": "artnet",
       "host": "$cyl10",
       "universe": 177,
@@ -3317,7 +4079,25 @@
       ]
     },
     {
-      "enabled": "$cyl11On & $cyl11Flip",
+      "enabled": "$cyl10On & $cyl10Flip & $cyl10HackInt",
+      "protocol": "artnet",
+      "host": "$cyl10",
+      "universe": 177,
+      "segments": [
+        { "start": 26988, "num": 42 },
+        { "start": 26944, "num": 43, "reverse": true },
+        { "start": 26901, "num": 43 },
+        { "start": 26858, "num": 43, "reverse": true },
+        { "start": 26815, "num": 43 },
+        { "start": 26772, "num": 43, "reverse": true },
+        { "start": 26729, "num": 43 },
+        { "start": 26686, "num": 43, "reverse": true },
+        { "start": 26643, "num": 43 },
+        { "start": 26600, "num": 43, "reverse": true }
+      ]
+    },
+    {
+      "enabled": "$cyl11On & $cyl11Flip & !$cyl11HackExt",
       "protocol": "artnet",
       "host": "$cyl11",
       "universe": 180,
@@ -3335,7 +4115,25 @@
       ]
     },
     {
-      "enabled": "$cyl11On & $cyl11Flip",
+      "enabled": "$cyl11On & $cyl11Flip & $cyl11HackExt",
+      "protocol": "artnet",
+      "host": "$cyl11",
+      "universe": 180,
+      "segments": [
+        { "start": 22258, "num": 42 },
+        { "start": 22214, "num": 43, "reverse": true },
+        { "start": 22171, "num": 43 },
+        { "start": 22128, "num": 43, "reverse": true },
+        { "start": 22085, "num": 43 },
+        { "start": 22042, "num": 43, "reverse": true },
+        { "start": 21999, "num": 43 },
+        { "start": 21956, "num": 43, "reverse": true },
+        { "start": 21913, "num": 43 },
+        { "start": 21870, "num": 43, "reverse": true }
+      ]
+    },
+    {
+      "enabled": "$cyl11On & $cyl11Flip & !$cyl11HackInt",
       "protocol": "artnet",
       "host": "$cyl11",
       "universe": 183,
@@ -3353,7 +4151,25 @@
       ]
     },
     {
-      "enabled": "$cyl12On & $cyl12Flip",
+      "enabled": "$cyl11On & $cyl11Flip & $cyl11HackInt",
+      "protocol": "artnet",
+      "host": "$cyl11",
+      "universe": 183,
+      "segments": [
+        { "start": 27418, "num": 42 },
+        { "start": 27374, "num": 43, "reverse": true },
+        { "start": 27331, "num": 43 },
+        { "start": 27288, "num": 43, "reverse": true },
+        { "start": 27245, "num": 43 },
+        { "start": 27202, "num": 43, "reverse": true },
+        { "start": 27159, "num": 43 },
+        { "start": 27116, "num": 43, "reverse": true },
+        { "start": 27073, "num": 43 },
+        { "start": 27030, "num": 43, "reverse": true }
+      ]
+    },
+    {
+      "enabled": "$cyl12On & $cyl12Flip & !$cyl12HackExt",
       "protocol": "artnet",
       "host": "$cyl12",
       "universe": 186,
@@ -3371,7 +4187,25 @@
       ]
     },
     {
-      "enabled": "$cyl12On & $cyl12Flip",
+      "enabled": "$cyl12On & $cyl12Flip & $cyl12HackExt",
+      "protocol": "artnet",
+      "host": "$cyl12",
+      "universe": 186,
+      "segments": [
+        { "start": 22688, "num": 31 },
+        { "start": 22644, "num": 32, "reverse": true },
+        { "start": 22601, "num": 32 },
+        { "start": 22558, "num": 32, "reverse": true },
+        { "start": 22515, "num": 32 },
+        { "start": 22472, "num": 32, "reverse": true },
+        { "start": 22429, "num": 32 },
+        { "start": 22386, "num": 32, "reverse": true },
+        { "start": 22343, "num": 32 },
+        { "start": 22300, "num": 32, "reverse": true }
+      ]
+    },
+    {
+      "enabled": "$cyl12On & $cyl12Flip & !$cyl12HackInt",
       "protocol": "artnet",
       "host": "$cyl12",
       "universe": 189,
@@ -3389,7 +4223,25 @@
       ]
     },
     {
-      "enabled": "$cyl01On & $cyl01Flip",
+      "enabled": "$cyl12On & $cyl12Flip & $cyl12HackInt",
+      "protocol": "artnet",
+      "host": "$cyl12",
+      "universe": 189,
+      "segments": [
+        { "start": 27848, "num": 31 },
+        { "start": 27804, "num": 32, "reverse": true },
+        { "start": 27761, "num": 32 },
+        { "start": 27718, "num": 32, "reverse": true },
+        { "start": 27675, "num": 32 },
+        { "start": 27632, "num": 32, "reverse": true },
+        { "start": 27589, "num": 32 },
+        { "start": 27546, "num": 32, "reverse": true },
+        { "start": 27503, "num": 32 },
+        { "start": 27460, "num": 32, "reverse": true }
+      ]
+    },
+    {
+      "enabled": "$cyl01On & $cyl01Flip & !$cyl01HackExt",
       "protocol": "artnet",
       "host": "$cyl01",
       "universe": 120,
@@ -3407,12 +4259,48 @@
       ]
     },
     {
-      "enabled": "$cyl01On & $cyl01Flip",
+      "enabled": "$cyl01On & $cyl01Flip & $cyl01HackExt",
+      "protocol": "artnet",
+      "host": "$cyl01",
+      "universe": 120,
+      "segments": [
+        { "start": 23118, "num": 42 },
+        { "start": 23074, "num": 43, "reverse": true },
+        { "start": 23031, "num": 43 },
+        { "start": 22988, "num": 43, "reverse": true },
+        { "start": 22945, "num": 43 },
+        { "start": 22902, "num": 43, "reverse": true },
+        { "start": 22859, "num": 43 },
+        { "start": 22816, "num": 43, "reverse": true },
+        { "start": 22773, "num": 43 },
+        { "start": 22730, "num": 43, "reverse": true }
+      ]
+    },
+    {
+      "enabled": "$cyl01On & $cyl01Flip & !$cyl01HackInt",
       "protocol": "artnet",
       "host": "$cyl01",
       "universe": 123,
       "segments": [
         { "start": 28277, "num": 43 },
+        { "start": 28234, "num": 43, "reverse": true },
+        { "start": 28191, "num": 43 },
+        { "start": 28148, "num": 43, "reverse": true },
+        { "start": 28105, "num": 43 },
+        { "start": 28062, "num": 43, "reverse": true },
+        { "start": 28019, "num": 43 },
+        { "start": 27976, "num": 43, "reverse": true },
+        { "start": 27933, "num": 43 },
+        { "start": 27890, "num": 43, "reverse": true }
+      ]
+    },
+    {
+      "enabled": "$cyl01On & $cyl01Flip & $cyl01HackInt",
+      "protocol": "artnet",
+      "host": "$cyl01",
+      "universe": 123,
+      "segments": [
+        { "start": 28278, "num": 42 },
         { "start": 28234, "num": 43, "reverse": true },
         { "start": 28191, "num": 43 },
         { "start": 28148, "num": 43, "reverse": true },
