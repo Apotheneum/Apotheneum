@@ -50,6 +50,20 @@ public class Vortex extends ApotheneumPattern
   static final double TWO_PI = 2 * Math.PI;
   static final double INV_TWO_PI = 1 / TWO_PI;
   static final double SHEAR_GAIN = .5;
+  /**
+   * How much faster the arms wind at the throat than at the far end when {@link #curl Curl} is
+   * at full travel. The warp is {@code 1 - (1 - t)^p} with {@code p = 1 + CURL_GAIN * curl},
+   * whose gradient at the throat is exactly {@code p} -- so winding there scales linearly with
+   * the control and turning Curl up always produces more curl.
+   *
+   * <p>An earlier form, {@code t^(1/(1+gain*curl))}, was not monotonic: its throat gradient
+   * {@code e * t^(e-1)} peaks near {@code e = 0.18} and falls away again, so past roughly
+   * half travel more Curl produced visibly less. Both forms preserve the endpoints; only this
+   * one is monotonic in the control.
+   */
+  static final double CURL_GAIN = 20;
+  /** Below this, Twist contributes no axial winding and Fall cannot be made to matter. */
+  static final double TWIST_EPSILON = 1e-6;
   private static final String LOG_PREFIX = "[Vortex] ";
 
   public enum Horizon {
@@ -68,6 +82,11 @@ public class Vortex extends ApotheneumPattern
       double zetaSpan(SurfaceState state) {
         return state.topZetaSpan;
       }
+
+      @Override
+      double zetaMin(SurfaceState state) {
+        return state.topZetaMin;
+      }
     },
     BOTTOM {
       @Override
@@ -84,11 +103,17 @@ public class Vortex extends ApotheneumPattern
       double zetaSpan(SurfaceState state) {
         return state.bottomZetaSpan;
       }
+
+      @Override
+      double zetaMin(SurfaceState state) {
+        return state.bottomZetaMin;
+      }
     };
 
     abstract double nearness(double u);
     abstract double zeta(double rowY, double rowRadial, double apexY, double baseY);
     abstract double zetaSpan(SurfaceState state);
+    abstract double zetaMin(SurfaceState state);
   }
 
   public enum Wrap {
@@ -117,6 +142,8 @@ public class Vortex extends ApotheneumPattern
     final double[] env;
     double topZetaSpan;
     double bottomZetaSpan;
+    double topZetaMin;
+    double bottomZetaMin;
 
     SurfaceState(int columns, int rows) {
       this.azimuth = new double[columns];
@@ -141,19 +168,28 @@ public class Vortex extends ApotheneumPattern
 
   public final CompoundParameter shear =
     new CompoundParameter("Shear", .5)
-    .setDescription("How strongly the narrowing throat accelerates rotation");
+    .setDescription(
+      "How strongly the narrowing throat accelerates rotation. Has no effect at Throat=1, "
+      + "where the funnel does not narrow and there is nothing to accelerate");
 
   public final CompoundDiscreteParameter arms =
     new CompoundDiscreteParameter("Arms", 2, 0, 9)
     .setDescription("Number of spiral arms; zero produces horizontal freefall rings");
 
   public final CompoundParameter twist =
-    new CompoundParameter("Twist", 6, 0, 8)
+    new CompoundParameter("Twist", 6, 0, 20)
     .setDescription("Angular winding per radius of axial travel");
 
   public final CompoundParameter throat =
     new CompoundParameter("Throat", .25, .05, 1)
-    .setDescription("Radius of the narrow end of the funnel");
+    .setDescription(
+      "Radius of the narrow end of the funnel. Acts only through Shear, so it has no effect "
+      + "at Shear=0; at Throat=1 the funnel is a cylinder and Shear itself goes flat");
+
+  public final CompoundParameter curl =
+    new CompoundParameter("Curl", 0)
+    .setDescription(
+      "Tightens the arms as they wind into the throat; zero keeps winding even along the axis");
 
   public final CompoundParameter wobble =
     new CompoundParameter("Wobble", .3)
@@ -198,6 +234,7 @@ public class Vortex extends ApotheneumPattern
   private int armsValue = 0;
   private double spinAngle = 0;
   private LXModel geometryModel = null;
+  private double descentSpan = 0;
   double apexY = 0;
   double baseY = 0;
 
@@ -209,6 +246,7 @@ public class Vortex extends ApotheneumPattern
     addParameter("arms", this.arms);
     addParameter("twist", this.twist);
     addParameter("throat", this.throat);
+    addParameter("curl", this.curl);
     addParameter("wobble", this.wobble);
     addParameter("wobblePhase", this.wobblePhase);
     addParameter("sharp", this.sharp);
@@ -307,11 +345,13 @@ public class Vortex extends ApotheneumPattern
       this.cylinderState, cylinder, surfaceCenterX(cylinder), surfaceCenterZ(cylinder));
     log(String.format(Locale.ROOT,
       "geometry apexY=%.6f baseY=%.6f " +
-      "cubeZetaSpan(top/bottom)=%.6f/%.6f " +
-      "cylinderZetaSpan(top/bottom)=%.6f/%.6f",
+      "cubeZetaSpan(top/bottom)=%.6f/%.6f cubeZetaMin(top/bottom)=%.6f/%.6f " +
+      "cylinderZetaSpan(top/bottom)=%.6f/%.6f cylinderZetaMin(top/bottom)=%.6f/%.6f",
       this.apexY, this.baseY,
       this.cubeState.topZetaSpan, this.cubeState.bottomZetaSpan,
-      this.cylinderState.topZetaSpan, this.cylinderState.bottomZetaSpan));
+      this.cubeState.topZetaMin, this.cubeState.bottomZetaMin,
+      this.cylinderState.topZetaSpan, this.cylinderState.bottomZetaSpan,
+      this.cylinderState.topZetaMin, this.cylinderState.bottomZetaMin));
   }
 
   private void includeVerticalBounds(Apotheneum.Orientation orientation) {
@@ -358,6 +398,12 @@ public class Vortex extends ApotheneumPattern
     }
     state.topZetaSpan = maxTopZeta - minTopZeta;
     state.bottomZetaSpan = maxBottomZeta - minBottomZeta;
+    // Curl needs the surface's own near end, not zero. A surface whose top row sits below the
+    // shared installation apex starts at a positive zeta, so normalizing by span alone would
+    // never reach the steep end of the warp -- the tightest winding would fall above the
+    // physical LEDs instead of on them.
+    state.topZetaMin = minTopZeta;
+    state.bottomZetaMin = minBottomZeta;
   }
 
   private void fillAzimuthLut(
@@ -393,8 +439,39 @@ public class Vortex extends ApotheneumPattern
     updateWaveLut();
     this.armsValue = this.arms.getValuei();
     this.spinAngle = this.spin.getValue() * TWO_PI;
+    this.descentSpan = descentSpan();
     updateRows(this.cubeState);
     updateRows(this.cylinderState);
+  }
+
+  /**
+   * Axial distance one full sweep of {@link #descent Fall} travels, rounded so that the sweep
+   * is a whole number of wave cycles.
+   *
+   * <p>Fall shifts the axial coordinate, so a sweep advances the row phase by
+   * {@code twist * span}. Using the raw geometric span leaves that a fractional number of
+   * cycles -- at the shipped Twist of 6 the cylinder's span gives 2.089 -- so an LFO looping
+   * Fall from 1 back to 0 jumps. Rounding to the nearest whole cycle closes the loop.
+   *
+   * <p>One span is shared by both surfaces rather than rounding each separately. The advance is
+   * {@code twist * span} on either surface, so a single span makes both land on whole cycles at
+   * the same time; rounding per surface would close each loop but let the cube and cylinder
+   * travel at different rates and drift apart. The larger span picks the cycle count so the
+   * sweep stays close to a full traverse of the taller surface.
+   */
+  private double descentSpan() {
+    final Horizon horizon = this.horizon.getEnum();
+    final double referenceSpan = Math.max(
+      horizon.zetaSpan(this.cubeState), horizon.zetaSpan(this.cylinderState));
+    final double twist = this.twist.getValue();
+    if (twist <= TWIST_EPSILON) {
+      // Nothing winds along the axis, so the image does not depend on Fall at all and the
+      // sweep is already trivially cyclical. Keep the geometric span so Fall stays meaningful
+      // if Twist comes back up mid-sweep.
+      return referenceSpan;
+    }
+    final double cycles = Math.max(1, Math.round(twist * referenceSpan * INV_TWO_PI));
+    return cycles * TWO_PI / twist;
   }
 
   private void updateRows(SurfaceState state) {
@@ -404,14 +481,34 @@ public class Vortex extends ApotheneumPattern
     final double shear = this.shear.getValue();
     final double twist = this.twist.getValue();
     final double wobble = this.wobble.getValue();
-    final double descentPhase = this.descent.getValue() * horizon.zetaSpan(state);
+    final double descentPhase = this.descent.getValue() * this.descentSpan;
     final double wobblePhase = this.wobblePhase.getValue() * TWO_PI;
+
+    // Curl compresses the axial coordinate toward the anchor end, so winding accelerates into
+    // the throat instead of advancing at a constant rate. The geometry-derived zeta is linear
+    // in height, which is physically honest but visually uniform; the earlier synthetic
+    // perspective mapping produced a tight curl at the throat as a side effect of
+    // double-counting perspective. This restores that look deliberately, as a stylization
+    // rather than as a claim about distance. At Curl=0 the exponent is 1 and this is exactly
+    // the linear geometry-anchored mapping, so the shipped default is unchanged.
+    final double curlPower = 1 + CURL_GAIN * this.curl.getValue();
+    final double zetaSpan = horizon.zetaSpan(state);
+    final double zetaMin = horizon.zetaMin(state);
+    final double invZetaSpan = (zetaSpan > 0) ? 1 / zetaSpan : 0;
 
     for (int y = 0; y < height; ++y) {
       final double u = (y + .5) / height;
       final double n = horizon.nearness(u);
-      final double zeta = horizon.zeta(
+      double zeta = horizon.zeta(
         state.rowY[y], state.rowRadial[y], this.apexY, this.baseY);
+      if (curlPower != 1) {
+        // Warp in normalized axial space so both endpoints are preserved: Fall still traverses
+        // exactly one full span, and zetaSpan stays the correct descent range. Normalizing from
+        // the surface's own near end rather than from zero is what puts the steep part of the
+        // curve on the first real row instead of somewhere above the fixture.
+        final double t = LXUtils.clamp((zeta - zetaMin) * invZetaSpan, 0, 1);
+        zeta = zetaMin + zetaSpan * (1 - Math.pow(1 - t, curlPower));
+      }
       final double radius = throat + (1 - throat) * Math.pow(1 - n, 1.5);
       final double boost = Math.min(1 / (radius * radius), 8);
       final double shearOffset = shear * SHEAR_GAIN * (boost - 1);
@@ -446,7 +543,13 @@ public class Vortex extends ApotheneumPattern
   double brightness(SurfaceState state, int x, int y) {
     final double phase =
       this.armsValue * (state.azimuth[x] - this.spinAngle) + state.rowPhase[y];
-    final int waveIndex = (int) (phase * INV_TWO_PI * LUT_SIZE) & (LUT_SIZE - 1);
+    // Floor, not a plain cast. A cast truncates toward zero, which is not translation
+    // invariant across the sign boundary: shifting phase by an exact multiple of LUT_SIZE
+    // lands on a different index once it crosses zero, so a control that advances phase by a
+    // whole number of cycles -- Fall sweeping 0 to 1 -- would fail to close despite the
+    // arithmetic being exact.
+    final int waveIndex =
+      (int) Math.floor(phase * INV_TWO_PI * LUT_SIZE) & (LUT_SIZE - 1);
     return LXUtils.clamp(this.waveLut[waveIndex] * state.env[y], 0, 1);
   }
 
@@ -510,6 +613,7 @@ public class Vortex extends ApotheneumPattern
     addVerticalBreak(ui, uiDevice);
     addColumn(uiDevice, "Funnel",
       newKnob(vortex.throat),
+      newKnob(vortex.curl),
       newKnob(vortex.wobble));
 
     addVerticalBreak(ui, uiDevice);

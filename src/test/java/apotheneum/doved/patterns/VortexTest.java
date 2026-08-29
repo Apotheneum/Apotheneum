@@ -146,7 +146,7 @@ public class VortexTest extends HeadlessLxTest {
   }
 
   @Test
-  void fallTraversesEachSurfacesComputedZetaSpan() {
+  void fallSweepsWholeCyclesSharedByBothSurfaces() {
     final LX lx = newHeadlessLx();
     final Vortex vortex = newTestVortex(lx);
     try {
@@ -163,21 +163,37 @@ public class VortexTest extends HeadlessLxTest {
 
         vortex.descent.setValue(1);
         vortex.step();
-        assertFallTravel(cubeStart, vortex.cubeState, horizon);
-        assertFallTravel(cylinderStart, vortex.cylinderState, horizon);
+        final double cubeTravel =
+          assertFallTravelIsWholeCycles(cubeStart, vortex.cubeState);
+        final double cylinderTravel =
+          assertFallTravelIsWholeCycles(cylinderStart, vortex.cylinderState);
+        assertEquals(cubeTravel, cylinderTravel, EPSILON,
+          "both surfaces must share one Fall travel, or they drift apart as Fall sweeps");
       }
     } finally {
       vortex.dispose();
     }
   }
 
-  private static void assertFallTravel(
-    double[] start, Vortex.SurfaceState state, Vortex.Horizon horizon) {
-
-    final double expectedTravel = -horizon.zetaSpan(state);
+  /**
+   * A full sweep of Fall must advance every row by the same whole number of wave cycles.
+   *
+   * <p>Whole cycles are what let a looping modulator wrap without a jump. One shared advance
+   * across both surfaces is what keeps the cube and cylinder from drifting apart, which is why
+   * this asserts a single travel rather than each surface's own geometric span.
+   */
+  private static double assertFallTravelIsWholeCycles(double[] start, Vortex.SurfaceState state) {
+    final double travel = state.rowPhase[0] - start[0];
+    final double cycles = travel / Vortex.TWO_PI;
+    assertEquals(Math.rint(cycles), cycles, EPSILON,
+      "Fall must sweep a whole number of wave cycles so a looping modulator closes");
+    assertTrue(Math.abs(cycles) >= 1,
+      "Fall must sweep at least one cycle, or it cannot traverse the vortex");
     for (int y = 0; y < start.length; ++y) {
-      assertEquals(expectedTravel, state.rowPhase[y] - start[y], EPSILON);
+      assertEquals(travel, state.rowPhase[y] - start[y], EPSILON,
+        "every row must advance together, or Fall would shear the image");
     }
+    return travel;
   }
 
   @Test
