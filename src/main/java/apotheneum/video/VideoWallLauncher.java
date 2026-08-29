@@ -331,17 +331,24 @@ final class VideoWallLauncher {
     start(-1, false);
   }
 
-  /** Opens the local preview once, or brings its existing window to the front. */
-  void openOrFocusPreview() {
-    final Playback current = this.playback;
-    if ((current != null) && current.isRunning() && current.matches(-1, false)) {
-      current.focus();
-      return;
-    }
-    startPreview();
+  /**
+   * Reveals the local preview, replacing any existing preview player after the
+   * new window has delivered its first frame.
+   *
+   * <p>On macOS an SDL window can be closed or hidden behind a full-screen
+   * window while its ffplay process remains alive. Process activation cannot
+   * distinguish that state from a visible window, so a button press creates a
+   * fresh player make-before-break instead of trusting process liveness.
+   */
+  void revealPreview() {
+    start(-1, false, true);
   }
 
   private void start(int displayIndex, boolean fullScreen) {
+    start(displayIndex, fullScreen, false);
+  }
+
+  private void start(int displayIndex, boolean fullScreen, boolean forceNewPlayer) {
     final String ffmpegPath = findFfmpeg();
     final String ffplayPath = findFfplay();
     if ((ffmpegPath == null) || (ffplayPath == null)) {
@@ -353,7 +360,8 @@ final class VideoWallLauncher {
 
     final List<String> ffmpegCommand = buildFfmpegCommand(ffmpegPath);
     final Playback current = this.playback;
-    if ((current != null) && current.isRunning() && current.matches(displayIndex, fullScreen)) {
+    if (!forceNewPlayer
+      && (current != null) && current.isRunning() && current.matches(displayIndex, fullScreen)) {
       try {
         final FrameSource nextSource = startFfmpeg(ffmpegCommand);
         if (current.relay.switchWhenReady(nextSource)) {
@@ -410,7 +418,12 @@ final class VideoWallLauncher {
       final FrameSource ffmpeg = startFfmpeg(ffmpegCommand);
       final AtomicReference<Playback> priorHolder = new AtomicReference<>(prior);
       final AtomicReference<Playback> playbackHolder = new AtomicReference<>();
-      final Runnable firstFrameDelivered = (prior == null) ? null : () -> stopPrior(priorHolder);
+      final Runnable firstFrameDelivered = ((prior == null) && fullScreen) ? null : () -> {
+        stopPrior(priorHolder);
+        if (!fullScreen) {
+          focusProcess(ffplay);
+        }
+      };
       final FrameRelay relay = new FrameRelay(
         ffmpeg,
         ffplay.getOutputStream(),
@@ -505,10 +518,6 @@ final class VideoWallLauncher {
 
     private boolean matches(int displayIndex, boolean fullScreen) {
       return (this.displayIndex == displayIndex) && (this.fullScreen == fullScreen);
-    }
-
-    private void focus() {
-      focusProcess(this.ffplay);
     }
 
     private void stop() {
