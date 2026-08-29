@@ -392,8 +392,8 @@ public class Grass extends ColorNativePattern {
           } else {
             final int index = y * this.width + c;
             colors[points[y].index] = blendTones(
-              primary.color(0), this.primaryBuffer[index], secondary.color(silveringValue),
-              this.secondaryBuffer[index]);
+              primary.color(silveringValue), this.primaryBuffer[index],
+              secondary.color(silveringValue), this.secondaryBuffer[index]);
           }
         }
         for (int y = available; y < points.length; ++y) {

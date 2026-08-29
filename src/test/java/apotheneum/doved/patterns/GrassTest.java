@@ -78,6 +78,90 @@ public class GrassTest {
     }
   }
 
+  /**
+   * {@code Grass.output()} used to call {@code primary.color(0)}, hardcoding away the
+   * argument {@code primary.amount} exists to scale, so the knob was exposed in the UI and did
+   * nothing: every frame read as physics=0 regardless of wind. {@code secondary.color
+   * (silveringValue)} right next to it was unaffected, which is why the bug was easy to miss by
+   * eye - the pattern still visibly reacted to wind, just only on one of its two tones.
+   *
+   * <p>Two identically-seeded, identically-driven {@code Grass} instances (the pattern uses a
+   * fixed {@code Random} seed, exactly like {@code Fireball}, so this is a real determinism
+   * guarantee and not a coincidence) differing only in {@code primary.amount} must render
+   * different colors somewhere once wind ({@code silvering}, default .25, nonzero) is flowing -
+   * otherwise the argument is still not reaching {@code primary.color(...)}.
+   */
+  @Test
+  void primaryAmountAffectsRenderedColor() throws Exception {
+    final int[] off = renderGrassCylinderExteriorColors(0);
+    final int[] on = renderGrassCylinderExteriorColors(1);
+
+    boolean differed = false;
+    for (int i = 0; i < off.length; ++i) {
+      if (off[i] != on[i]) {
+        differed = true;
+        break;
+      }
+    }
+    assertTrue(
+      differed,
+      "primary.amount=0 and primary.amount=1 rendered identical colors - "
+        + "primary.color(...) is not receiving a live physics argument");
+  }
+
+  /**
+   * Renders 60 deterministic frames (fixed simulation seed, matching {@code Fireball}) of a
+   * fresh {@code Grass} on its own {@code LX}/fixture, with {@code primary.amount} set to
+   * {@code primaryAmount}, and returns the final colors of every cylinder-exterior point in
+   * column order. A separate {@code LX} per call avoids any cross-channel interaction in the
+   * mixer affecting buffer allocation.
+   */
+  private static int[] renderGrassCylinderExteriorColors(double primaryAmount) throws Exception {
+    final Path mediaPath = Files.createTempDirectory("apotheneum-grass-amount-test-");
+    LX lx = null;
+    try {
+      copyFixtureMedia(mediaPath);
+      final LX.Flags flags = new LX.Flags();
+      flags.loadPreferences = false;
+      flags.mediaPath = mediaPath.toString();
+      flags.outputMode = LX.Flags.OutputMode.INACTIVE;
+      lx = new LX(flags);
+      lx.engine.output.enabled.setValue(false);
+
+      final JsonFixture fixture = new JsonFixture(lx, FIXTURE_NAME);
+      lx.structure.addFixture(fixture);
+      lx.structure.beforeEngineRun();
+      assertFalse(fixture.error.isOn(), fixture.errorMessage.getString());
+      Apotheneum.initialize(lx);
+
+      final Grass grass = new Grass(lx);
+      grass.primary.amount.setValue(primaryAmount);
+      lx.engine.mixer.addChannel(new Grass[] { grass });
+
+      lx.engine.run();
+      for (int frame = 0; frame < 60; ++frame) {
+        grass.loop(1000. / 60.);
+      }
+
+      final int[] colors = grass.getColors();
+      final Apotheneum.Column[] columns = Apotheneum.cylinder.exterior.columns();
+      final int height = Apotheneum.CYLINDER_HEIGHT;
+      final int[] result = new int[columns.length * height];
+      int i = 0;
+      for (Apotheneum.Column column : columns) {
+        for (LXPoint point : column.points) {
+          result[i++] = colors[point.index];
+        }
+      }
+      return result;
+    } finally {
+      if (lx != null) {
+        lx.dispose();
+      }
+      deleteTree(mediaPath);
+    }
+  }
+
   private static void copyFixtureMedia(Path mediaPath) throws IOException {
     final Path destination = Files.createDirectories(mediaPath.resolve("Fixtures"));
     try (Stream<Path> sources = Files.list(SOURCE_FIXTURES)) {
