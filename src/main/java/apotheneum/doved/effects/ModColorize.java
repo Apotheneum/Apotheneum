@@ -11,6 +11,8 @@ import heronarts.lx.LXComponent;
 import heronarts.lx.color.LXSwatch;
 import heronarts.lx.effect.color.ColorizeEffect;
 import heronarts.lx.parameter.CompoundDiscreteParameter;
+
+import apotheneum.doved.modulators.ApotheneumColor;
 import heronarts.lx.studio.LXStudio.UI;
 import heronarts.lx.studio.ui.device.UIDevice;
 import heronarts.lx.studio.ui.device.UIDeviceControls;
@@ -68,11 +70,59 @@ public class ModColorize extends ColorizeEffect implements UIDeviceControls<ModC
     new CompoundDiscreteParameter("Invert", new String[] { "Off", "On" })
     .setDescription("Invert the palette gradient direction; drives the stock Invert, which as a BooleanParameter cannot itself be modulated");
 
+  /**
+   * Take both ends from the shared {@link ApotheneumColor} instead of from this device's own
+   * Start/End pickers, so a Colorize is part of the room's colour rather than a second,
+   * independent colour decision sitting on top of it.
+   *
+   * <p>On (the default) writes {@code ApotheneumColor}'s resolved primary into {@link #color1}
+   * and its secondary into {@link #color2} every frame, and forces {@link #colorMode} to {@code
+   * FIXED} so those two are what the ramp actually reads. Off is exactly this class's
+   * pre-2026-08-30 behaviour, with every stock control back under manual control.
+   *
+   * <p><b>This changes how an already-saved ModColorize loads.</b> A project file written before
+   * this parameter existed has no value for it, so those instances come back with global colour
+   * on and their saved {@code colorMode} overridden to {@code FIXED}. That is the intended
+   * migration -- the point of the shared colour state is that devices follow it by default --
+   * but it is a visible change to existing work, not a silent no-op, so turn this off on any
+   * device that was deliberately holding its own colour.
+   *
+   * <p>A {@code CompoundDiscreteParameter} rather than a {@code BooleanParameter} for the same
+   * reason every other parameter on this class is one: only the former is an {@code
+   * LXCompoundModulation.Target}, and following the room's colour is exactly the kind of thing a
+   * performer wants on a knob or a MIDI switch.
+   */
+  public final CompoundDiscreteParameter global =
+    new CompoundDiscreteParameter("Global", new String[] { "Off", "On" }, 1)
+    .setDescription("Take both ends from the shared Apotheneum Color rather than this device's own Start/End pickers");
+
+  /**
+   * How many palette stops away from the shared pair this device sits, when {@link #global} is
+   * on. This is the "a bit of tweaking" half of following the global colour: 0 puts this
+   * Colorize on exactly the room's own pair, and a non-zero value moves both ends together
+   * along the palette while still tracking every {@code pair}/{@code swap}/{@code axis} gesture.
+   *
+   * <p>Whole stops, and nothing else -- no hue rotation, no saturation trim. Every value this
+   * can produce is still an unmodified palette colour, which is the invariant {@link
+   * ApotheneumColor} exists to keep; a per-device hue offset here would reintroduce exactly the
+   * off-palette synthesis that class deleted. It wraps around the live swatch, so no setting can
+   * push this device off the end of the palette onto a repeated stop.
+   *
+   * <p>Range -4..+4 rather than 0..MAX: the shift is relative and a palette is a loop, so
+   * negative values are as meaningful as positive ones and "one stop back" should not require
+   * counting all the way around.
+   */
+  public final CompoundDiscreteParameter shift =
+    new CompoundDiscreteParameter("Shift", 0, -4, 5)
+    .setDescription("Palette stops away from the shared Apotheneum Color pair, when Global is on");
+
   public ModColorize(LX lx) {
     super(lx);
     addParameter("stop", this.stop);
     addParameter("stops", this.stops);
     addParameter("invert", this.invert);
+    addParameter("global", this.global);
+    addParameter("shift", this.shift);
     writeThrough();
   }
 
@@ -83,6 +133,47 @@ public class ModColorize extends ColorizeEffect implements UIDeviceControls<ModC
     this.paletteIndex.setValue(this.stop.getValuei());
     this.paletteStops.setValue(this.stops.getValuei());
     this.paletteInvert.setValue(this.invert.getValuei() > 0);
+    writeGlobalColor();
+  }
+
+  /**
+   * Drives {@link #color1}/{@link #color2} from the shared {@link ApotheneumColor} when {@link
+   * #global} is on, and forces {@link #colorMode} to {@code FIXED} so the ramp reads them.
+   *
+   * <p><b>Surface-blind on purpose.</b> Both ends resolve against a {@code null}
+   * {@code ApotheneumColor.Surface}, which skips the per-surface stop shift {@code axis}
+   * applies. That is not a shortcut around {@code axis} -- it is the only honest answer here.
+   * This class's own javadoc already says it: a Colorize receives nothing but {@code colors[]},
+   * so by the time it runs there is no pattern form and no surface identity left to resolve
+   * against; every surface would have to be given the same answer whatever was asked for. A
+   * per-surface {@code axis} shift belongs on the surface-aware paths -- {@code
+   * GradientMultiplyEffect}, which addresses the four surfaces by geometry, and the {@code
+   * ColorNativePattern} roles, which know which surface each pixel is on. {@link #shift} is this
+   * device's own offset and applies regardless.
+   *
+   * <p>{@link #invert} is reused as the local swap rather than getting a second parameter beside
+   * it: under {@code FIXED} the two ends <em>are</em> the gradient direction, so exchanging them
+   * is precisely what "invert the gradient direction" already means. It keeps driving the stock
+   * {@code paletteInvert} as before, which simply has nothing to act on while {@code colorMode}
+   * is {@code FIXED}.
+   *
+   * <p>Per frame rather than on a parameter listener, for the reason the rest of {@link
+   * #writeThrough} is: modulation moves an effective value without touching the base, and
+   * listeners only fire on the base. The palette stop itself can also be edited or animated
+   * underneath us with no parameter change on this device at all.
+   */
+  private void writeGlobalColor() {
+    if (this.global.getValuei() <= 0) {
+      return;
+    }
+    final ApotheneumColor color = ApotheneumColor.get(getLX());
+    final int stopShift = this.shift.getValuei();
+    final int primary = ApotheneumColor.resolvePrimaryOrNeutral(color, null, stopShift);
+    final int secondary = ApotheneumColor.resolveSecondaryOrNeutral(color, null, stopShift);
+    final boolean swapped = this.invert.getValuei() > 0;
+    this.color1.setColor(swapped ? secondary : primary);
+    this.color2.setColor(swapped ? primary : secondary);
+    this.colorMode.setValue(ColorMode.FIXED);
   }
 
   @Override
@@ -144,6 +235,17 @@ public class ModColorize extends ColorizeEffect implements UIDeviceControls<ModC
   public void buildDeviceControls(UI ui, UIDevice device, ModColorize colorize) {
     device.setLayout(UI2dContainer.Layout.HORIZONTAL);
     device.setChildSpacing(4);
+
+    // Global leads the panel rather than sitting inside Gradient: with Global on, the Start
+    // and End pickers and every palette-ramp control to the right of it are readouts rather
+    // than inputs, so the switch that decides that has to be the first thing read, not
+    // something found after wondering why the colour pickers do nothing. Its own row keeps the
+    // Gradient column under the height cap a third knob row would have pushed it past.
+    addColumn(device, 92, "Global",
+      row(KNOB_ROW, newKnob(colorize.global), newKnob(colorize.shift))
+    );
+
+    addVerticalBreak(ui, device);
 
     // source gets an explicit 80px, not the 52px default: a render clipped its default
     // selection, "Brightness", to "Brightn". Stock UIColorizeEffect widens this same dropdown

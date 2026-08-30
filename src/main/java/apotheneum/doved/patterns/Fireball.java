@@ -432,7 +432,34 @@ public class Fireball extends ColorNativePattern {
     // closing the loop: bearingLut[width] == bearingLut[0] + 2*PI. Built once per attach(),
     // from real geometry, so bearingAt/arcFractionForBearing never assume either surface is
     // a particular shape. See the two methods below and the comment in Fireball#simulate.
+    // Never null after configure(): a geometry-free instance carries the circular LUT
+    // buildCircularBearingLut installs, a real one the fixture-derived table from
+    // buildBearingLut. See buildCircularBearingLut for why.
     private float[] bearingLut = null;
+
+    /**
+     * This shape's {@code PhysicsColorizer}, built once rather than per frame.
+     *
+     * <p>Written as a lambda over {@code this}'s own fields rather than one capturing
+     * {@code render}'s locals: a <em>capturing</em> lambda expression allocates a fresh object
+     * every time it is evaluated, so the previous form built one per shape per frame -- 120
+     * throwaway objects a second across the two shapes, inside the render loop {@code
+     * docs/lx-coding-guidelines.md} &#167;1 forbids allocating in. The fields it reads
+     * ({@code heat}, {@code usable}, {@code height}) are assigned in {@code attach()}/{@code
+     * configure()} and read at invocation time, so this is bound before they exist and still
+     * sees whatever the current model change installed.
+     */
+    private final PhysicsColorizer colorizer = (surface, cell) -> {
+      if (!this.usable[cell]) {
+        return LXColor.BLACK;
+      }
+      final float value = this.heat[cell];
+      if (value <= HEAT_EPSILON) {
+        return LXColor.BLACK;
+      }
+      return Fireball.this.colorHeat(
+        surface, value, colorPhysics(cell / this.height, cell % this.height));
+    };
 
     private final Spark[] sparks = new Spark[SPARK_POOL];
     private int sparkCount = 0;
@@ -571,6 +598,37 @@ public class Fireball extends ColorNativePattern {
       this.sparkCount = 0;
       this.seeded = false;
       this.noiseTime = 0;
+      buildCircularBearingLut(width);
+    }
+
+    /**
+     * A uniform bearing LUT for a perfect circle of {@code width} columns -- installed by
+     * {@link #configure} so a {@code Fire} always has one, and overwritten immediately
+     * afterwards by {@link #buildBearingLut}'s real, fixture-derived table on every instance
+     * that {@link #attach}es to an orientation.
+     *
+     * <p>This exists because the geometry-free {@code Fire(width, height, available)}
+     * constructor -- the one the physics tests use -- calls {@link #configure} without ever
+     * calling {@link #attach}, so {@code bearingLut} stayed {@code null} and any call to
+     * {@link #bearingAt}/{@link #arcFractionForBearing} on such an instance threw {@code
+     * NullPointerException}. Nothing did that yet; the next geometry-free test written against
+     * this class would have.
+     *
+     * <p>A circle is the honest degenerate answer rather than a placeholder: bearing and
+     * arc-length agree exactly on a circle and nowhere else, so on an instance with no geometry
+     * to remap against, {@link #bearingAt} and {@link #arcFractionForBearing} become each
+     * other's exact inverse and the remap is the identity -- which is precisely the behaviour
+     * this whole LUT replaced on the cylinder, and precisely what "no geometry was supplied"
+     * should mean. It is never what a real surface sees: the cube's real LUT is markedly
+     * non-uniform (that non-uniformity is the entire bug this remap fixed), and every real
+     * instance is built through {@link #attach}.
+     */
+    private void buildCircularBearingLut(int width) {
+      final float[] lut = new float[width + 1];
+      for (int x = 0; x <= width; ++x) {
+        lut[x] = TWO_PI_F * x / width;
+      }
+      this.bearingLut = lut;
     }
 
     private void extinguish() {
@@ -851,25 +909,13 @@ public class Fireball extends ColorNativePattern {
       // it would cost the same as recomputing it and there is nothing else that reads it.
       final ApotheneumColor.Surface exteriorSurface = ApotheneumColor.Surface.of(this.orientation);
       final ApotheneumColor.Surface interiorSurface = ApotheneumColor.Surface.of(this.mirrorOrientation);
-      final float[] heat = this.heat;
-      final boolean[] usable = this.usable;
-      final int height = this.height;
       Fireball.this.colorizeCells(
-        this.width * height,
+        this.width * this.height,
         this.pointIndex,
         exteriorSurface,
         this.mirrorIndex,
         interiorSurface,
-        (surface, cell) -> {
-          if (!usable[cell]) {
-            return LXColor.BLACK;
-          }
-          final float value = heat[cell];
-          if (value <= HEAT_EPSILON) {
-            return LXColor.BLACK;
-          }
-          return Fireball.this.colorHeat(surface, value, colorPhysics(cell / height, cell % height));
-        }
+        this.colorizer
       );
       renderSparks(colors, exteriorSurface, interiorSurface);
     }

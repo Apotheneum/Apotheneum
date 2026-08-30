@@ -284,7 +284,9 @@ public class Jungle extends ColorNativePattern {
   private int leafRepeat, surfaceRepeat;
 
   public Jungle(LX lx) {
-    // Palette stops 1 and 2, as the other colour-native pattern on this rig uses.
+    // Primary/secondary physics-coupling amounts. Which palette stops those two roles
+    // resolve from is no longer a per-pattern choice -- it is ApotheneumColor's shared
+    // pair/swap/axis state, read by every ColorNativePattern.
     super(lx, .5, .5);
     addParameter("wind", this.wind);
     addParameter("gust", this.gust);

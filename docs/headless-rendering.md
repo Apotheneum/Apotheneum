@@ -135,11 +135,14 @@ mvn -Ptests test-compile exec:exec \
   -Dpattern=heronarts.lx.pattern.color.SolidPattern \
   -Deffects=apotheneum.doved.effects.GradientMultiplyEffect \
   '-Dpalette=30,95,100;210,92,100' \
-  -DapotheneumColor=0,0,0,0 \
+  -DapotheneumColor=0,0,0 \
   -DapotheneumGradient=0,0
 ```
 
-The spec is `azimuth,elevation` in degrees — `0,0` is fully horizontal at azimuth 0;
+The `-DapotheneumColor=` spec is `pair,swap,axis` — three values, not four; see the
+colour-native section below for what each one does.
+
+The `-DapotheneumGradient=` spec is `azimuth,elevation` in degrees — `0,0` is fully horizontal at azimuth 0;
 `0,90` (or `0,-90`) is the vertical gradient confirmed to look right on every surface;
 something like `45,30` exercises a genuine diagonal. Render all three before trusting a
 change to the projection math: a seam that only shows up off-axis is exactly the kind of
@@ -172,19 +175,28 @@ mvn -Ptests test-compile exec:exec \
   '-Dpalette=30,95,100;210,92,100'
 ```
 
-Pass an `ApotheneumColor`. The spec is four integers, comma-separated, in
-`RenderSurface` order — `cubeExteriorOffset,cubeInteriorOffset,cylinderExteriorOffset,
-cylinderInteriorOffset` — applied as each surface's `indexOffset` (`pair`/`swap` are left
-at their shared default of 0; see `ApotheneumColorTest` for those). A distinct offset per
-surface is what proves the four surfaces are actually resolving independently, which is
-the entire point of `ApotheneumColor`'s design:
+Pass an `ApotheneumColor`. The spec is **three** integers, comma-separated — `pair,swap,axis`
+— set directly on the registered singleton's three parameters. There is no per-surface value
+to pass: `ApotheneumColor` no longer has per-surface `indexOffset`/`hueOffset`/`satTrim`
+parameters, and `axis` is what makes the four surfaces resolve to different stops (see that
+class's `Axis` javadoc). `pair` is 0 or 1, `swap` is 0 or 1, and `axis` is 0 (None), 1
+(Shape) or 2 (In/Out). Anything other than three values is rejected outright with
+`Invalid apotheneumColor spec`.
+
+`axis=1` (Shape, cube and cylinder one stop apart) is the setting that proves the surfaces
+resolve independently, so it is the useful default for a colour render:
 
 ```bash
 mvn -Ptests test-compile exec:exec \
   -Dpattern=apotheneum.doved.patterns.Rockfall \
-  -DapotheneumColor=0,1,-1,2 \
+  -DapotheneumColor=0,0,1 \
   '-Dpalette=200,90,70;30,90,70;280,92,70'
 ```
+
+Give the palette **at least as many stops as the axis will reach** — `axis` shifts a surface
+by one stop and `ApotheneumColor` wraps around the live stop count, so a two-stop palette
+under `axis=1` puts the cylinder on the same stop pair the cube already has, wrapped, rather
+than on a visibly distinct one. Three or more stops, as above, makes the shift legible.
 
 Quote it — the stop separator is a `;`, which an unquoted shell reads as a command
 separator. On a cube-exterior contact sheet that example is the difference between one

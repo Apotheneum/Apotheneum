@@ -348,6 +348,27 @@ public class Waterfall extends ColorNativePattern {
   private final int[] cubeExteriorPointIndex = new int[CUBE_WIDTH * Apotheneum.GRID_HEIGHT];
   private final int[] cubeInteriorPointIndexStorage = new int[CUBE_WIDTH * Apotheneum.GRID_HEIGHT];
   private int[] cubeInteriorPointIndex = null;
+  /**
+   * The two shapes' {@code PhysicsColorizer}s, built once at construction rather than per frame.
+   *
+   * <p>{@link #colorizeShape} used to build its colorizer inline as a lambda capturing its own
+   * parameters ({@code rockIntensity}, {@code waterLevel}, {@code rockColorInput}, {@code
+   * waterColorInput}, {@code height}). A capturing lambda expression allocates a fresh object
+   * every time it is evaluated, so that built one per shape per frame -- 120 throwaway objects a
+   * second, inside the render loop {@code docs/lx-coding-guidelines.md} &#167;1 forbids
+   * allocating in. Two fields rather than one mutable field reassigned per call: the cube and
+   * cylinder substance arrays are separate {@code final} fields already, so each colorizer can
+   * simply name its own, with no per-call state to set up and no window where one shape's
+   * colorizer is pointed at the other's arrays.
+   */
+  private final PhysicsColorizer cubeColorizer = (surface, cell) -> substanceColor(
+    surface, cell, Apotheneum.GRID_HEIGHT, this.cubeRockIntensity, this.cubeWaterLevel,
+    this.cubeRockColorInput, this.cubeWaterColorInput);
+
+  private final PhysicsColorizer cylinderColorizer = (surface, cell) -> substanceColor(
+    surface, cell, Apotheneum.CYLINDER_HEIGHT, this.cylinderRockIntensity, this.cylinderWaterLevel,
+    this.cylinderRockColorInput, this.cylinderWaterColorInput);
+
   private final int[] cylinderExteriorPointIndex = new int[CYLINDER_WIDTH * Apotheneum.CYLINDER_HEIGHT];
   private final int[] cylinderInteriorPointIndexStorage = new int[CYLINDER_WIDTH * Apotheneum.CYLINDER_HEIGHT];
   private int[] cylinderInteriorPointIndex = null;
@@ -480,11 +501,9 @@ public class Waterfall extends ColorNativePattern {
     // collapse ApotheneumColor.Axis.INSIDE_OUTSIDE to look like Axis.NONE. See
     // docs/color-native-pattern-substance.md.
     colorizeShape(Apotheneum.cube.exterior, this.cubeExteriorPointIndex, Apotheneum.cube.interior,
-      this.cubeInteriorPointIndex, Apotheneum.GRID_HEIGHT, this.cubeRockIntensity, this.cubeWaterLevel,
-      this.cubeRockColorInput, this.cubeWaterColorInput);
+      this.cubeInteriorPointIndex, this.cubeColorizer);
     colorizeShape(Apotheneum.cylinder.exterior, this.cylinderExteriorPointIndex, Apotheneum.cylinder.interior,
-      this.cylinderInteriorPointIndex, Apotheneum.CYLINDER_HEIGHT, this.cylinderRockIntensity, this.cylinderWaterLevel,
-      this.cylinderRockColorInput, this.cylinderWaterColorInput);
+      this.cylinderInteriorPointIndex, this.cylinderColorizer);
   }
 
   /**
@@ -538,11 +557,7 @@ public class Waterfall extends ColorNativePattern {
     int[] exteriorPointIndex,
     Apotheneum.Orientation interiorOrNull,
     int[] interiorPointIndexOrNull,
-    int height,
-    float[] rockIntensity,
-    float[] waterLevel,
-    float[] rockColorInput,
-    float[] waterColorInput
+    PhysicsColorizer colorizer
   ) {
     final ApotheneumColor.Surface exteriorSurface = ApotheneumColor.Surface.of(exterior);
     final ApotheneumColor.Surface interiorSurface =
@@ -553,18 +568,34 @@ public class Waterfall extends ColorNativePattern {
       exteriorSurface,
       interiorPointIndexOrNull,
       interiorSurface,
-      (surface, cell) -> {
-        final float rock = rockIntensity[cell];
-        if (rock > 0) {
-          return LXColor.scaleBrightness(this.rockColor.color(surface, rockColorInput[cell / height]), rock);
-        }
-        final float water = waterLevel[cell];
-        if (water > 0) {
-          return LXColor.scaleBrightness(this.waterColor.color(surface, waterColorInput[cell / height]), water);
-        }
-        return LXColor.BLACK;
-      }
+      colorizer
     );
+  }
+
+  /**
+   * The body of both {@link #cubeColorizer} and {@link #cylinderColorizer}: rock wins over water
+   * where both are present, each scaled by its own substance level, black where neither is.
+   * {@code rockColorInput}/{@code waterColorInput} are column-sized, so a cell's colour-coupling
+   * input is looked up by {@code cell / height}.
+   */
+  private int substanceColor(
+    ApotheneumColor.Surface surface,
+    int cell,
+    int height,
+    float[] rockIntensity,
+    float[] waterLevel,
+    float[] rockColorInput,
+    float[] waterColorInput
+  ) {
+    final float rock = rockIntensity[cell];
+    if (rock > 0) {
+      return LXColor.scaleBrightness(this.rockColor.color(surface, rockColorInput[cell / height]), rock);
+    }
+    final float water = waterLevel[cell];
+    if (water > 0) {
+      return LXColor.scaleBrightness(this.waterColor.color(surface, waterColorInput[cell / height]), water);
+    }
+    return LXColor.BLACK;
   }
 
   private void computeShape(Apotheneum.Orientation orientation, int shape, float[] cos, float[] sin,

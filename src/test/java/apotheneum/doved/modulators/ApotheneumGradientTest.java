@@ -153,4 +153,85 @@ public class ApotheneumGradientTest extends HeadlessLxTest {
       new LXPoint(xMax, yMax, zMax)
     ));
   }
+
+  /** A box tagged as Apotheneum, so {@code model.sub("Apotheneum")} finds it -- the same tag
+   * {@code Apotheneum.initialize} keys off to decide the installation is present. */
+  private static LXModel apotheneumBox(
+    double xMin, double xMax, double yMin, double yMax, double zMin, double zMax
+  ) {
+    return new LXModel(List.of(
+      new LXPoint(xMin, yMin, zMin),
+      new LXPoint(xMax, yMax, zMax)
+    ), "Apotheneum");
+  }
+
+  /**
+   * The whole reason {@code apotheneumProjectedMin}/{@code Max} exist: an unrelated fixture
+   * sharing the project must not widen the span the gradient normalizes against.
+   *
+   * <p>{@code GradientMultiplyEffect} passed {@code lx.getModel()} straight in, so a second
+   * fixture off to one side stretched the {@code [0, 1]} range across empty space and the
+   * installation stopped reaching either endpoint colour -- compressed, not clipped, and with
+   * nothing on screen naming the added fixture as the cause. Asserted as the exact bounds of
+   * the Apotheneum-tagged box, not merely "narrower than the whole model": the failure mode is
+   * a wrong span, and only naming the right one rules out landing on a third wrong answer.
+   */
+  @Test
+  void projectedExtentIgnoresFixturesOutsideApotheneum() {
+    final LXModel apotheneum = apotheneumBox(-10, 10, 0, 5, 0, 0);
+    final LXModel unrelated = new LXModel(List.of(new LXPoint(1000, 0, 0)));
+    final LXModel project = new LXModel(new LXModel[] { apotheneum, unrelated });
+
+    assertEquals(1000, ApotheneumGradient.projectedMax(project, 1, 0, 0), EPSILON,
+      "the unscoped helper still reports the whole project, which is what made this a bug");
+    assertEquals(10, ApotheneumGradient.apotheneumProjectedMax(project, 1, 0, 0), EPSILON,
+      "the scoped helper must stop at Apotheneum's own far edge");
+    assertEquals(-10, ApotheneumGradient.apotheneumProjectedMin(project, 1, 0, 0), EPSILON,
+      "and at Apotheneum's own near edge");
+  }
+
+  /** With nothing tagged Apotheneum -- every geometry-free unit test, and any headless run
+   * before the fixture loads -- the scoped helpers must answer exactly what the unscoped ones
+   * do, so this change is inert rather than silently narrowing the span to nothing. */
+  @Test
+  void projectedExtentFallsBackToTheWholeModelWithoutAnApotheneumFixture() {
+    final LXModel model = boxModel(-10, 10, -5, 5, -20, 20);
+    assertEquals(
+      ApotheneumGradient.projectedMin(model, 1, 0, 0),
+      ApotheneumGradient.apotheneumProjectedMin(model, 1, 0, 0), EPSILON);
+    assertEquals(
+      ApotheneumGradient.projectedMax(model, 1, 0, 0),
+      ApotheneumGradient.apotheneumProjectedMax(model, 1, 0, 0), EPSILON);
+  }
+
+  /**
+   * {@code spread} collapses the gradient toward its midpoint rather than toward primary --
+   * previously carried only by {@code applySpread}'s javadoc, with no test, so a regression in
+   * the formula would have gone undetected. See that method for why the midpoint and not zero.
+   */
+  @Test
+  void spreadCollapsesTowardTheMidpointNotTowardPrimary() {
+    // spread = 1 is the identity: the full gradient, unchanged.
+    assertEquals(0, ApotheneumGradient.applySpread(0, 1), EPSILON);
+    assertEquals(0.5, ApotheneumGradient.applySpread(0.5, 1), EPSILON);
+    assertEquals(1, ApotheneumGradient.applySpread(1, 1), EPSILON);
+
+    // spread = 0 is flat: every input lands on the midpoint, so both ends blend evenly.
+    assertEquals(0.5, ApotheneumGradient.applySpread(0, 0), EPSILON);
+    assertEquals(0.5, ApotheneumGradient.applySpread(0.5, 0), EPSILON);
+    assertEquals(0.5, ApotheneumGradient.applySpread(1, 0), EPSILON);
+
+    // Halfway is halfway toward the midpoint from either end -- symmetric, and never toward 0.
+    assertEquals(0.25, ApotheneumGradient.applySpread(0, 0.5), EPSILON);
+    assertEquals(0.75, ApotheneumGradient.applySpread(1, 0.5), EPSILON);
+    assertEquals(0.5, ApotheneumGradient.applySpread(0.5, 0.5), EPSILON);
+  }
+
+  /** {@code spreadOrDefault} answers the full gradient when no instance is registered, matching
+   * this class's pre-{@code spread} behaviour rather than collapsing to flat colour. */
+  @Test
+  void spreadFallsBackToAFullGradientWithNoInstanceRegistered() {
+    newHeadlessLx();
+    assertEquals(1, ApotheneumGradient.spreadOrDefault(null), EPSILON);
+  }
 }

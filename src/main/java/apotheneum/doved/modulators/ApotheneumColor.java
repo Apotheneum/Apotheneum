@@ -18,9 +18,12 @@
 
 package apotheneum.doved.modulators;
 
+import java.util.List;
+
 import heronarts.lx.LX;
 import heronarts.lx.LXComponent;
 import heronarts.lx.color.LXColor;
+import heronarts.lx.color.LXDynamicColor;
 import heronarts.lx.color.LXSwatch;
 import heronarts.lx.osc.LXOscComponent;
 import heronarts.lx.parameter.CompoundDiscreteParameter;
@@ -99,7 +102,16 @@ public class ApotheneumColor extends LXComponent implements LXOscComponent {
    * {@code apotheneum.video.ApotheneumVideo} registers at {@code /lx/apotheneumVideo/*}. */
   public static final String PATH = "apotheneumColor";
 
-  private static final int MAX_COLORS = LXSwatch.MAX_COLORS;
+  /**
+   * {@link Axis#values()} hoisted once. {@code Enum.values()} clones its backing array on every
+   * call, and {@link #stopDelta(Surface)} sits on the per-pixel path every colour-native pattern
+   * now takes ({@code ColorRole.color} -> {@link #primaryColor}/{@link #secondaryColor} ->
+   * {@link #resolvedColor}), so calling it there allocated tens of thousands of throwaway arrays
+   * per frame -- exactly what {@code docs/lx-coding-guidelines.md} &#167;1 forbids, and a direct
+   * contradiction of {@code ColorNativePattern.colorizeCells}'s own "no allocation happens in
+   * this method or anything it calls" guarantee.
+   */
+  private static final Axis[] AXES = Axis.values();
 
   /**
    * The engine's registered {@code ApotheneumColor}, or {@code null} if
@@ -243,46 +255,40 @@ public class ApotheneumColor extends LXComponent implements LXOscComponent {
    * exact knob mapping quoted above. Investigation (see {@code
    * apotheneum.doved.effects.GradientMultiplyEffect}'s and each {@code
    * apotheneum.doved.patterns.ColorNativePattern} subclass's own notes) found the underlying
-   * asymmetry is real but narrower than "colour-native patterns can't do this": of the seven
-   * {@code ColorNativePattern} subclasses, {@code Fireball} and {@code Waterfall} specifically
-   * paint each shape's colour once against its own {@code Surface.of(...exterior)} identity and
-   * mechanically duplicate that value onto the interior mirror point ({@code Fireball}'s
+   * asymmetry was real but narrower than "colour-native patterns can't do this": of the seven
+   * {@code ColorNativePattern} subclasses, {@code Fireball} and {@code Waterfall} alone painted
+   * each shape's colour once against its own {@code Surface.of(...exterior)} identity and
+   * mechanically duplicated that value onto the interior mirror point ({@code Fireball}'s
    * {@code paint()}/{@code paintBrighter()}; {@code Waterfall}'s bulk {@code copyExterior()}),
    * a deliberate, pre-{@code ApotheneumColor} design (view-mask correctness for {@code Fireball};
    * simple bulk-copy convenience for {@code Waterfall}) -- not a limitation of this class or of
-   * {@code ColorNativePattern}. {@code Dunes}, {@code Grass}, {@code Jungle} and {@code Rockfall}
+   * {@code ColorNativePattern}. Both have since been migrated onto {@code
+   * ColorNativePattern.colorizeCells} and resolve per surface; see the note below. {@code Dunes}, {@code Grass}, {@code Jungle} and {@code Rockfall}
    * already resolve {@code Surface.of(orientation)} independently for interior and exterior (see
    * each one's {@code output}/{@code writeColors} or, for {@code Rockfall}, its per-orientation
    * {@code SurfaceWater}), so they already support every axis setting correctly, in full parity
    * with {@code GradientMultiplyEffect}. {@code LavaLamp} paints exterior only and never touches
    * interior, so it is unaffected either way.
    *
-   * <p><b>{@link #INSIDE_OUTSIDE} on {@code Fireball}/{@code Waterfall} does not merely fail to
-   * differ -- it collapses to look like {@link #NONE}.</b> Both patterns query {@code
-   * ApotheneumColor} exactly twice per frame, once for their own cube identity and once for
-   * their own cylinder identity, both nominally the *exterior* orientation (they never ask what
-   * {@code CUBE_INTERIOR}/{@code CYLINDER_INTERIOR} should be at all). Under {@link
-   * #INSIDE_OUTSIDE}, both exteriors carry {@code stopDelta = 0} -- correct for every pattern
-   * that genuinely paints all four surfaces, but on these two it means the cube query and the
-   * cylinder query resolve to the identical colour, so cube and cylinder -- which these two
-   * patterns otherwise keep genuinely different from each other -- collapse together too. The
-   * on-screen result is indistinguishable from {@link #NONE}, not a muted or absent version of
-   * {@link #INSIDE_OUTSIDE}. This is a real disagreement between the Global (effect) path, which
-   * has no such gap (below), and the Natural (colour-native pattern) path on exactly these two
-   * patterns -- named here rather than shipped silently.
+   * <p><b>The {@code Fireball}/{@code Waterfall} asymmetry this section used to describe is
+   * closed -- both are migrated.</b> Until 2026-08-30 those two patterns queried {@code
+   * ApotheneumColor} exactly twice per frame, once per shape and both times for the *exterior*
+   * identity, mirroring the result onto the interior; under {@link #INSIDE_OUTSIDE} both
+   * exteriors carry {@code stopDelta = 0}, so the cube query and the cylinder query resolved the
+   * identical colour and the setting collapsed to look exactly like {@link #NONE} rather than
+   * like a muted version of itself. Both now resolve colour independently per real surface
+   * through {@code ColorNativePattern.colorizeCells}: {@code Fireball}'s {@code Fire.render}
+   * passes both {@code Surface.of(orientation)} and {@code Surface.of(mirrorOrientation)}, and
+   * its embers do the same through {@code paintBrighter}; {@code Waterfall}'s bulk {@code
+   * copyExterior()} is gone in favour of a per-surface {@code colorizeShape} pass. The physics
+   * stays shared per cell -- correct, since interior and exterior are physically coincident --
+   * and only the colour resolution splits. All seven {@code ColorNativePattern} subclasses
+   * therefore honour all three settings, in full parity with {@code GradientMultiplyEffect};
+   * there is no remaining disagreement between the Global (effect) and Natural (pattern) paths.
    *
-   * <p>Fixing this on {@code Fireball}/{@code Waterfall} -- resolving colour independently for
-   * the interior point instead of mirroring the exterior's -- was not undertaken here: it was
-   * not asked for, and it is a real cost, not a trivial flag flip. {@code Fireball} would need
-   * {@code colorHeat()} (and each ember's colour) resolved twice per cell instead of once, inside
-   * an already-hot per-frame loop, and {@code paint()}/{@code paintBrighter()} would need to
-   * accept two colours instead of one. {@code Waterfall}'s single bulk {@code copyExterior()}
-   * would need to become an explicit second {@code renderShape}-shaped pass over each interior
-   * orientation -- and since interior and exterior are physically coincident, the *physics*
-   * (spray/spill grids) should almost certainly stay shared and only the *colour* resolution
-   * should split, which is a real restructuring of a working, already-tuned render method, not a
-   * one-line change. Both changes are plausible but touch tuned, delicate patterns; do them as a
-   * deliberate follow-up if wanted, not as a side effect of adding this control.
+   * <p>The one thing that has not changed: {@code LavaLamp} paints exterior only and never
+   * touches interior, so {@link #INSIDE_OUTSIDE} has nothing to differentiate there. That is
+   * that pattern's own scope, not a colour-resolution gap.
    *
    * <h2>Global (the effect path) has no such gap</h2>
    *
@@ -303,7 +309,15 @@ public class ApotheneumColor extends LXComponent implements LXOscComponent {
    * so switching it is inherently non-destructive: there is no secondary value anywhere that a
    * switch could overwrite or lose.
    */
-  private enum Axis { NONE, SHAPE, INSIDE_OUTSIDE }
+  public enum Axis { NONE, SHAPE, INSIDE_OUTSIDE }
+
+  /** The {@link #axis} setting currently selected. Public so callers and tests name a constant
+   * rather than repeating the raw ordinal {@link #AXIS_OPTIONS} happens to sit at -- {@code
+   * axis.setValue(ApotheneumColor.Axis.SHAPE.ordinal())} reads as what it means and stops
+   * compiling if the enum is ever renamed away underneath it. */
+  public Axis axis() {
+    return AXES[this.axis.getValuei()];
+  }
 
   /**
    * Constructed exactly once, by {@code apotheneum.doved.ApotheneumColorPlugin.initialize},
@@ -346,12 +360,33 @@ public class ApotheneumColor extends LXComponent implements LXOscComponent {
 
   /** This surface's fully-resolved primary color: shared index, this surface's own stop shift. */
   public int primaryColor(Surface surface) {
-    return resolvedColor(primaryIndex(), surface);
+    return primaryColor(surface, 0);
   }
 
   /** This surface's fully-resolved secondary color: shared index, this surface's own stop shift. */
   public int secondaryColor(Surface surface) {
-    return resolvedColor(secondaryIndex(), surface);
+    return secondaryColor(surface, 0);
+  }
+
+  /**
+   * {@link #primaryColor(Surface)} moved a further {@code stopShift} palette stops along, wrapped
+   * around the live swatch exactly as every other resolution here is.
+   *
+   * <p>For a caller that wants to <em>follow</em> the shared pair/swap gesture while sitting
+   * somewhere else in the palette than the piece as a whole -- {@code
+   * apotheneum.doved.effects.ModColorize} is the one that does, so a Colorize can be tinted a
+   * stop or two off the room without being pinned to an absolute stop that stops tracking the
+   * moment {@link #pair} moves. Deliberately a whole-stop shift and nothing else: the result is
+   * still an unmodified palette colour, which is the invariant this whole class exists to keep
+   * (see the class javadoc). {@code stopShift = 0} is exactly {@link #primaryColor(Surface)}.
+   */
+  public int primaryColor(Surface surface, int stopShift) {
+    return resolvedColor(primaryIndex() + stopShift, surface);
+  }
+
+  /** {@link #primaryColor(Surface, int)}'s secondary counterpart. */
+  public int secondaryColor(Surface surface, int stopShift) {
+    return resolvedColor(secondaryIndex() + stopShift, surface);
   }
 
   /**
@@ -375,14 +410,25 @@ public class ApotheneumColor extends LXComponent implements LXOscComponent {
    * each re-implementing the null check and the log gate.
    */
   public static int resolvePrimaryOrNeutral(ApotheneumColor color, Surface surface) {
+    return resolvePrimaryOrNeutral(color, surface, 0);
+  }
+
+  /** {@link #resolvePrimaryOrNeutral(ApotheneumColor, Surface)} with a stop shift -- see
+   * {@link #primaryColor(Surface, int)} for what the shift means and who wants one. */
+  public static int resolvePrimaryOrNeutral(ApotheneumColor color, Surface surface, int stopShift) {
     noteResolution(color);
-    return (color == null) ? LXColor.WHITE : color.primaryColor(surface);
+    return (color == null) ? LXColor.WHITE : color.primaryColor(surface, stopShift);
   }
 
   /** {@link #secondaryColor(Surface)}'s counterpart to {@link #resolvePrimaryOrNeutral}. */
   public static int resolveSecondaryOrNeutral(ApotheneumColor color, Surface surface) {
+    return resolveSecondaryOrNeutral(color, surface, 0);
+  }
+
+  /** {@link #resolveSecondaryOrNeutral(ApotheneumColor, Surface)} with a stop shift. */
+  public static int resolveSecondaryOrNeutral(ApotheneumColor color, Surface surface, int stopShift) {
     noteResolution(color);
-    return (color == null) ? LXColor.WHITE : color.secondaryColor(surface);
+    return (color == null) ? LXColor.WHITE : color.secondaryColor(surface, stopShift);
   }
 
   private static void noteResolution(ApotheneumColor color) {
@@ -407,16 +453,14 @@ public class ApotheneumColor extends LXComponent implements LXOscComponent {
    * current {@link #axis}, wrapped, and looked up directly in the palette -- no hue or
    * saturation math on top; every resolved colour is a real, unmodified palette stop. */
   private int resolvedColor(int sharedIndex, Surface surface) {
-    if (surface == null) {
-      return ColorNativePattern.paletteColor(this.lx.engine.palette.swatch.colors, sharedIndex - 1);
-    }
-    final int index = wrapIndex(sharedIndex + stopDelta(surface));
-    return ColorNativePattern.paletteColor(this.lx.engine.palette.swatch.colors, index - 1);
+    final List<LXDynamicColor> colors = this.lx.engine.palette.swatch.colors;
+    final int index = (surface == null) ? sharedIndex : (sharedIndex + stopDelta(surface));
+    return ColorNativePattern.paletteColor(colors, wrapIndex(index, colors.size()) - 1);
   }
 
   /** See {@link Axis}'s javadoc for what each setting means in palette-stop terms. */
   private int stopDelta(Surface surface) {
-    switch (Axis.values()[this.axis.getValuei()]) {
+    switch (AXES[this.axis.getValuei()]) {
       case SHAPE:
         return isCube(surface) ? 0 : 1;
       case INSIDE_OUTSIDE:
@@ -435,9 +479,35 @@ public class ApotheneumColor extends LXComponent implements LXOscComponent {
     return (surface == Surface.CUBE_EXTERIOR) || (surface == Surface.CYLINDER_EXTERIOR);
   }
 
-  /** Wraps a 1-based palette index around the swatch's stop count rather than clamping it. */
-  private static int wrapIndex(int index) {
-    return Math.floorMod(index - 1, MAX_COLORS) + 1;
+  /**
+   * Wraps a 1-based palette index around the swatch's <em>live</em> stop count rather than
+   * clamping it.
+   *
+   * <p><b>{@code stopCount} is the number of stops the swatch actually holds right now, not
+   * {@link LXSwatch#MAX_COLORS}.</b> This wrapped around the latter until 2026-08-30, which made
+   * the method a no-op on every real palette: {@code MAX_COLORS} is the swatch's fixed
+   * <em>capacity</em>, and this show's palettes run two to six stops, so an index that should
+   * have wrapped back to stop 1 stayed out past the end and {@link
+   * ColorNativePattern#paletteColor} then <em>clamped</em> it to the last real stop. Worked
+   * example on a two-stop swatch: {@link #pair} = 2 with any non-{@code NONE} {@link #axis}
+   * resolves the shifted surface to {@code 2 + 1 = 3}, which clamped back onto stop 2 -- the
+   * same stop the unshifted surface resolved -- so {@link #axis} had no visible effect at all,
+   * which is the opposite of what this method's own name promised. The unit test covering it
+   * used a one-colour swatch, where wrapping and clamping are indistinguishable, so it passed
+   * throughout.
+   *
+   * <p>Returns {@code 1} for an empty swatch rather than dividing by zero. That is defensive
+   * only, and deliberately not unit-tested: {@code LXSwatch.removeColor} refuses the last stop
+   * outright ({@code IllegalStateException: Cannot remove first color from a swatch}), so no
+   * sequence of API calls can produce a swatch this sees as empty. The guard costs one branch
+   * and turns a hypothetical {@code ArithmeticException} into the same white {@link
+   * ColorNativePattern#paletteColor} independently answers for an empty list.
+   */
+  private static int wrapIndex(int index, int stopCount) {
+    if (stopCount <= 0) {
+      return 1;
+    }
+    return Math.floorMod(index - 1, stopCount) + 1;
   }
 
 }

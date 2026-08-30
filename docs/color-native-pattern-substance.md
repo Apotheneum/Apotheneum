@@ -2,8 +2,8 @@
 
 Who this is for: an agent or contributor adopting a `ColorNativePattern` subclass onto
 `ColorNativePattern.colorizeCells` — most likely one of `Dunes`, `Grass`, `Jungle`,
-`LavaLamp`, `Rockfall`, or `Waterfall`, since `Fireball` is the only one already migrated
-as of this writing. No prior context from any conversation is assumed; everything needed
+`LavaLamp`, or `Rockfall`. `Fireball` and `Waterfall` are already migrated, and are the
+two worked examples this file points at. No prior context from any conversation is assumed; everything needed
 is either in this file or in the source it points at.
 
 ## The problem this solves
@@ -250,23 +250,32 @@ These notes exist so the next agent doesn't have to re-derive them.
 - **`LavaLamp`** paints exterior only, never touches interior at all. Adopting means
   passing `null` for `interiorPointIndexOrNull`/`interiorSurfaceOrNull` — the mirror step
   becomes a no-op that falls out of the API rather than needing a branch. Mechanical.
-- **`Waterfall` is the hard one**, and the reason this mechanism exists rather than a
-  smaller fix. Unlike `Fireball`, it has **no persistent substance buffer at all**:
-  `rockIntensity`/water `level` are computed and consumed on the same line as the colour
+- **`Waterfall` was the hard one**, and the reason this mechanism exists rather than a
+  smaller fix. **It is now migrated** — read it as the second worked example, alongside
+  `Fireball`. Before the migration it had **no persistent substance buffer at all**:
+  `rockIntensity`/water `level` were computed and consumed on the same line as the colour
   write inside `renderShape()`, then discarded. It also carries **two distinct
   substances** (rock and water) with their own colour roles, computed at two different
   granularities — `notch`/`speed` (the values fed to `.color()`) once per *column*; rock
-  intensity and water level once per *pixel*. Adopting this mechanism on `Waterfall`
-  means: (1) allocating new persistent per-shape intensity buffers (the same architectural
-  shape as its existing `cubeSpray`/`cylinderSpray`/`cubeSpill`/`cylinderSpill` grids, not
-  a foreign pattern, but new state nonetheless), (2) restructuring `renderShape()` to write
-  into those buffers instead of `colors[]` directly, and (3) replacing the single bulk
-  `copyExterior()` call with a `colorizeCells` pass per shape. The per-column noise values
-  (`notch`/`speed`) are cheap to recompute for an interior pass (a few hundred extra noise
-  calls per frame, trivial) — the real cost is code, not runtime: this is a genuine
-  rewrite of Waterfall's most complex render method, not a signature change. **As of this
-  writing, `Waterfall` has not been adopted and still collapses `Axis.INSIDE_OUTSIDE` to
-  look like `Axis.NONE`** — this is a known, named limitation, not an oversight.
+  intensity and water level once per *pixel*. Adopting the mechanism took all three of:
+  (1) new persistent per-shape intensity buffers (`cubeRockIntensity`/`cubeWaterLevel` and
+  their cylinder twins, the same architectural shape as the existing
+  `cubeSpray`/`cylinderSpray`/`cubeSpill`/`cylinderSpill` grids), (2) splitting the old
+  `renderShape()` into a `computeShape()` that writes substance into those buffers and a
+  `colorizeShape()` that resolves colour from them, and (3) replacing the single bulk
+  `copyExterior()` call with a `colorizeCells` pass per shape. `Axis.INSIDE_OUTSIDE` now
+  gives Waterfall's interior its own colour rather than collapsing to look like
+  `Axis.NONE`.
+
+  Two details worth copying when you migrate the next one. **Hoist the `PhysicsColorizer`
+  into a field**, one per shape (`cubeColorizer`/`cylinderColorizer`) — a lambda that
+  captures anything allocates a fresh object every time the expression is evaluated, so
+  building it inside the per-frame call is exactly the render-loop allocation
+  `docs/lx-coding-guidelines.md` §1 forbids. Two fields rather than one reassigned field
+  keeps each shape naming its own arrays, with no per-call setup. And **prove it with
+  renders, not just the suite**: the refactor was accepted only after byte-for-byte
+  identical renders under `Axis.NONE` and `Axis.SHAPE` against the previous build, which
+  is what established that only the `INSIDE_OUTSIDE` behaviour changed.
 
 ## Verification standard
 

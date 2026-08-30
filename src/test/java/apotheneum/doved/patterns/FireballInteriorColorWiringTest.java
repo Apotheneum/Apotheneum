@@ -66,7 +66,7 @@ public class FireballInteriorColorWiringTest {
       lx.engine.registerComponent(ApotheneumColor.PATH, apotheneumColor);
       apotheneumColor.pair.setValue(0);
       apotheneumColor.swap.setValue(0);
-      apotheneumColor.axis.setValue(2); // In/Out
+      apotheneumColor.axis.setValue(ApotheneumColor.Axis.INSIDE_OUTSIDE.ordinal());
 
       final Fireball fireball = new Fireball(lx);
       final LXChannel channel = lx.engine.mixer.addChannel(new Fireball[] { fireball });
@@ -145,7 +145,7 @@ public class FireballInteriorColorWiringTest {
       lx.engine.registerComponent(ApotheneumColor.PATH, apotheneumColor);
       apotheneumColor.pair.setValue(0);
       apotheneumColor.swap.setValue(0);
-      apotheneumColor.axis.setValue(1); // Shape
+      apotheneumColor.axis.setValue(ApotheneumColor.Axis.SHAPE.ordinal());
 
       final Fireball fireball = new Fireball(lx);
       lx.engine.mixer.addChannel(new Fireball[] { fireball });

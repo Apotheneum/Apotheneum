@@ -130,7 +130,8 @@ public class ColorNativePatternTest extends HeadlessLxTest {
     final ApotheneumColor apotheneumColor = registerApotheneumColor(lx);
     apotheneumColor.pair.setValue(0);
     apotheneumColor.swap.setValue(0);
-    apotheneumColor.axis.setValue(2); // In/Out: exterior and interior sit one stop apart
+    // In/Out: exterior and interior sit one stop apart
+    apotheneumColor.axis.setValue(ApotheneumColor.Axis.INSIDE_OUTSIDE.ordinal());
 
     final Rockfall rockfall = new Rockfall(lx);
     rockfall.rockColor.update();

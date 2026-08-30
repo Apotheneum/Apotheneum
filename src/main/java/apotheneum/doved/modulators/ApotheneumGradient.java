@@ -18,6 +18,8 @@
 
 package apotheneum.doved.modulators;
 
+import java.util.List;
+
 import heronarts.lx.LX;
 import heronarts.lx.LXComponent;
 import heronarts.lx.model.LXModel;
@@ -351,6 +353,62 @@ public class ApotheneumGradient extends LXComponent implements LXOscComponent {
     return Math.max(dx * model.xMin, dx * model.xMax)
       + Math.max(dy * model.yMin, dy * model.yMax)
       + Math.max(dz * model.zMin, dz * model.zMax);
+  }
+
+  /**
+   * The tag {@code Apotheneum.initialize} itself keys off to decide whether the installation is
+   * present ({@code model.sub("Apotheneum")}), reused here so this class scopes its gradient to
+   * exactly the geometry {@code Apotheneum} considers the installation.
+   */
+  private static final String APOTHENEUM_TAG = "Apotheneum";
+
+  /**
+   * {@link #projectedMin} over <em>Apotheneum's own</em> geometry rather than over whatever else
+   * the running project's top-level model happens to contain.
+   *
+   * <p>{@code GradientMultiplyEffect} passed {@code lx.getModel()} straight into {@link
+   * #projectedMin}/{@link #projectedMax} until 2026-08-30, which reproduced precisely the failure
+   * this class's own javadoc argues against: an unrelated fixture extending the project's
+   * bounding box would silently widen the span the gradient normalizes against, so the
+   * installation would occupy only part of {@code [0, 1]} and the gradient's endpoint colours
+   * would stop appearing on it at all -- compressed rather than clipped, and with nothing on
+   * screen naming the added fixture as the cause. The four passes underneath only ever transform
+   * the four Apotheneum surfaces, so the span they normalize against has to be those surfaces'
+   * span too.
+   *
+   * <p>Falls back to {@code model} itself when nothing carries the tag, which keeps every
+   * geometry-free unit test (a plain {@code GridModel}, no Apotheneum fixture) working against
+   * the same span it always did. On the real single-fixture rig the tagged submodel and the
+   * top-level model have identical bounds, so this is output-identical there -- the fix is
+   * insurance against a second fixture, not a change to what the installation renders today.
+   *
+   * <p>{@code LXModel.sub(String)} is a lookup in a prebuilt {@code subDict} map returning a
+   * cached list, not a scan or a fresh collection, so resolving this once per frame allocates
+   * nothing.
+   */
+  public static double apotheneumProjectedMin(LXModel model, double dx, double dy, double dz) {
+    final List<LXModel> scope = model.sub(APOTHENEUM_TAG);
+    if (scope.isEmpty()) {
+      return projectedMin(model, dx, dy, dz);
+    }
+    double min = Double.POSITIVE_INFINITY;
+    for (int i = 0; i < scope.size(); ++i) {
+      min = Math.min(min, projectedMin(scope.get(i), dx, dy, dz));
+    }
+    return min;
+  }
+
+  /** The corresponding maximum -- see {@link #apotheneumProjectedMin}. */
+  public static double apotheneumProjectedMax(LXModel model, double dx, double dy, double dz) {
+    final List<LXModel> scope = model.sub(APOTHENEUM_TAG);
+    if (scope.isEmpty()) {
+      return projectedMax(model, dx, dy, dz);
+    }
+    double max = Double.NEGATIVE_INFINITY;
+    for (int i = 0; i < scope.size(); ++i) {
+      max = Math.max(max, projectedMax(scope.get(i), dx, dy, dz));
+    }
+    return max;
   }
 
   /** {@code point}'s real-world position, projected onto the direction {@code (dx, dy, dz)} --

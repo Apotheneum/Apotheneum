@@ -125,8 +125,8 @@ import apotheneum.doved.modulators.ApotheneumColor;
  *
  * <p>See {@code docs/color-native-pattern-substance.md} for the full design, the worked {@code
  * Fireball} adoption (before/after), and per-pattern notes on what the other six subclasses
- * would need to change to adopt this — {@code Fireball} is the only one migrated as of this
- * writing.
+ * would need to change to adopt this. {@code Fireball} and {@code Waterfall} are both migrated
+ * and are the two worked examples; the other five are not.
  */
 public abstract class ColorNativePattern extends ViewMaskedPattern
   implements UIDeviceControls<ColorNativePattern> {

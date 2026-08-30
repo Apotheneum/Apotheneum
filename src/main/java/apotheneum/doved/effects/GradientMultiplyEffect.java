@@ -128,11 +128,14 @@ public class GradientMultiplyEffect extends ApotheneumEffect {
     this.frameDirY = ApotheneumGradient.directionY(elevationDegrees);
     this.frameDirZ = ApotheneumGradient.directionZ(azimuthDegrees, elevationDegrees);
 
+    // Apotheneum's own bounds, not lx.getModel()'s -- see apotheneumProjectedMin's javadoc for
+    // why the whole project's top-level model is the wrong span to normalize against when only
+    // the four Apotheneum surfaces below are ever transformed.
     final LXModel model = this.lx.getModel();
     this.frameProjectedMin =
-      ApotheneumGradient.projectedMin(model, this.frameDirX, this.frameDirY, this.frameDirZ);
+      ApotheneumGradient.apotheneumProjectedMin(model, this.frameDirX, this.frameDirY, this.frameDirZ);
     this.frameProjectedMax =
-      ApotheneumGradient.projectedMax(model, this.frameDirX, this.frameDirY, this.frameDirZ);
+      ApotheneumGradient.apotheneumProjectedMax(model, this.frameDirX, this.frameDirY, this.frameDirZ);
     this.frameSpread = ApotheneumGradient.spreadOrDefault(gradient);
 
     multiplySurface(Apotheneum.cube.exterior, ApotheneumColor.Surface.CUBE_EXTERIOR, enabledAmount, color);

@@ -85,6 +85,18 @@ public class FireballBearingAlignmentTest {
    * same real-world bearing the cube's own arc-length position implies. Sampling densely
    * (401 points, including both corners and wall midpoints) means this would have caught the
    * original bug at every point, not only the one azimuth a constant offset happens to fix.
+   *
+   * <p><b>Do not read this as an independent check of the geometry.</b> The cylinder's input
+   * here is produced by {@code arcFractionForBearing}, which is the literal inverse of the
+   * {@code bearingAt} both sides of the assertion then call, over the same LUT — so what this
+   * pins is that {@code Fireball.simulate} actually routes the cylinder through the remap and
+   * that the round trip is consistent across a full lap, which is a real regression guard and
+   * exactly the wiring the original bug got wrong. What it cannot see is a systematic error
+   * inside {@code buildBearingLut} itself: a sign flip or a constant offset applied to the LUT
+   * would cancel between the two directions and leave this green. {@code
+   * FireballGroundTruthDiagnosticTest} is the check that closes that gap — it compares against
+   * coordinates read off the real fixture rather than against this class's own arithmetic — and
+   * is the one to extend if the LUT construction changes.
    */
   @Test
   void cylinderMatchesCubeBearingAcrossFullSweep() {
