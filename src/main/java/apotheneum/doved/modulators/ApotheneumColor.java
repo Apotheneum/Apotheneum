@@ -18,7 +18,6 @@
 
 package apotheneum.doved.modulators;
 
-import heronarts.glx.ui.UI2dComponent;
 import heronarts.glx.ui.UI2dContainer;
 import heronarts.glx.ui.component.UIKnob;
 import heronarts.lx.LX;
@@ -157,15 +156,24 @@ public class ApotheneumColor extends LXModulator
     public final CompoundParameter hueOffset;
     public final CompoundParameter satTrim;
 
-    private SurfaceOffset() {
+    private SurfaceOffset(String label) {
       // Range +-2: the shared pair/swap result never leaves {1,2,3} (design/color-system.md
       // section 4's whole safety argument), so +-2 reaches every one of the five swatch stops
       // from either end without needing a wider throw than this surface's differentiation
       // actually calls for -- "a stop or two off", not a knob that can reach clear around.
-      this.indexOffset = new DiscreteParameter("Index Offset", 0, -2, 3)
+      //
+      // indexOffset's own display label is this surface's name ("Cube Ext", not "Index
+      // Offset"), not shared/generic -- a render at UIDeviceModulator's fixed 208x160 has no
+      // room for four side-by-side columns of three knobs apiece (see buildModulatorControls),
+      // so the panel shows one row of four indexOffset knobs and nothing else; a knob renders
+      // its own label, and a shared "Index Offset" x4 would be unreadable as four identical
+      // knobs in a row. hueOffset/satTrim stay off the panel entirely for the same space
+      // reason -- they remain real, modulatable parameters, reachable by path, just not drawn
+      // here; see this class's own javadoc on why that indirection is deliberate, not a gap.
+      this.indexOffset = new DiscreteParameter(label, 0, -2, 3)
         .setDescription(
-          "Integer offset on the resolved palette index for this surface; wraps, does not "
-          + "clamp, so every value is a distinct stop");
+          "Integer offset on the resolved palette index for " + label
+          + "; wraps, does not clamp, so every value is a distinct stop");
 
       this.hueOffset = new CompoundParameter("H-Off", 0, -MAX_HUE_OFFSET_DEGREES, MAX_HUE_OFFSET_DEGREES)
         .setUnits(CompoundParameter.Units.DEGREES)
@@ -182,18 +190,40 @@ public class ApotheneumColor extends LXModulator
    * Which pair of adjacent palette stops primary/secondary resolve from, everywhere. The knob-12
    * "Color"/"Pair" analog from {@code design/color-system.md} section 4: base 1 or base 2.
    */
+  private static final String[] PAIR_OPTIONS = { "1", "2" };
+  private static final String[] SWAP_OPTIONS = { "Off", "On" };
+
+  /**
+   * Which pair of adjacent palette stops primary/secondary resolve from, everywhere. The
+   * knob-12 "Color"/"Pair" analog from {@code design/color-system.md} section 4: base 1 or
+   * base 2.
+   *
+   * <p><b>{@code CompoundDiscreteParameter(String, String[])} does not actually store the
+   * options array.</b> Confirmed by disassembling {@code CompoundDiscreteParameter}'s own
+   * bytecode: unlike {@code DiscreteParameter}'s identical-looking constructor (which does
+   * {@code this.options = options}), the {@code Compound} subclass's version only reads
+   * {@code options.length} to size the range and never assigns the field, so
+   * {@code getOptions()} silently returns {@code null} afterwards. That crashed
+   * {@code newDropMenu} outright ({@code UIDropMenu.setOptions} dereferences it with no
+   * null guard) the first time this modulator was added to a live project. The explicit
+   * {@link #setOptions(String[])} calls in the constructor below are the real fix, not
+   * decorative -- {@code setOptions(options, false)} only replaces the label strings, which
+   * is exactly right here since the constructor already sized the range correctly from
+   * {@code options.length}.</p>
+   */
   public final CompoundDiscreteParameter pair =
-    new CompoundDiscreteParameter("Pair", new String[] { "1", "2" })
+    new CompoundDiscreteParameter("Pair", PAIR_OPTIONS)
     .setDescription("Which pair of adjacent palette stops primary/secondary resolve from, everywhere");
 
   /**
    * Exchanges primary and secondary, everywhere. The switch-12 "Swap"/"Flip" analog. A
    * {@code CompoundDiscreteParameter} rather than a {@code BooleanParameter}, matching
    * {@code ModColorize.invert}'s precedent: only the former is an
-   * {@code LXCompoundModulation.Target}.
+   * {@code LXCompoundModulation.Target}. See {@link #pair}'s javadoc for why its options are
+   * set explicitly in the constructor rather than trusted to this constructor call.
    */
   public final CompoundDiscreteParameter swap =
-    new CompoundDiscreteParameter("Swap", new String[] { "Off", "On" })
+    new CompoundDiscreteParameter("Swap", SWAP_OPTIONS)
     .setDescription("Exchange primary and secondary, everywhere");
 
   public final SurfaceOffset cubeExterior;
@@ -210,11 +240,19 @@ public class ApotheneumColor extends LXModulator
 
     addParameter("pair", this.pair);
     addParameter("swap", this.swap);
+    // See pair's javadoc: the (String, String[]) constructor above sizes the range correctly
+    // but never stores the options array, so getOptions() would otherwise return null.
+    this.pair.setOptions(PAIR_OPTIONS, false);
+    this.swap.setOptions(SWAP_OPTIONS, false);
 
-    this.cubeExterior = surface("cubeExterior");
-    this.cubeInterior = surface("cubeInterior");
-    this.cylinderExterior = surface("cylinderExterior");
-    this.cylinderInterior = surface("cylinderInterior");
+    // "Cube Ext"/"Cube Int" truncated at this 40px knob width in a render -- confirmed, not
+    // assumed -- and dropping the space alone did not reliably fix it either (proportional
+    // font: "CubeExt" still clipped while "CubeInt" happened to fit). "Cub Ext"/"Cub Int"
+    // match "Cyl Ext"/"Cyl Int" exactly in shape and length, which rendered in full.
+    this.cubeExterior = surface("cubeExterior", "Cub Ext");
+    this.cubeInterior = surface("cubeInterior", "Cub Int");
+    this.cylinderExterior = surface("cylinderExterior", "Cyl Ext");
+    this.cylinderInterior = surface("cylinderInterior", "Cyl Int");
 
     if (instance != null) {
       LX.log(
@@ -226,9 +264,10 @@ public class ApotheneumColor extends LXModulator
 
   /** Builds one surface's offset group and registers its three parameters directly on this
    * modulator, flattened under {@code <path>...} keys since the offset itself is not a nested
-   * {@code LXComponent} -- see {@link SurfaceOffset}'s javadoc for why. */
-  private SurfaceOffset surface(String path) {
-    final SurfaceOffset offset = new SurfaceOffset();
+   * {@code LXComponent} -- see {@link SurfaceOffset}'s javadoc for why. {@code label} becomes
+   * {@code indexOffset}'s own display name (see that field's javadoc for why). */
+  private SurfaceOffset surface(String path, String label) {
+    final SurfaceOffset offset = new SurfaceOffset(label);
     addParameter(path + "IndexOffset", offset.indexOffset);
     addParameter(path + "HueOffset", offset.hueOffset);
     addParameter(path + "SatTrim", offset.satTrim);
@@ -313,29 +352,40 @@ public class ApotheneumColor extends LXModulator
     return Math.floorMod(index - 1, MAX_COLORS) + 1;
   }
 
-  private static final float SURFACE_COLUMN_WIDTH = 44;
-
+  /**
+   * Two rows of knobs, not the four-column-of-three layout an earlier version of this class
+   * shipped: {@code UIDeviceModulator} is a hard-fixed 208x160 ({@code MAX_CONTROLS_HEIGHT}
+   * 126 within that), confirmed by disassembling the class, and four columns of
+   * palette-preview-style controls came to roughly 460px wide -- three-quarters of the panel
+   * silently rendered off the right edge the first time this was actually added to a project.
+   * Row 1 is the shared gesture ({@link #pair}/{@link #swap}, 2 knobs, ~84px). Row 2 is the
+   * four surfaces' {@code indexOffset} (4 knobs, ~172px) -- the one control per surface that
+   * does the differentiating; see {@link SurfaceOffset}'s javadoc for why {@code hueOffset}/
+   * {@code satTrim} are not drawn here at all. Both rows fit comfortably inside the 208-wide,
+   * 126-tall content budget; confirmed by {@code ./scripts/render-ui
+   * apotheneum.doved.modulators.ApotheneumColor} rather than assumed from the arithmetic alone.
+   */
   @Override
   public void buildModulatorControls(UI ui, UIModulator uiModulator, ApotheneumColor color) {
-    uiModulator.setLayout(UI2dContainer.Layout.HORIZONTAL, 4);
+    uiModulator.setLayout(UI2dContainer.Layout.VERTICAL, 4);
 
     uiModulator.addChildren(
-      UI2dContainer.newVerticalContainer(UIKnob.HEIGHT * 2 + 8, 8,
-        newDropMenu(color.pair),
-        newDropMenu(color.swap)
+      // Knobs, not dropdowns: UIDropMenu needs a live options array (see pair's javadoc for
+      // the framework gap that broke on this exact type before the explicit setOptions() fix
+      // above), and ModColorize.invert -- the closest precedent in this codebase, a named-option
+      // CompoundDiscreteParameter that is also a modulation target -- already renders as a knob
+      // rather than a dropdown for the same reason: a knob is the one control that draws a
+      // modulation ring, and these are meant to be modulated.
+      UI2dContainer.newHorizontalContainer(UIKnob.HEIGHT, 4,
+        newKnob(color.pair),
+        newKnob(color.swap)
       ),
-      surfaceColumn(color.cubeExterior, "Cube Ext"),
-      surfaceColumn(color.cubeInterior, "Cube Int"),
-      surfaceColumn(color.cylinderExterior, "Cyl Ext"),
-      surfaceColumn(color.cylinderInterior, "Cyl Int")
-    );
-  }
-
-  private UI2dComponent surfaceColumn(SurfaceOffset offset, String label) {
-    return UI2dContainer.newVerticalContainer(UIKnob.HEIGHT * 2 + 8, 4,
-      newIntegerBox(offset.indexOffset, SURFACE_COLUMN_WIDTH),
-      newKnob(offset.hueOffset),
-      newKnob(offset.satTrim)
+      UI2dContainer.newHorizontalContainer(UIKnob.HEIGHT, 4,
+        newKnob(color.cubeExterior.indexOffset),
+        newKnob(color.cubeInterior.indexOffset),
+        newKnob(color.cylinderExterior.indexOffset),
+        newKnob(color.cylinderInterior.indexOffset)
+      )
     );
   }
 
