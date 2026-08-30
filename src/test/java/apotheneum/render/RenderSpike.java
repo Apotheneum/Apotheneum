@@ -23,6 +23,7 @@ import javax.imageio.ImageIO;
 
 import apotheneum.Apotheneum;
 import apotheneum.doved.modulators.ApotheneumColor;
+import apotheneum.doved.modulators.ApotheneumGradient;
 import heronarts.lx.LX;
 import heronarts.lx.LXComponent;
 import heronarts.lx.LXEngine;
@@ -110,6 +111,7 @@ public final class RenderSpike {
     final RenderView renderView = resolveRenderView(optionalArgument(args, 4, "view="));
     final String modulationAssignment = optionalArgument(args, 5, "modulate=");
     final String apotheneumColorAssignment = optionalArgument(args, 6, "apotheneumColor=");
+    final String apotheneumGradientAssignment = optionalArgument(args, 7, "apotheneumGradient=");
     preflightFfmpeg();
 
     final long jvmStartMillis = ManagementFactory.getRuntimeMXBean().getStartTime();
@@ -142,6 +144,7 @@ public final class RenderSpike {
 
       applyPalette(lx, paletteAssignments);
       applyApotheneumColor(lx, apotheneumColorAssignment);
+      applyApotheneumGradient(lx, apotheneumGradientAssignment);
 
       final int pointCount = lx.getModel().size;
       final long startupAndParseMs = System.currentTimeMillis() - jvmStartMillis;
@@ -268,12 +271,13 @@ public final class RenderSpike {
   }
 
   private static Class<? extends LXPattern> resolvePatternClass(String[] args) {
-    if (args.length > 7) {
+    if (args.length > 8) {
       throw new IllegalArgumentException(
         "Usage: RenderSpike [fully-qualified LXPattern class] [name=value,name=value] " +
         "[fully-qualified LXEffect class,...] [hue,saturation,brightness;...] [unwrapped|lookup] " +
         "[parameter:cyclesPerSecond] " +
-        "[cubeExteriorOffset,cubeInteriorOffset,cylinderExteriorOffset,cylinderInteriorOffset]"
+        "[cubeExteriorOffset,cubeInteriorOffset,cylinderExteriorOffset,cylinderInteriorOffset] " +
+        "[azimuth,elevation]"
       );
     }
     final String className = (args.length == 0 || args[0].isBlank()) ? DEFAULT_PATTERN_CLASS_NAME : args[0];
@@ -453,6 +457,45 @@ public final class RenderSpike {
       + ",cubeInteriorOffset:" + color.cubeInterior.indexOffset.getValuei()
       + ",cylinderExteriorOffset:" + color.cylinderExterior.indexOffset.getValuei()
       + ",cylinderInteriorOffset:" + color.cylinderInterior.indexOffset.getValuei());
+  }
+
+  /**
+   * Builds a global {@code ApotheneumGradient} from an {@code azimuth,elevation} spec (degrees)
+   * so {@code GradientMultiplyEffect} -- which as of the 3D-gradient redesign owns no direction
+   * of its own -- can be reviewed at a chosen direction instead of always falling back to
+   * {@code ApotheneumGradient}'s own straight-up default (see that class's {@code
+   * elevationOrDefault} javadoc). Blank input constructs nothing, matching every other optional
+   * render flag's "unset means default behaviour" convention -- and in this case "default
+   * behaviour" is itself meaningful to render, since it's the same fallback a real project would
+   * hit if the core plugin failed to load.
+   */
+  private static void applyApotheneumGradient(LX lx, String assignment) {
+    if (assignment.isBlank()) {
+      LX.log("RenderSpike apotheneumGradient=(none)");
+      return;
+    }
+    final String[] components = assignment.split(",", -1);
+    if (components.length != 2) {
+      throw new IllegalArgumentException(
+        "Invalid apotheneumGradient spec '" + assignment + "'; expected azimuth,elevation"
+      );
+    }
+    final ApotheneumGradient gradient = new ApotheneumGradient(lx);
+    lx.engine.registerComponent(ApotheneumGradient.PATH, gradient);
+    gradient.azimuth.setValue(parseGradientDegrees(assignment, components[0]));
+    gradient.elevation.setValue(parseGradientDegrees(assignment, components[1]));
+    LX.log("RenderSpike apotheneumGradient=azimuth:" + gradient.azimuth.getValue()
+      + ",elevation:" + gradient.elevation.getValue());
+  }
+
+  private static double parseGradientDegrees(String assignment, String raw) {
+    try {
+      return Double.parseDouble(raw.strip());
+    } catch (NumberFormatException nfe) {
+      throw new IllegalArgumentException(
+        "Invalid apotheneumGradient spec '" + assignment + "': '" + raw + "' is not a number", nfe
+      );
+    }
   }
 
   private static int parseIndexOffset(String assignment, String raw) {

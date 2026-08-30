@@ -17,6 +17,7 @@
         <view></view>
         <modulate></modulate>
         <apotheneumColor></apotheneumColor>
+        <apotheneumGradient></apotheneumGradient>
 
         <lx.version>1.2.2</lx.version>
         <maven-assembly-plugin.version>3.1.0</maven-assembly-plugin.version>
@@ -151,6 +152,7 @@
                                 <argument>view=${view}</argument>
                                 <argument>modulate=${modulate}</argument>
                                 <argument>apotheneumColor=${apotheneumColor}</argument>
+                                <argument>apotheneumGradient=${apotheneumGradient}</argument>
                             </arguments>
                         </configuration>
                     </plugin>

@@ -113,8 +113,37 @@ classes and classes that do not extend `LXEffect` fail before rendering.
 The selected class must extend `LXPattern` and have a public constructor accepting
 `LX`. `RenderSpike.main` also accepts these as positional arguments when invoked
 directly: the class name first, then the parameter list, the effect class list, the
-palette assignment, the view name, the modulation assignment, and the `ApotheneumColor`
-per-surface offsets, in that order; an absent or blank class name selects Fireflies.
+palette assignment, the view name, the modulation assignment, the `ApotheneumColor`
+per-surface offsets, and the `ApotheneumGradient` azimuth/elevation, in that order; an
+absent or blank class name selects Fireflies.
+
+### `GradientMultiplyEffect` needs an explicit `-DapotheneumColor=` *and* `-DapotheneumGradient=`
+
+`GradientMultiplyEffect` owns neither its colours nor its direction — both are read from
+the shared, engine-registered `ApotheneumColor` and `ApotheneumGradient` singletons (see
+`ApotheneumGradient`'s class javadoc for why the direction moved from four per-surface 2D
+angles to one shared 3D vector). Render it with `-Deffects=apotheneum.doved.effects.GradientMultiplyEffect`
+on a plain host pattern (a uniform field, e.g. a `SolidPattern`, isolates the effect's own
+transformation — see `GradientMultiplyEffectWiringTest` for the same choice at the test
+level). With no `-DapotheneumColor=` the multiply is a no-op (both ends resolve neutral
+white); with no `-DapotheneumGradient=` the direction falls back to straight up
+(`ApotheneumGradient`'s own default), which is a real, useful thing to render once but
+does not exercise the horizontal case. Pass both, and quote the palette per the note above:
+
+```bash
+mvn -Ptests test-compile exec:exec \
+  -Dpattern=heronarts.lx.pattern.color.SolidPattern \
+  -Deffects=apotheneum.doved.effects.GradientMultiplyEffect \
+  '-Dpalette=30,95,100;210,92,100' \
+  -DapotheneumColor=0,0,0,0 \
+  -DapotheneumGradient=0,0
+```
+
+The spec is `azimuth,elevation` in degrees — `0,0` is fully horizontal at azimuth 0;
+`0,90` (or `0,-90`) is the vertical gradient confirmed to look right on every surface;
+something like `45,30` exercises a genuine diagonal. Render all three before trusting a
+change to the projection math: a seam that only shows up off-axis is exactly the kind of
+regression a single "looks fine" render at one direction would miss.
 
 ### Colour-native patterns need an explicit `-Dpalette=` *and* `-DapotheneumColor=`
 
@@ -165,7 +194,7 @@ always in the log.
 
 ### Invoke `RenderSpike` directly for `-D` properties and tight iteration
 
-The pom's exec plugin forks `java` with a **fixed** argument list — the seven positional
+The pom's exec plugin forks `java` with a **fixed** argument list — the eight positional
 arguments above, plus `-Djava.awt.headless=true`. It has no `<systemProperties>` and no
 pass-through, so an arbitrary `-Dfoo=bar` on the `mvn` command line stays a Maven
 property and never reaches the forked JVM. Anything a pattern reads through

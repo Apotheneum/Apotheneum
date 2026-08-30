@@ -23,15 +23,25 @@ import heronarts.lx.LXComponent;
 import heronarts.lx.LXPlugin;
 
 import apotheneum.doved.modulators.ApotheneumColor;
+import apotheneum.doved.modulators.ApotheneumGradient;
 
 /**
- * Registers the single, engine-owned {@link ApotheneumColor} on {@code lx.engine} at
- * {@link ApotheneumColor#PATH} — mirroring {@code apotheneum.video.ApotheneumVideoPlugin}'s
- * {@code getOrRegisterConfig}, the precedent this whole relocation is copied from. A plain
- * {@link LXPlugin} with no {@code heronarts.lx.studio.*} dependency, so the component (and every
- * colour-native pattern/{@code GradientMultiplyEffect} reading it) keeps working in a headless
- * runtime with no {@code glxstudio} on the classpath; the left-pane panel is the separate studio
- * companion, {@link ApotheneumColorUIPlugin}, exactly as video's core/UI plugins are split.
+ * Registers this codebase's engine-owned "doved" global singletons on {@code lx.engine}: {@link
+ * ApotheneumColor} at {@link ApotheneumColor#PATH} and {@link ApotheneumGradient} at {@link
+ * ApotheneumGradient#PATH} — mirroring {@code apotheneum.video.ApotheneumVideoPlugin}'s {@code
+ * getOrRegisterConfig}, the precedent this whole relocation is copied from. {@link
+ * ApotheneumGradient} was added to this same plugin rather than getting a plugin of its own so
+ * that enabling "Apotheneum Color" is the one on/off switch for every global singleton this
+ * package registers, not the first of an ever-growing list of plugin pairs a performer has to
+ * separately enable to get a working panel — see {@link ApotheneumGradient}'s class javadoc.
+ * A plain {@link LXPlugin} with no {@code heronarts.lx.studio.*} dependency, so both components
+ * (and every colour-native pattern/{@code GradientMultiplyEffect} reading them) keep working in
+ * a headless runtime with no {@code glxstudio} on the classpath; the left-pane panels are the
+ * separate studio companion, {@link ApotheneumColorUIPlugin}, exactly as video's core/UI plugins
+ * are split. <b>Both the core plugin (this class) and the UI plugin must be enabled in Chromatik
+ * for the GLOBAL-tab panels to appear</b> — the core plugin registers the components headlessly,
+ * the UI plugin builds the panels that show and drive them, and neither alone produces a visible
+ * result.
  */
 @LXPlugin.Name("Apotheneum Color")
 public class ApotheneumColorPlugin implements LXPlugin {
@@ -39,6 +49,7 @@ public class ApotheneumColorPlugin implements LXPlugin {
   @Override
   public void initialize(LX lx) {
     getOrRegisterConfig(lx);
+    getOrRegisterGradient(lx);
   }
 
   @Override
@@ -65,6 +76,22 @@ public class ApotheneumColorPlugin implements LXPlugin {
     }
     throw new IllegalStateException(
       "Engine child '" + ApotheneumColor.PATH + "' is not an ApotheneumColor: "
+      + existing.getClass().getName());
+  }
+
+  /** {@link #getOrRegisterConfig}'s counterpart for {@link ApotheneumGradient}. */
+  public static ApotheneumGradient getOrRegisterGradient(LX lx) {
+    final LXComponent existing = lx.engine.getChild(ApotheneumGradient.PATH);
+    if (existing == null) {
+      final ApotheneumGradient gradient = new ApotheneumGradient(lx);
+      lx.engine.registerComponent(ApotheneumGradient.PATH, gradient);
+      return gradient;
+    }
+    if (existing instanceof ApotheneumGradient) {
+      return (ApotheneumGradient) existing;
+    }
+    throw new IllegalStateException(
+      "Engine child '" + ApotheneumGradient.PATH + "' is not an ApotheneumGradient: "
       + existing.getClass().getName());
   }
 
