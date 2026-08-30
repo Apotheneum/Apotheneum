@@ -2,6 +2,7 @@ package apotheneum.render;
 
 import apotheneum.doved.ApotheneumColorPlugin;
 import apotheneum.doved.UIApotheneumColorSection;
+import apotheneum.doved.UIApotheneumGradientSection;
 import apotheneum.doved.modulators.ApotheneumColor;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -72,8 +73,10 @@ public final class RenderLeftPaneSection {
   public static void main(String[] args) throws Exception {
     outputDirectory = args.length == 1 ? Path.of(args[0]) : Path.of("target", "ui-review");
     Files.createDirectories(outputDirectory);
-    Files.deleteIfExists(outputDirectory.resolve("ApotheneumColorSection.png"));
-    Files.deleteIfExists(outputDirectory.resolve("ApotheneumColorSection.json"));
+    for (String stem : new String[] { "ApotheneumColorSection", "ApotheneumGradientSection" }) {
+      Files.deleteIfExists(outputDirectory.resolve(stem + ".png"));
+      Files.deleteIfExists(outputDirectory.resolve(stem + ".json"));
+    }
 
     initializeInvisibleGlfw();
     final Thread controller = new Thread(RenderLeftPaneSection::control, "left pane render controller");
@@ -193,30 +196,60 @@ public final class RenderLeftPaneSection {
       // device would otherwise land in -- the crop math needs the captured component's
       // absolute position to be fully inside the layer doing the capturing.
       final float measuredWidth = ui.leftPane.global.getContentWidth();
-      final UIApotheneumColorSection section = new UIApotheneumColorSection(ui, config, measuredWidth);
-      ui.addLayer(new CaptureLayer(ui, studio, section));
-      log("section=" + UIApotheneumColorSection.class.getName());
+      // Both package-contributed GLOBAL sections, not just the colour one. They are stacked
+      // into a single capture layer and cropped out of the one framebuffer separately, so this
+      // still costs one Chromatik launch -- and, more to the point, a section that is not built
+      // here is a section nobody is looking at. UIApotheneumGradientSection's Spread row was
+      // added without this harness knowing the section existed.
+      final UI2dComponent[] sections = {
+        new UIApotheneumColorSection(ui, config, measuredWidth),
+        new UIApotheneumGradientSection(
+          ui, ApotheneumColorPlugin.getOrRegisterGradient(studio), measuredWidth)
+      };
+      final String[] stems = { "ApotheneumColorSection", "ApotheneumGradientSection" };
+      final String[] classNames = {
+        UIApotheneumColorSection.class.getName(), UIApotheneumGradientSection.class.getName()
+      };
+      ui.addLayer(new CaptureLayer(ui, studio, sections, stems, classNames));
+      log("section=" + String.join(",", classNames));
     } catch (Throwable x) {
       fail(studio, x);
     }
   }
 
   private static final class CaptureLayer extends UI2dContext {
+    private static final float SECTION_GAP = 8;
+
     private final LXStudio studio;
-    private final UI2dComponent device;
+    private final UI2dComponent[] sections;
+    private final String[] stems;
+    private final String[] classNames;
     private final int pixelWidth;
     private final int pixelHeight;
     private final ByteBuffer pixels;
     private int frames;
     private boolean readbackStarted;
 
-    private CaptureLayer(LXStudio.UI ui, LXStudio studio, UIApotheneumColorSection section) {
-      super(ui, 20, 100, section.getWidth(), section.getHeight());
+    private CaptureLayer(
+      LXStudio.UI ui, LXStudio studio, UI2dComponent[] sections, String[] stems, String[] classNames
+    ) {
+      super(ui, 20, 100, 1, 1);
       this.studio = studio;
-      this.device = section;
-      section.addToContainer(this);
+      this.sections = sections;
+      this.stems = stems;
+      this.classNames = classNames;
 
-      setSize(section.getWidth(), section.getHeight());
+      // Stacked vertically with a gap wide enough that no section's crop can pick up a
+      // neighbour's edge pixels.
+      float width = 0;
+      float y = 0;
+      for (UI2dComponent section : sections) {
+        section.setY(y);
+        section.addToContainer(this);
+        width = Math.max(width, section.getWidth());
+        y += section.getHeight() + SECTION_GAP;
+      }
+      setSize(width, Math.max(y - SECTION_GAP, 1));
       this.pixelWidth = Math.round(getWidth() * ui.getContentScaleX());
       this.pixelHeight = Math.round(getHeight() * ui.getContentScaleY());
       this.pixels = ByteBuffer.allocateDirect(this.pixelWidth * this.pixelHeight * 4)
@@ -259,22 +292,23 @@ public final class RenderLeftPaneSection {
     }
 
     private void writeArtifacts(UI ui) throws IOException {
-      final Path pngPath = outputDirectory.resolve("ApotheneumColorSection.png");
-      final Path jsonPath = outputDirectory.resolve("ApotheneumColorSection.json");
-
-      writeSectionImage(ui, pngPath);
-      writeLayoutJson(ui, pngPath, jsonPath);
-      log("png=" + pngPath.toAbsolutePath());
-      log("json=" + jsonPath.toAbsolutePath());
+      for (int i = 0; i < this.sections.length; ++i) {
+        final Path pngPath = outputDirectory.resolve(this.stems[i] + ".png");
+        final Path jsonPath = outputDirectory.resolve(this.stems[i] + ".json");
+        writeSectionImage(ui, this.sections[i], pngPath);
+        writeLayoutJson(ui, this.sections[i], this.classNames[i], pngPath, jsonPath);
+        log("png=" + pngPath.toAbsolutePath());
+        log("json=" + jsonPath.toAbsolutePath());
+      }
     }
 
-    private void writeSectionImage(UI ui, Path path) throws IOException {
+    private void writeSectionImage(UI ui, UI2dComponent device, Path path) throws IOException {
       final float scaleX = ui.getContentScaleX();
       final float scaleY = ui.getContentScaleY();
-      final int sourceX = Math.round((this.device.getAbsoluteX() - getAbsoluteX()) * scaleX);
-      final int sourceY = Math.round((this.device.getAbsoluteY() - getAbsoluteY()) * scaleY);
-      final int width = Math.round(this.device.getWidth() * scaleX);
-      final int height = Math.round(this.device.getHeight() * scaleY);
+      final int sourceX = Math.round((device.getAbsoluteX() - getAbsoluteX()) * scaleX);
+      final int sourceY = Math.round((device.getAbsoluteY() - getAbsoluteY()) * scaleY);
+      final int width = Math.round(device.getWidth() * scaleX);
+      final int height = Math.round(device.getHeight() * scaleY);
       if (sourceX < 0 || sourceY < 0 || sourceX + width > this.pixelWidth ||
         sourceY + height > this.pixelHeight) {
         throw new IllegalStateException(String.format(Locale.ROOT,
@@ -298,14 +332,16 @@ public final class RenderLeftPaneSection {
       }
     }
 
-    private void writeLayoutJson(UI ui, Path pngPath, Path jsonPath) throws IOException {
+    private void writeLayoutJson(
+      UI ui, UI2dComponent device, String className, Path pngPath, Path jsonPath
+    ) throws IOException {
       final List<String> warnings = new ArrayList<>();
       final JsonObject document = new JsonObject();
-      document.addProperty("componentClass", UIApotheneumColorSection.class.getName());
+      document.addProperty("componentClass", className);
       document.addProperty("image", pngPath.getFileName().toString());
       document.addProperty("contentScaleX", ui.getContentScaleX());
       document.addProperty("contentScaleY", ui.getContentScaleY());
-      document.add("device", describe(this.device, warnings));
+      document.add("device", describe(device, warnings));
       final JsonArray warningJson = new JsonArray();
       warnings.forEach(warningJson::add);
       document.add("warnings", warningJson);

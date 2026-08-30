@@ -38,6 +38,7 @@ import heronarts.lx.modulator.SawLFO;
 import heronarts.lx.parameter.BooleanParameter;
 import heronarts.lx.parameter.DiscreteParameter;
 import heronarts.lx.parameter.CompoundDiscreteParameter;
+import heronarts.lx.parameter.CompoundParameter;
 import heronarts.lx.parameter.EnumParameter;
 import heronarts.lx.parameter.LXParameter;
 import heronarts.lx.pattern.LXPattern;
@@ -465,25 +466,39 @@ public final class RenderSpike {
    * hit if the core plugin failed to load.
    */
   /**
-   * {@code spread}'s {@code [0, 1]} value from a render spec. Rejected rather than clamped
-   * outside that range: a spec is typed by hand, and silently clamping a mistyped 10 to 1 would
-   * render a full gradient while the command line claimed something else.
+   * Parses one {@code apotheneumGradient} component and sets it, rejecting anything the
+   * parameter's own range does not cover -- and rejecting {@code NaN}/infinity explicitly.
+   *
+   * <p>Same reasoning as {@code setOption}: a render is review evidence, and {@code
+   * -DapotheneumGradient=0,900} silently clamping to +90 produces images that answer a
+   * different question than the command line in the reviewer's scrollback claims. Non-finite
+   * values need naming separately because they defeat range checks rather than failing them --
+   * every comparison against {@code NaN} is false, so an earlier version of this check passed
+   * {@code NaN} straight through to {@code setValue}, which is the quietest possible way to
+   * render nothing recognisable.
+   *
+   * <p>Bounds come from the parameter rather than from literals, so widening {@code azimuth} or
+   * {@code elevation} widens this check with it instead of leaving it silently stale.
    */
-  private static double parseGradientSpread(String assignment, String component) {
-    final double spread;
-    try {
-      spread = Double.parseDouble(component.trim());
-    } catch (NumberFormatException nfx) {
+  private static void setBounded(
+    String assignment, String name, String raw, CompoundParameter parameter
+  ) {
+    final double value = parseGradientDegrees(assignment, raw);
+    if (!Double.isFinite(value)) {
       throw new IllegalArgumentException(
-        "Invalid apotheneumGradient spec '" + assignment + "'; spread '" + component
-          + "' is not a number", nfx);
+        "Invalid apotheneumGradient spec '" + assignment + "': " + name + " '" + raw.strip()
+          + "' is not a finite number"
+      );
     }
-    if ((spread < 0) || (spread > 1)) {
+    final double min = parameter.range.min;
+    final double max = parameter.range.max;
+    if ((value < min) || (value > max)) {
       throw new IllegalArgumentException(
-        "Invalid apotheneumGradient spec '" + assignment + "'; spread " + spread
-          + " is outside [0, 1]");
+        "Invalid apotheneumGradient spec '" + assignment + "': " + name + " " + value
+          + " is outside [" + min + ", " + max + "]"
+      );
     }
-    return spread;
+    parameter.setValue(value);
   }
 
   private static void applyApotheneumGradient(LX lx, String assignment) {
@@ -503,10 +518,10 @@ public final class RenderSpike {
     }
     final ApotheneumGradient gradient = new ApotheneumGradient(lx);
     lx.engine.registerComponent(ApotheneumGradient.PATH, gradient);
-    gradient.azimuth.setValue(parseGradientDegrees(assignment, components[0]));
-    gradient.elevation.setValue(parseGradientDegrees(assignment, components[1]));
+    setBounded(assignment, "azimuth", components[0], gradient.azimuth);
+    setBounded(assignment, "elevation", components[1], gradient.elevation);
     if (components.length == 3) {
-      gradient.spread.setValue(parseGradientSpread(assignment, components[2]));
+      setBounded(assignment, "spread", components[2], gradient.spread);
     }
     LX.log("RenderSpike apotheneumGradient=azimuth:" + gradient.azimuth.getValue()
       + ",elevation:" + gradient.elevation.getValue()

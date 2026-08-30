@@ -81,8 +81,14 @@ public class UIApotheneumGradientSection extends UICollapsibleSection {
     final UI2dContainer shapeGroup = UI2dContainer.newVerticalContainer(contentWidth, GROUP_ROW_SPACING,
       groupHeading(contentWidth, "SHAPE"),
       stackedRow(contentWidth, "Spread",
-        new UISlider(UISlider.Direction.HORIZONTAL, 0, 0, contentWidth, CONTROL_HEIGHT)
-          .setParameter(gradient.spread))
+        (UI2dComponent) new UISlider(UISlider.Direction.HORIZONTAL, 0, 0, contentWidth, CONTROL_HEIGHT)
+          .setParameter(gradient.spread)
+          // UISlider draws its own parameter label underneath the track; stackedRow already
+          // puts a caption above it, exactly as it does for the two UIDoubleBox rows (which
+          // draw no label of their own). Leaving both on rendered "Spread" twice and pushed
+          // the slider past the row height the section's arithmetic budgets -- caught by
+          // RenderLeftPaneSection, which is the reason that harness now builds this section.
+          .setShowLabel(false))
     );
 
     addChildren(sharedGroup, shapeGroup);
