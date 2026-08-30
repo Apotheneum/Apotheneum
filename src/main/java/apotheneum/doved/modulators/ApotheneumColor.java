@@ -41,6 +41,19 @@ import apotheneum.doved.patterns.ColorNativePattern;
  * see {@code ColorNativePattern}'s class javadoc for why that duplication existed and why it is
  * gone. This class is the single place that decision now lives.
  *
+ * <p><b>Installing this jar into a running Chromatik requires a full restart, not just a
+ * package hot-reload, before existing colour-native patterns pick it up.</b> Hot-reload adds
+ * classes that did not exist before — which is why {@code ApotheneumColor} itself can be added
+ * to a project mid-session — but a {@code ColorNativePattern} instance that was already
+ * constructed (loaded from a saved project, or placed on a channel earlier in the session)
+ * keeps running the class definition it was built from. On 2026-08-29 this looked exactly like
+ * the feature not working: {@code ApotheneumColor} added cleanly and resolved correctly in
+ * isolation, but the live rig's already-running {@code Grass}/{@code Rockfall} instances still
+ * exposed the old, since-removed {@code paletteIndex}/{@code hueOffset}/{@code satTrim}
+ * controls and never read the new singleton at all — because they were still instances of the
+ * pre-redesign class. Restart Chromatik after installing this jar so every colour-native
+ * pattern on the rig is reconstructed from the current class.</p>
+ *
  * <h2>The two-knob scheme, kept intact, not redesigned</h2>
  *
  * {@link #pair} and {@link #swap} are exactly the existing "Color"/"Pair" and "Swap"/"Flip"

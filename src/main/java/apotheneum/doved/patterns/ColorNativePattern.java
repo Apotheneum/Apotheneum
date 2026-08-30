@@ -162,10 +162,35 @@ public abstract class ColorNativePattern extends ViewMaskedPattern
       final ApotheneumColor color = ApotheneumColor.instance;
       if (color == null) {
         // No ApotheneumColor in the project (not yet added, or removed): neutral rather than
-        // throwing, matching how Apotheneum.exists gates ApotheneumPattern.
+        // throwing, matching how Apotheneum.exists gates ApotheneumPattern. This fallback used
+        // to be silent, which is exactly what made it indistinguishable from "not working" on
+        // 2026-08-29 -- logging on the transition (not every frame; see the static flag below)
+        // is what turns "the colour looks wrong, go investigate" into a one-line answer.
+        logMissingInstanceOnce();
         return LXColor.WHITE;
       }
+      loggedMissingInstance = false;
       return this.isPrimary ? color.primaryColor(surface) : color.secondaryColor(surface);
+    }
+
+    /**
+     * True once this process has logged the "no ApotheneumColor" fallback and not yet seen an
+     * instance since. Not per-role, not per-pattern: every {@code ColorRole} on every
+     * colour-native pattern shares the same one-line answer to the same question, and one log
+     * line is the point -- 28,320 points' worth of per-role, per-frame silence collapsing into
+     * a wall of identical warnings would defeat the purpose as surely as logging nothing does.
+     */
+    private static boolean loggedMissingInstance = false;
+
+    private static void logMissingInstanceOnce() {
+      if (!loggedMissingInstance) {
+        loggedMissingInstance = true;
+        LX.log(
+          "[APOTHENEUM] ColorNativePattern: no ApotheneumColor found in the project -- every "
+          + "colour-native pattern is resolving neutral white until one is added to "
+          + "lx.engine.modulation. This logs once per occurrence; it will log again if an "
+          + "ApotheneumColor is later removed.");
+      }
     }
   }
 
