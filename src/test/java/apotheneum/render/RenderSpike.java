@@ -276,8 +276,8 @@ public final class RenderSpike {
         "Usage: RenderSpike [fully-qualified LXPattern class] [name=value,name=value] " +
         "[fully-qualified LXEffect class,...] [hue,saturation,brightness;...] [unwrapped|lookup] " +
         "[parameter:cyclesPerSecond] " +
-        "[cubeExteriorOffset,cubeInteriorOffset,cylinderExteriorOffset,cylinderInteriorOffset] " +
-        "[azimuth,elevation]"
+        "[pair,swap,axis] " +
+        "[azimuth,elevation[,spread]]"
       );
     }
     final String className = (args.length == 0 || args[0].isBlank()) ? DEFAULT_PATTERN_CLASS_NAME : args[0];

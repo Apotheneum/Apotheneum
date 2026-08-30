@@ -271,7 +271,13 @@ public class Jungle extends ColorNativePattern {
   // resolved color would silently pick one surface's answer for all four. See
   // surfaceRgbOffset() -- each surface gets its own 3*(PHYSICS_STEPS+1)-float slice.
   private static final int PHYSICS_STEPS = 64;
-  private static final int SURFACE_COUNT = ApotheneumColor.Surface.values().length;
+  /** {@link ApotheneumColor.Surface#values()} hoisted once. {@code Enum.values()} clones its
+   * backing array on every call, and {@link #buildTables()} runs per frame, so calling it there
+   * allocated a throwaway array every frame for as long as this pattern was active -- the same
+   * render-loop allocation {@code docs/lx-coding-guidelines.md} &#167;1 forbids, and the same
+   * one {@code ApotheneumColor.AXES} was hoisted for. */
+  private static final ApotheneumColor.Surface[] SURFACES = ApotheneumColor.Surface.values();
+  private static final int SURFACE_COUNT = SURFACES.length;
   private final float[] vegetationRgb = new float[SURFACE_COUNT * 3 * (PHYSICS_STEPS + 1)];
   private final float[] daylightRgb = new float[SURFACE_COUNT * 3 * (PHYSICS_STEPS + 1)];
   private final int[] vegetationIndex = new int[SHADOW_STEPS + 1];
@@ -433,7 +439,7 @@ public class Jungle extends ColorNativePattern {
 
     this.primary.update();
     this.secondary.update();
-    for (ApotheneumColor.Surface surface : ApotheneumColor.Surface.values()) {
+    for (ApotheneumColor.Surface surface : SURFACES) {
       final int offset = surfaceRgbOffset(surface);
       for (int i = 0; i <= PHYSICS_STEPS; ++i) {
         final double physics = 2. * i / PHYSICS_STEPS - 1;

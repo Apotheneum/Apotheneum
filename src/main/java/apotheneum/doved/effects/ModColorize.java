@@ -290,6 +290,18 @@ public class ModColorize extends ColorizeEffect implements UIDeviceControls<ModC
         // project over a control the performer may never touch again.
         this.localColorMode = ColorMode.FIXED;
       }
+    } else {
+      // A project written before these keys existed. super.load() has just restored the
+      // performer's real Start, End and colorMode from the file, and this is the only moment
+      // they are visible: global defaults on, so writeThrough() below is about to overwrite
+      // all three with the shared colour. Capturing here is what makes that reversible.
+      //
+      // Skipping this branch was a quiet, permanent loss rather than a visible one. The
+      // constructor's own capture holds stock defaults, so switching Global off would have
+      // "restored" a look the performer never chose, and saving after that would write those
+      // defaults into the file as the local look -- the original configuration gone, with
+      // nothing on screen having reported a change.
+      rememberLocalColor();
     }
     // The device comes back with global already at its saved value, so seed the transition
     // tracker from it -- otherwise a project saved with Global on would read as an off->on

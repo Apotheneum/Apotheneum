@@ -228,6 +228,57 @@ public class ModColorizeGlobalColorTest extends HeadlessLxTest {
       "and so must the colorMode");
   }
 
+  /**
+   * A project written before Global existed carries no captured local look, but it does carry
+   * the performer's real Start/End/colorMode -- and {@code super.load()} restoring them is the
+   * only moment those values are visible, because Global defaults on and the write-through
+   * immediately replaces all three with the shared colour.
+   *
+   * <p>Without capturing at that moment the loss was quiet and permanent: switching Global off
+   * would "restore" the constructor's stock defaults, a look the performer never chose, and the
+   * next save would write those defaults into the file as the local look. Nothing on screen
+   * would have reported a change.
+   */
+  @Test
+  void aLegacyProjectsColoursAreCapturedRatherThanQuietlyReplaced() {
+    final LX lx = newHeadlessLx();
+    setSwatchStops(lx);
+    register(lx);
+
+    // Build a project file the way a pre-Global build would have written one: real Start/End
+    // and colorMode, and none of the local-capture keys.
+    final ModColorize legacy = new ModColorize(lx);
+    final int savedStart = LXColor.hsb(300, 100, 100);
+    final int savedEnd = LXColor.hsb(120, 100, 100);
+    legacy.color1.setColor(savedStart);
+    legacy.color2.setColor(savedEnd);
+    legacy.colorMode.setValue(ColorMode.PALETTE);
+
+    final JsonObject obj = new JsonObject();
+    legacy.save(lx, obj);
+    obj.remove("hasLocalColor");
+    obj.remove("localColor1");
+    obj.remove("localColor2");
+    obj.remove("localColorMode");
+    legacy.dispose();
+
+    final ModColorize loaded = new ModColorize(lx);
+    loaded.load(lx, obj);
+    assertEquals(1, loaded.global.getValuei(), "Global defaults on for a project that predates it");
+    assertNotEquals(savedStart, loaded.color1.getColor(),
+      "Global on has taken over the ends, which is what makes the capture necessary");
+
+    loaded.global.setValue(0);
+    loaded.writeThroughForTest();
+    assertEquals(savedStart, loaded.color1.getColor(),
+      "switching Global off must hand back the Start colour the legacy project actually held, "
+      + "not the constructor's stock default");
+    assertEquals(savedEnd, loaded.color2.getColor(),
+      "and the End colour it actually held");
+    assertEquals(ColorMode.PALETTE, loaded.colorMode.getEnum(),
+      "and the colorMode it actually held");
+  }
+
   @Test
   void globalOnTakesBothEndsFromTheSharedColor() {
     final LX lx = newHeadlessLx();
