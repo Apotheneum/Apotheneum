@@ -125,7 +125,7 @@ public class ColorNativePatternWiringTest {
       lx.engine.palette.swatch.colors.get(0).primary.setColor(LXColor.hsb(20, 90, 70));
       lx.engine.palette.swatch.colors.get(1).primary.setColor(LXColor.hsb(200, 90, 70));
 
-      apotheneumColor = lx.engine.modulation.addModulator(new ApotheneumColor());
+      apotheneumColor = registerApotheneumColor(lx);
       apotheneumColor.pair.setValue(pairValue);
       apotheneumColor.swap.setValue(0);
 
@@ -154,9 +154,6 @@ public class ColorNativePatternWiringTest {
       }
       return result;
     } finally {
-      if (apotheneumColor != null) {
-        lx.engine.modulation.removeModulator(apotheneumColor);
-      }
       if (lx != null) {
         lx.dispose();
       }
@@ -179,5 +176,11 @@ public class ColorNativePatternWiringTest {
         Files.deleteIfExists(path);
       }
     }
+  }
+
+  private static ApotheneumColor registerApotheneumColor(LX lx) {
+    final ApotheneumColor color = new ApotheneumColor(lx);
+    lx.engine.registerComponent(ApotheneumColor.PATH, color);
+    return color;
   }
 }

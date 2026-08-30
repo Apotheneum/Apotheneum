@@ -142,7 +142,7 @@ public class GrassTest {
       // Without an ApotheneumColor present, a role falls back to neutral white, which is
       // exactly that maxed-brightness case -- so this regression test needs a real, non-maxed
       // base color for primary.amount to have anything to visibly move.
-      apotheneumColor = lx.engine.modulation.addModulator(new ApotheneumColor());
+      apotheneumColor = registerApotheneumColor(lx);
       lx.engine.palette.swatch.colors.get(0).primary.setColor(LXColor.hsb(30, 90, 70));
       apotheneumColor.pair.setValue(0);
       apotheneumColor.swap.setValue(0);
@@ -168,19 +168,20 @@ public class GrassTest {
       }
       return result;
     } finally {
-      // Removed (not just disposed) before lx.dispose() runs: removeModulator disposes it
-      // exactly once and drops it from the engine's tracked list, so the LX-level teardown
-      // below never encounters it a second time. Without this it would also dangle in the
-      // static singleton, tied to an LX this test is about to dispose, and leak into whichever
-      // test runs next in this class within the same JVM fork.
-      if (apotheneumColor != null) {
-        lx.engine.modulation.removeModulator(apotheneumColor);
-      }
+      // ApotheneumColor is registered directly on lx.engine (registerComponent), so
+      // lx.dispose() below already disposes it as an ordinary engine child -- no separate
+      // teardown call needed, and no static field for it to dangle in between tests.
       if (lx != null) {
         lx.dispose();
       }
       deleteTree(mediaPath);
     }
+  }
+
+  private static ApotheneumColor registerApotheneumColor(LX lx) {
+    final ApotheneumColor color = new ApotheneumColor(lx);
+    lx.engine.registerComponent(ApotheneumColor.PATH, color);
+    return color;
   }
 
   private static void copyFixtureMedia(Path mediaPath) throws IOException {

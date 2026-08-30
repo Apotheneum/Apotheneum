@@ -143,7 +143,7 @@ public class FireballTest extends HeadlessLxTest {
     // core (primary) reads the shared index 1, ember (secondary) reads the shared index 2 --
     // pair=0/swap=0 reproduces the same (1, 2) pair ColorRole used to default to on its own,
     // before palette selection moved to ApotheneumColor.
-    final ApotheneumColor apotheneumColor = lx.engine.modulation.addModulator(new ApotheneumColor());
+    final ApotheneumColor apotheneumColor = registerApotheneumColor(lx);
     apotheneumColor.pair.setValue(0);
     apotheneumColor.swap.setValue(0);
     try {
@@ -163,7 +163,6 @@ public class FireballTest extends HeadlessLxTest {
       assertEquals(255, blue(peak));
     } finally {
       fireball.dispose();
-      lx.engine.modulation.removeModulator(apotheneumColor);
     }
   }
 
@@ -259,5 +258,11 @@ public class FireballTest extends HeadlessLxTest {
 
   private static int blue(int color) {
     return color & 0xff;
+  }
+
+  private static ApotheneumColor registerApotheneumColor(LX lx) {
+    final ApotheneumColor color = new ApotheneumColor(lx);
+    lx.engine.registerComponent(ApotheneumColor.PATH, color);
+    return color;
   }
 }

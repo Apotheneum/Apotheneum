@@ -121,6 +121,17 @@ public abstract class ColorNativePattern extends ViewMaskedPattern
     private final BooleanParameter colorToggle;
     private boolean colorEnabled;
 
+    /**
+     * The engine's {@code ApotheneumColor}, re-resolved once per frame in {@link #update()}
+     * rather than once per pixel in {@link #color} -- {@link ApotheneumColor#get(LX)} is a
+     * single {@code lx.engine.getChild(...)} lookup, cheap enough to not need caching at all,
+     * but a pattern like {@code Rockfall} calls {@link #color} up to once per point (28,320
+     * points), so resolving it once per frame and reusing the result for every pixel in that
+     * frame is the same "cheap, not stale beyond one frame" trade this class already made for
+     * {@link #colorEnabled}.
+     */
+    private ApotheneumColor activeColor;
+
     private ColorRole(
       LX lx, String label, double defaultAmount, BooleanParameter colorToggle, boolean isPrimary
     ) {
@@ -136,11 +147,13 @@ public abstract class ColorNativePattern extends ViewMaskedPattern
     }
 
     /**
-     * Refreshes the cached colour-enable flag once per frame. A subclass calls this once per
-     * frame per role, exactly as before; call it before any {@link #color} calls for that frame.
+     * Refreshes the cached colour-enable flag and the cached {@code ApotheneumColor} reference
+     * once per frame. A subclass calls this once per frame per role, exactly as before; call it
+     * before any {@link #color} calls for that frame.
      */
     void update() {
       this.colorEnabled = this.colorToggle.isOn();
+      this.activeColor = ApotheneumColor.get(this.lx);
     }
 
     /**
@@ -159,38 +172,18 @@ public abstract class ColorNativePattern extends ViewMaskedPattern
     }
 
     private int resolveBase(ApotheneumColor.Surface surface) {
-      final ApotheneumColor color = ApotheneumColor.instance;
-      if (color == null) {
-        // No ApotheneumColor in the project (not yet added, or removed): neutral rather than
-        // throwing, matching how Apotheneum.exists gates ApotheneumPattern. This fallback used
-        // to be silent, which is exactly what made it indistinguishable from "not working" on
-        // 2026-08-29 -- logging on the transition (not every frame; see the static flag below)
-        // is what turns "the colour looks wrong, go investigate" into a one-line answer.
-        logMissingInstanceOnce();
-        return LXColor.WHITE;
-      }
-      loggedMissingInstance = false;
-      return this.isPrimary ? color.primaryColor(surface) : color.secondaryColor(surface);
-    }
-
-    /**
-     * True once this process has logged the "no ApotheneumColor" fallback and not yet seen an
-     * instance since. Not per-role, not per-pattern: every {@code ColorRole} on every
-     * colour-native pattern shares the same one-line answer to the same question, and one log
-     * line is the point -- 28,320 points' worth of per-role, per-frame silence collapsing into
-     * a wall of identical warnings would defeat the purpose as surely as logging nothing does.
-     */
-    private static boolean loggedMissingInstance = false;
-
-    private static void logMissingInstanceOnce() {
-      if (!loggedMissingInstance) {
-        loggedMissingInstance = true;
-        LX.log(
-          "[APOTHENEUM] ColorNativePattern: no ApotheneumColor found in the project -- every "
-          + "colour-native pattern is resolving neutral white until one is added to "
-          + "lx.engine.modulation. This logs once per occurrence; it will log again if an "
-          + "ApotheneumColor is later removed.");
-      }
+      // No ApotheneumColor registered on the engine (the core plugin failed to load -- should
+      // not happen in practice now that registration is engine-owned, not user-added) resolves
+      // neutral rather than throwing, matching how Apotheneum.exists gates ApotheneumPattern --
+      // and logs once on the transition rather than staying silent, which is exactly what made
+      // this indistinguishable from "resolving wrong" on 2026-08-29. That fallback and its
+      // one-time-per-transition log live on ApotheneumColor itself now
+      // (resolvePrimaryOrNeutral/resolveSecondaryOrNeutral), shared with
+      // GradientMultiplyEffect, rather than duplicated here -- one fallback to get right, not
+      // two copies that could drift.
+      return this.isPrimary
+        ? ApotheneumColor.resolvePrimaryOrNeutral(this.activeColor, surface)
+        : ApotheneumColor.resolveSecondaryOrNeutral(this.activeColor, surface);
     }
   }
 

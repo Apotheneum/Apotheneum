@@ -441,7 +441,8 @@ public final class RenderSpike {
         + "cubeExteriorOffset,cubeInteriorOffset,cylinderExteriorOffset,cylinderInteriorOffset"
       );
     }
-    final ApotheneumColor color = lx.engine.modulation.addModulator(new ApotheneumColor());
+    final ApotheneumColor color = new ApotheneumColor(lx);
+    lx.engine.registerComponent(ApotheneumColor.PATH, color);
     color.cubeExterior.indexOffset.setValue(parseIndexOffset(assignment, offsets[0]));
     color.cubeInterior.indexOffset.setValue(parseIndexOffset(assignment, offsets[1]));
     color.cylinderExterior.indexOffset.setValue(parseIndexOffset(assignment, offsets[2]));

@@ -82,7 +82,7 @@ public class ColorNativePatternTest extends HeadlessLxTest {
   @Test
   void colorFallsBackToNeutralWithoutAnApotheneumColorInTheProject() {
     final LX lx = newHeadlessLx();
-    assertNull(ApotheneumColor.instance, "this test requires no ApotheneumColor to exist");
+    assertNull(ApotheneumColor.get(lx), "this test requires no ApotheneumColor to exist");
     final Rockfall rockfall = new Rockfall(lx);
     rockfall.rockColor.update();
 
@@ -99,7 +99,7 @@ public class ColorNativePatternTest extends HeadlessLxTest {
   @Test
   void colorResolvesFromTheSharedApotheneumColorSingleton() {
     final LX lx = newHeadlessLx();
-    final ApotheneumColor apotheneumColor = lx.engine.modulation.addModulator(new ApotheneumColor());
+    final ApotheneumColor apotheneumColor = registerApotheneumColor(lx);
     apotheneumColor.pair.setValue(0);
     apotheneumColor.swap.setValue(0);
 
@@ -116,7 +116,6 @@ public class ColorNativePatternTest extends HeadlessLxTest {
       assertEquals(expectedWater, rockfall.waterColor.color(SURFACE, physics));
     }
     rockfall.dispose();
-    lx.engine.modulation.removeModulator(apotheneumColor);
   }
 
   @Test
@@ -128,7 +127,7 @@ public class ColorNativePatternTest extends HeadlessLxTest {
     lx.engine.palette.swatch.colors.get(0).primary.setColor(LXColor.hsb(0, 90, 70));
     lx.engine.palette.swatch.colors.get(1).primary.setColor(LXColor.hsb(200, 90, 70));
 
-    final ApotheneumColor apotheneumColor = lx.engine.modulation.addModulator(new ApotheneumColor());
+    final ApotheneumColor apotheneumColor = registerApotheneumColor(lx);
     apotheneumColor.pair.setValue(0);
     apotheneumColor.swap.setValue(0);
     apotheneumColor.cubeInterior.indexOffset.setValue(1);
@@ -143,13 +142,12 @@ public class ColorNativePatternTest extends HeadlessLxTest {
       + "surfaces' offsets differ -- this is the whole point of the redesign"
     );
     rockfall.dispose();
-    lx.engine.modulation.removeModulator(apotheneumColor);
   }
 
   @Test
   void colorToggleResolvesRolesAsPaletteIndependentNeutralWithPhysicsPerturbation() {
     final LX lx = newHeadlessLx();
-    final ApotheneumColor apotheneumColor = lx.engine.modulation.addModulator(new ApotheneumColor());
+    final ApotheneumColor apotheneumColor = registerApotheneumColor(lx);
 
     final Rockfall rockfall = new Rockfall(lx);
     rockfall.rockColor.update();
@@ -164,14 +162,13 @@ public class ColorNativePatternTest extends HeadlessLxTest {
       neutral
     );
     rockfall.dispose();
-    lx.engine.modulation.removeModulator(apotheneumColor);
   }
 
   @Test
   void resolutionOrderAppliesSurfaceOffsetsBeforePhysicsPerturbation() {
     final LX lx = newHeadlessLx();
     lx.engine.palette.swatch.colors.get(0).primary.setColor(LXColor.hsb(200, 80, 60));
-    final ApotheneumColor apotheneumColor = lx.engine.modulation.addModulator(new ApotheneumColor());
+    final ApotheneumColor apotheneumColor = registerApotheneumColor(lx);
     apotheneumColor.pair.setValue(0);
     apotheneumColor.swap.setValue(0);
     apotheneumColor.cubeExterior.hueOffset.setValue(40);
@@ -198,7 +195,6 @@ public class ColorNativePatternTest extends HeadlessLxTest {
     assertNotEquals(rockfall.rockColor.color(SURFACE, 0), rockfall.rockColor.color(SURFACE, -1));
 
     rockfall.dispose();
-    lx.engine.modulation.removeModulator(apotheneumColor);
   }
 
   @Test
@@ -206,5 +202,11 @@ public class ColorNativePatternTest extends HeadlessLxTest {
     // Sanity check that ApotheneumColor and ColorNativePattern agree on the swatch size they
     // both assume -- a drift here would silently change how far indexOffset can reach.
     assertTrue(LXSwatch.MAX_COLORS >= 3, "the shared scheme's table assumes at least 3 stops");
+  }
+
+  private static ApotheneumColor registerApotheneumColor(LX lx) {
+    final ApotheneumColor color = new ApotheneumColor(lx);
+    lx.engine.registerComponent(ApotheneumColor.PATH, color);
+    return color;
   }
 }

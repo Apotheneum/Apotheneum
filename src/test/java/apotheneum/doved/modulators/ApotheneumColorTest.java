@@ -14,36 +14,40 @@ import heronarts.lx.color.LXColor;
 
 public class ApotheneumColorTest extends HeadlessLxTest {
 
-  // Every ApotheneumColor built here is added to lx.engine.modulation: an LXModulator has no
-  // working `lx` reference (needed for primaryColor()/secondaryColor() to reach the project
-  // palette) until it is registered with an engine -- unlike ColorNativePattern's roles, which
-  // get `lx` straight from the pattern's own constructor. Each test ends by handing it back to
-  // engine.modulation.removeModulator(...), which both disposes it exactly once (confirmed by
-  // disassembling LXModulatorComponent.removeModulator: it calls LX.dispose(component)
-  // internally) and drops it from the engine's tracked list, so HeadlessLxTest's own @AfterEach
-  // teardown of the whole LX instance never encounters it a second time.
-
-  @Test
-  void constructingSetsTheSingletonAndDisposeClearsIt() {
-    final LX lx = newHeadlessLx();
-    assertNull(ApotheneumColor.instance, "no instance should exist before this test builds one");
-    final ApotheneumColor color = lx.engine.modulation.addModulator(new ApotheneumColor());
-    assertSame(color, ApotheneumColor.instance);
-    lx.engine.modulation.removeModulator(color);
-    assertNull(ApotheneumColor.instance);
+  /**
+   * Registers a fresh {@code ApotheneumColor} directly on {@code lx.engine} -- the same call
+   * {@code apotheneum.doved.ApotheneumColorPlugin.getOrRegisterConfig} makes in a real session,
+   * just without that method's "reuse if already registered" check, since every test here
+   * starts from a fresh {@code LX} with nothing registered yet.
+   */
+  private static ApotheneumColor register(LX lx) {
+    final ApotheneumColor color = new ApotheneumColor(lx);
+    lx.engine.registerComponent(ApotheneumColor.PATH, color);
+    return color;
   }
 
   @Test
-  void aSecondInstanceBecomesTheOneRead() {
-    // Not the supported shape (exactly one is expected), but must not throw -- and whichever
-    // was constructed most recently is the one every ColorNativePattern reads, since a role
-    // resolves through the live static field at call time, not a reference captured earlier.
+  void getReturnsNullBeforeAnythingIsRegistered() {
     final LX lx = newHeadlessLx();
-    final ApotheneumColor first = lx.engine.modulation.addModulator(new ApotheneumColor());
-    final ApotheneumColor second = lx.engine.modulation.addModulator(new ApotheneumColor());
-    assertSame(second, ApotheneumColor.instance);
-    lx.engine.modulation.removeModulator(second);
-    lx.engine.modulation.removeModulator(first);
+    assertNull(ApotheneumColor.get(lx));
+  }
+
+  @Test
+  void getReturnsTheRegisteredInstance() {
+    final LX lx = newHeadlessLx();
+    final ApotheneumColor color = register(lx);
+    assertSame(color, ApotheneumColor.get(lx));
+  }
+
+  @Test
+  void registeredComponentIsDisposedWhenLxDisposes() {
+    // No explicit assertion here beyond "does not throw" -- disposeLx() (HeadlessLxTest's own
+    // @AfterEach) runs after this test method returns and disposes lx, which must cleanly
+    // dispose the registered ApotheneumColor as an ordinary engine child. A leak or a
+    // double-dispose here would fail the *next* @AfterEach, not this test body, which is the
+    // point: registration means LX owns the lifecycle, not this test.
+    final LX lx = newHeadlessLx();
+    register(lx);
   }
 
   @Test
@@ -58,7 +62,7 @@ public class ApotheneumColorTest extends HeadlessLxTest {
   @Test
   void pairAndSwapReproduceTheFourStateRelayTable() {
     final LX lx = newHeadlessLx();
-    final ApotheneumColor color = lx.engine.modulation.addModulator(new ApotheneumColor());
+    final ApotheneumColor color = register(lx);
 
     // design/color-system.md section 4's table, reproduced exactly: primary base 1/secondary
     // base 2, pair advances both by one stop, swap exchanges the two roles.
@@ -81,14 +85,12 @@ public class ApotheneumColorTest extends HeadlessLxTest {
     color.swap.setValue(1);
     assertEquals(3, color.primaryIndex());
     assertEquals(2, color.secondaryIndex());
-
-    lx.engine.modulation.removeModulator(color);
   }
 
   @Test
   void everySurfaceMatchesTheSharedIndexWithZeroOffsets() {
     final LX lx = newHeadlessLx();
-    final ApotheneumColor color = lx.engine.modulation.addModulator(new ApotheneumColor());
+    final ApotheneumColor color = register(lx);
 
     color.pair.setValue(0);
     color.swap.setValue(0);
@@ -103,8 +105,6 @@ public class ApotheneumColorTest extends HeadlessLxTest {
         "with every offset at its default of 0, " + surface + " must match the shared index");
       assertEquals(expectedSecondary, color.secondaryColor(surface));
     }
-
-    lx.engine.modulation.removeModulator(color);
   }
 
   @Test
@@ -116,7 +116,7 @@ public class ApotheneumColorTest extends HeadlessLxTest {
     lx.engine.palette.swatch.colors.get(0).primary.setColor(LXColor.hsb(0, 90, 70));
     lx.engine.palette.swatch.colors.get(1).primary.setColor(LXColor.hsb(200, 90, 70));
 
-    final ApotheneumColor color = lx.engine.modulation.addModulator(new ApotheneumColor());
+    final ApotheneumColor color = register(lx);
     color.pair.setValue(0);
     color.swap.setValue(0);
     color.cubeExterior.indexOffset.setValue(1);
@@ -131,14 +131,12 @@ public class ApotheneumColorTest extends HeadlessLxTest {
       color.primaryColor(ApotheneumColor.Surface.CUBE_EXTERIOR),
       "indexOffset 1 reads the next palette stop up"
     );
-
-    lx.engine.modulation.removeModulator(color);
   }
 
   @Test
   void offsetAtTheCeilingStaysAtTheLastStopWithoutWrapping() {
     final LX lx = newHeadlessLx();
-    final ApotheneumColor color = lx.engine.modulation.addModulator(new ApotheneumColor());
+    final ApotheneumColor color = register(lx);
 
     // secondaryIndex reaches its own maximum of 3 at pair=1/swap=0 (design/color-system.md
     // section 4: neither role ever exceeds stop 3). 3 + 2 (indexOffset's own maximum) = 5,
@@ -151,14 +149,12 @@ public class ApotheneumColorTest extends HeadlessLxTest {
       ColorNativePattern.paletteColor(lx.engine.palette.swatch.colors, 5 - 1),
       color.secondaryColor(ApotheneumColor.Surface.CYLINDER_EXTERIOR)
     );
-
-    lx.engine.modulation.removeModulator(color);
   }
 
   @Test
   void indexOffsetWrapsRatherThanClampingBelowTheFloor() {
     final LX lx = newHeadlessLx();
-    final ApotheneumColor color = lx.engine.modulation.addModulator(new ApotheneumColor());
+    final ApotheneumColor color = register(lx);
 
     // primaryIndex is 1 at pair=0/swap=0, the lowest value the shared scheme ever produces.
     // 1 + (-2) (indexOffset's own minimum) = -1, below the swatch's floor of 1. A clamp would
@@ -179,15 +175,13 @@ public class ApotheneumColorTest extends HeadlessLxTest {
       ColorNativePattern.paletteColor(lx.engine.palette.swatch.colors, 1 - 1),
       color.primaryColor(ApotheneumColor.Surface.CUBE_INTERIOR)
     );
-
-    lx.engine.modulation.removeModulator(color);
   }
 
   @Test
   void hueOffsetAndSatTrimApplyOnTopOfTheSharedIndex() {
     final LX lx = newHeadlessLx();
     lx.engine.palette.swatch.colors.get(0).primary.setColor(LXColor.hsb(200, 80, 60));
-    final ApotheneumColor color = lx.engine.modulation.addModulator(new ApotheneumColor());
+    final ApotheneumColor color = register(lx);
 
     color.pair.setValue(0);
     color.swap.setValue(0);
@@ -198,13 +192,35 @@ public class ApotheneumColorTest extends HeadlessLxTest {
     final int resolved = color.primaryColor(ApotheneumColor.Surface.CUBE_EXTERIOR);
     assertEquals(240, LXColor.h(resolved), 1);
     assertEquals(60, LXColor.s(resolved), 1);
-
-    lx.engine.modulation.removeModulator(color);
   }
 
   @Test
-  void noApotheneumInstanceMeansNoLiveSingleton() {
+  void resolvePrimaryOrNeutralFallsBackToWhiteWhenNoInstanceIsResolved() {
     newHeadlessLx();
-    assertNull(ApotheneumColor.instance);
+    assertEquals(
+      LXColor.WHITE,
+      ApotheneumColor.resolvePrimaryOrNeutral(null, ApotheneumColor.Surface.CUBE_EXTERIOR)
+    );
+    assertEquals(
+      LXColor.WHITE,
+      ApotheneumColor.resolveSecondaryOrNeutral(null, ApotheneumColor.Surface.CUBE_EXTERIOR)
+    );
+  }
+
+  @Test
+  void resolvePrimaryOrNeutralReadsThroughToARealInstance() {
+    final LX lx = newHeadlessLx();
+    final ApotheneumColor color = register(lx);
+    color.pair.setValue(0);
+    color.swap.setValue(0);
+
+    assertEquals(
+      color.primaryColor(ApotheneumColor.Surface.CUBE_EXTERIOR),
+      ApotheneumColor.resolvePrimaryOrNeutral(color, ApotheneumColor.Surface.CUBE_EXTERIOR)
+    );
+    assertEquals(
+      color.secondaryColor(ApotheneumColor.Surface.CUBE_EXTERIOR),
+      ApotheneumColor.resolveSecondaryOrNeutral(color, ApotheneumColor.Surface.CUBE_EXTERIOR)
+    );
   }
 }
