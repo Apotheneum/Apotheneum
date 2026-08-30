@@ -37,6 +37,7 @@ import heronarts.lx.modulation.LXParameterModulation.ModulationException;
 import heronarts.lx.modulator.SawLFO;
 import heronarts.lx.parameter.BooleanParameter;
 import heronarts.lx.parameter.DiscreteParameter;
+import heronarts.lx.parameter.CompoundDiscreteParameter;
 import heronarts.lx.parameter.EnumParameter;
 import heronarts.lx.parameter.LXParameter;
 import heronarts.lx.pattern.LXPattern;
@@ -445,9 +446,9 @@ public final class RenderSpike {
     }
     final ApotheneumColor color = new ApotheneumColor(lx);
     lx.engine.registerComponent(ApotheneumColor.PATH, color);
-    color.pair.setValue(parseIndexOffset(assignment, components[0]));
-    color.swap.setValue(parseIndexOffset(assignment, components[1]));
-    color.axis.setValue(parseIndexOffset(assignment, components[2]));
+    setOption(assignment, "pair", components[0], color.pair);
+    setOption(assignment, "swap", components[1], color.swap);
+    setOption(assignment, "axis", components[2], color.axis);
     LX.log("RenderSpike apotheneumColor=pair:" + color.pair.getValuei()
       + ",swap:" + color.swap.getValuei()
       + ",axis:" + color.axis.getValuei());
@@ -520,6 +521,35 @@ public final class RenderSpike {
         "Invalid apotheneumGradient spec '" + assignment + "': '" + raw + "' is not a number", nfe
       );
     }
+  }
+
+  /**
+   * Parses one {@code apotheneumColor} component and sets it, rejecting anything outside the
+   * parameter's own option range rather than letting {@code setValue} clamp it.
+   *
+   * <p>A silent clamp is worse here than almost anywhere else in this renderer: a render is
+   * <em>review evidence</em>. {@code -DapotheneumColor=0,0,20} would have quietly rendered
+   * {@code axis=2} and produced images that look like a legitimate answer to a question nobody
+   * asked, with the command line in the reviewer's scrollback claiming something else entirely.
+   * Failing loudly is the only outcome that cannot be mistaken for a result. Matches {@code
+   * parseGradientSpread}'s handling of its own range.
+   *
+   * <p>The bounds come from the parameter rather than from literals here, so adding an {@code
+   * Axis} option widens this check automatically instead of leaving it silently stale.
+   */
+  private static void setOption(
+    String assignment, String name, String raw, CompoundDiscreteParameter parameter
+  ) {
+    final int value = parseIndexOffset(assignment, raw);
+    final int min = parameter.getMinValue();
+    final int max = parameter.getMaxValue();
+    if ((value < min) || (value > max)) {
+      throw new IllegalArgumentException(
+        "Invalid apotheneumColor spec '" + assignment + "': " + name + " " + value
+          + " is outside [" + min + ", " + max + "]"
+      );
+    }
+    parameter.setValue(value);
   }
 
   private static int parseIndexOffset(String assignment, String raw) {
