@@ -26,7 +26,6 @@ import heronarts.lx.LXCategory;
 import heronarts.lx.LXComponent;
 import heronarts.lx.color.LXColor;
 import heronarts.lx.mixer.LXChannel;
-import heronarts.lx.model.LXPoint;
 import heronarts.lx.parameter.BooleanParameter;
 import heronarts.lx.parameter.CompoundDiscreteParameter;
 import heronarts.lx.parameter.CompoundParameter;
@@ -319,8 +318,44 @@ public class Waterfall extends ColorNativePattern {
   private final float[] cubeSpill = new float[CUBE_WIDTH * Apotheneum.GRID_HEIGHT];
   private final float[] cylinderSpill = new float[CYLINDER_WIDTH * Apotheneum.CYLINDER_HEIGHT];
 
+  // 2026-08-30: rock and water are two distinct substances, each a per-pixel brightness
+  // ("intensity"/"level") plus a per-column colour-coupling input (2*notch-1 / 2*speed-1).
+  // computeShape (formerly renderShape) now writes brightness into these instead of resolving
+  // colour directly; colorizeShape resolves colour afterward, independently per real surface,
+  // via ColorNativePattern.colorizeCells -- exactly as Fireball resolves colorHeat()
+  // independently per surface from one shared heat[] rather than computing colour once and
+  // mirroring it (see docs/color-native-pattern-substance.md). The physics -- which pixel is
+  // lit, how bright, which column's rock/water character -- is therefore still computed exactly
+  // once per shape; only the palette lookup happens twice, once per real orientation.
+  // notch/speed are per-column, not per-pixel, so their colour-input arrays are column-sized
+  // rather than full grids.
+  private final float[] cubeRockIntensity = new float[CUBE_WIDTH * Apotheneum.GRID_HEIGHT];
+  private final float[] cubeWaterLevel = new float[CUBE_WIDTH * Apotheneum.GRID_HEIGHT];
+  private final float[] cubeRockColorInput = new float[CUBE_WIDTH];
+  private final float[] cubeWaterColorInput = new float[CUBE_WIDTH];
+
+  private final float[] cylinderRockIntensity = new float[CYLINDER_WIDTH * Apotheneum.CYLINDER_HEIGHT];
+  private final float[] cylinderWaterLevel = new float[CYLINDER_WIDTH * Apotheneum.CYLINDER_HEIGHT];
+  private final float[] cylinderRockColorInput = new float[CYLINDER_WIDTH];
+  private final float[] cylinderWaterColorInput = new float[CYLINDER_WIDTH];
+
+  // Point-index geometry maps for colorizeCells, mirroring Fireball's pointIndex/mirrorIndex:
+  // allocated once here (fixed size, like every other per-shape grid above) and populated by
+  // attachGeometry() -- rebuilt only when the bound orientation identity changes (a model
+  // reload), never per frame. cube/cylinderInteriorPointIndex stays null when Apotheneum has no
+  // interior model at all (see Apotheneum.hasInterior), which colorizeCells treats as "no
+  // mirror write, ever" -- see LavaLamp's note in colorizeCells' own javadoc.
+  private final int[] cubeExteriorPointIndex = new int[CUBE_WIDTH * Apotheneum.GRID_HEIGHT];
+  private final int[] cubeInteriorPointIndexStorage = new int[CUBE_WIDTH * Apotheneum.GRID_HEIGHT];
+  private int[] cubeInteriorPointIndex = null;
+  private final int[] cylinderExteriorPointIndex = new int[CYLINDER_WIDTH * Apotheneum.CYLINDER_HEIGHT];
+  private final int[] cylinderInteriorPointIndexStorage = new int[CYLINDER_WIDTH * Apotheneum.CYLINDER_HEIGHT];
+  private int[] cylinderInteriorPointIndex = null;
+  private Apotheneum.Orientation attachedCubeOrientation;
+  private Apotheneum.Orientation attachedCylinderOrientation;
+
   // Scratch for the door-spill pre-pass: one door run's worth of columns at a time,
-  // reused across every run and both shapes since renderShape runs strictly
+  // reused across every run and both shapes since computeShape runs strictly
   // sequentially, never concurrently.
   private final int[] spillRunColumns = new int[SPILL_RUN_CAPACITY];
   private final int[] spillRunLintel = new int[SPILL_RUN_CAPACITY];
@@ -420,21 +455,122 @@ public class Waterfall extends ColorNativePattern {
       }
     }
 
+    attachGeometry();
+
     Arrays.fill(this.cubeSpray, 0f);
     Arrays.fill(this.cylinderSpray, 0f);
     Arrays.fill(this.cubeSpill, 0f);
     Arrays.fill(this.cylinderSpill, 0f);
+    Arrays.fill(this.cubeRockIntensity, 0f);
+    Arrays.fill(this.cubeWaterLevel, 0f);
+    Arrays.fill(this.cylinderRockIntensity, 0f);
+    Arrays.fill(this.cylinderWaterLevel, 0f);
     updateSpray(deltaMs);
 
-    renderShape(Apotheneum.cube.exterior, CUBE, this.cubeCos, this.cubeSin, this.cubeSpray, this.cubeSpill, Apotheneum.GRID_HEIGHT);
-    renderShape(Apotheneum.cylinder.exterior, CYLINDER, this.cylinderCos, this.cylinderSin, this.cylinderSpray, this.cylinderSpill, Apotheneum.CYLINDER_HEIGHT);
+    computeShape(Apotheneum.cube.exterior, CUBE, this.cubeCos, this.cubeSin, this.cubeSpray, this.cubeSpill,
+      Apotheneum.GRID_HEIGHT, this.cubeRockIntensity, this.cubeWaterLevel,
+      this.cubeRockColorInput, this.cubeWaterColorInput);
+    computeShape(Apotheneum.cylinder.exterior, CYLINDER, this.cylinderCos, this.cylinderSin, this.cylinderSpray, this.cylinderSpill,
+      Apotheneum.CYLINDER_HEIGHT, this.cylinderRockIntensity, this.cylinderWaterLevel,
+      this.cylinderRockColorInput, this.cylinderWaterColorInput);
 
-    copyExterior();
+    // Colour is resolved independently per real surface (exterior, and interior if this model
+    // has one) from the substance computeShape just wrote -- no bulk copyExterior() anymore,
+    // since that would force the interior to match the exterior's resolved colour exactly and
+    // collapse ApotheneumColor.Axis.INSIDE_OUTSIDE to look like Axis.NONE. See
+    // docs/color-native-pattern-substance.md.
+    colorizeShape(Apotheneum.cube.exterior, this.cubeExteriorPointIndex, Apotheneum.cube.interior,
+      this.cubeInteriorPointIndex, Apotheneum.GRID_HEIGHT, this.cubeRockIntensity, this.cubeWaterLevel,
+      this.cubeRockColorInput, this.cubeWaterColorInput);
+    colorizeShape(Apotheneum.cylinder.exterior, this.cylinderExteriorPointIndex, Apotheneum.cylinder.interior,
+      this.cylinderInteriorPointIndex, Apotheneum.CYLINDER_HEIGHT, this.cylinderRockIntensity, this.cylinderWaterLevel,
+      this.cylinderRockColorInput, this.cylinderWaterColorInput);
   }
 
-  private void renderShape(Apotheneum.Orientation orientation, int shape, float[] cos, float[] sin, float[] sprayGrid, float[] spillGrid, int height) {
+  /**
+   * Rebuilds the geometry point-index maps {@link #colorizeShape} needs, but only when the
+   * bound orientation identity has actually changed (a model reload) -- never per frame. Mirrors
+   * {@code Fireball.Fire#attach}'s identity-check-then-rebuild pattern.
+   */
+  private void attachGeometry() {
+    if (this.attachedCubeOrientation != Apotheneum.cube.exterior) {
+      this.attachedCubeOrientation = Apotheneum.cube.exterior;
+      buildPointIndex(Apotheneum.cube.exterior, this.cubeExteriorPointIndex, Apotheneum.GRID_HEIGHT);
+      final Apotheneum.Orientation interior = Apotheneum.cube.interior;
+      if (interior != null) {
+        buildPointIndex(interior, this.cubeInteriorPointIndexStorage, Apotheneum.GRID_HEIGHT);
+        this.cubeInteriorPointIndex = this.cubeInteriorPointIndexStorage;
+      } else {
+        this.cubeInteriorPointIndex = null;
+      }
+    }
+    if (this.attachedCylinderOrientation != Apotheneum.cylinder.exterior) {
+      this.attachedCylinderOrientation = Apotheneum.cylinder.exterior;
+      buildPointIndex(Apotheneum.cylinder.exterior, this.cylinderExteriorPointIndex, Apotheneum.CYLINDER_HEIGHT);
+      final Apotheneum.Orientation interior = Apotheneum.cylinder.interior;
+      if (interior != null) {
+        buildPointIndex(interior, this.cylinderInteriorPointIndexStorage, Apotheneum.CYLINDER_HEIGHT);
+        this.cylinderInteriorPointIndex = this.cylinderInteriorPointIndexStorage;
+      } else {
+        this.cylinderInteriorPointIndex = null;
+      }
+    }
+  }
+
+  private static void buildPointIndex(Apotheneum.Orientation orientation, int[] pointIndex, int height) {
+    final int width = orientation.width();
+    for (int x = 0; x < width; ++x) {
+      for (int y = 0; y < height; ++y) {
+        pointIndex[x * height + y] = orientation.point(x, y).index;
+      }
+    }
+  }
+
+  /**
+   * Resolves and writes colour for one shape's cells, independently per real surface -- once
+   * for {@code exterior}, and again for {@code interiorOrNull} if this model has an interior at
+   * all. Reads only the substance {@code computeShape} already wrote (never recomputes rock or
+   * water physics); {@code rockColorInput}/{@code waterColorInput} are column-sized, so a cell's
+   * colour-coupling input is looked up by {@code cell / height}.
+   */
+  private void colorizeShape(
+    Apotheneum.Orientation exterior,
+    int[] exteriorPointIndex,
+    Apotheneum.Orientation interiorOrNull,
+    int[] interiorPointIndexOrNull,
+    int height,
+    float[] rockIntensity,
+    float[] waterLevel,
+    float[] rockColorInput,
+    float[] waterColorInput
+  ) {
+    final ApotheneumColor.Surface exteriorSurface = ApotheneumColor.Surface.of(exterior);
+    final ApotheneumColor.Surface interiorSurface =
+      (interiorOrNull != null) ? ApotheneumColor.Surface.of(interiorOrNull) : null;
+    colorizeCells(
+      exteriorPointIndex.length,
+      exteriorPointIndex,
+      exteriorSurface,
+      interiorPointIndexOrNull,
+      interiorSurface,
+      (surface, cell) -> {
+        final float rock = rockIntensity[cell];
+        if (rock > 0) {
+          return LXColor.scaleBrightness(this.rockColor.color(surface, rockColorInput[cell / height]), rock);
+        }
+        final float water = waterLevel[cell];
+        if (water > 0) {
+          return LXColor.scaleBrightness(this.waterColor.color(surface, waterColorInput[cell / height]), water);
+        }
+        return LXColor.BLACK;
+      }
+    );
+  }
+
+  private void computeShape(Apotheneum.Orientation orientation, int shape, float[] cos, float[] sin,
+      float[] sprayGrid, float[] spillGrid, int height,
+      float[] rockIntensity, float[] waterLevel, float[] rockColorInput, float[] waterColorInput) {
     final int columnCount = cos.length;
-    final ApotheneumColor.Surface surface = ApotheneumColor.Surface.of(orientation);
 
     final float radius = this.scale.getValuef() * columnCount / 100f;
     final float flow = this.flow.getValuef() * (float) this.time;
@@ -499,13 +635,15 @@ public class Waterfall extends ColorNativePattern {
         continue;
       }
 
-      final Apotheneum.Column column = orientation.column(x);
+      // Rock reads its own cragginess, water reads its own fall speed. Both are static
+      // per column, like the fields that drive them, so there is nothing to gain sampling
+      // per pixel -- stored here rather than resolved to a color, since colour is now
+      // resolved independently per real surface in colorizeShape (see docs/
+      // color-native-pattern-substance.md), not once per column here.
+      rockColorInput[x] = 2f * notch - 1f;
+      waterColorInput[x] = 2f * speed - 1f;
 
-      // One color per contribution, resolved once per column: rock reads its own
-      // cragginess, water reads its own fall speed. Both are static per column, like
-      // the fields that drive them, so there is nothing to gain sampling per pixel.
-      final int rockPixelColor = this.rockColor.color(surface, 2f * notch - 1f);
-      final int waterPixelColor = this.waterColor.color(surface, 2f * speed - 1f);
+      final int cellBase = x * height;
 
       // The rock face: everything above the water's own lip on this column. A flat
       // height field, not a distance field — a column simply is rock above lipRow —
@@ -516,9 +654,9 @@ public class Waterfall extends ColorNativePattern {
         final float rim = ROCK_RIM * this.rockRimDecay[depthFromEdge - 1];
         final float fine = .5f + .5f * Noise.stb_perlin_noise3(
           cx * ROCK_TEXTURE_SCALE, cz * ROCK_TEXTURE_SCALE, y * ROCK_TEXTURE_SCALE, 0, 0, 0);
-        final float rockIntensity = LXUtils.clampf(ROCK_BASE + rim + ROCK_TEXTURE * (fine - .5f), 0, 1);
-        if (rockIntensity > 0) {
-          colors[column.points[y].index] = LXColor.scaleBrightness(rockPixelColor, rockIntensity);
+        final float rockIntensityValue = LXUtils.clampf(ROCK_BASE + rim + ROCK_TEXTURE * (fine - .5f), 0, 1);
+        if (rockIntensityValue > 0) {
+          rockIntensity[cellBase + y] = rockIntensityValue;
         }
       }
 
@@ -539,7 +677,7 @@ public class Waterfall extends ColorNativePattern {
         ? .5f + .5f * Noise.stb_perlin_noise3(cx * .25f, noiseTime * .18f, cz * .25f, 0, 0, 0)
         : 0f;
 
-      final int sprayBase = x * height;
+      final int sprayBase = cellBase;
 
       for (int y = lipRow; y <= floorRow; ++y) {
         final float curtain = curtainAt(x, columnCount, cx, cz, sheet, lipRow, span, columnStretch,
@@ -564,8 +702,7 @@ public class Waterfall extends ColorNativePattern {
 
         final float level = curtain + band + haze + drops + spill;
         if (level > 0) {
-          final LXPoint p = column.points[y];
-          colors[p.index] = LXColor.scaleBrightness(waterPixelColor, LXUtils.clampf(level, 0, 1));
+          waterLevel[cellBase + y] = LXUtils.clampf(level, 0, 1);
         }
       }
     }
