@@ -18,10 +18,6 @@
 
 package apotheneum.doved;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 
 import heronarts.glx.ui.UI;
 import heronarts.glx.ui.UI2dComponent;
@@ -30,11 +26,7 @@ import heronarts.glx.ui.component.UICollapsibleSection;
 import heronarts.glx.ui.component.UIDropMenu;
 import heronarts.glx.ui.component.UILabel;
 import heronarts.glx.ui.vg.VGraphics;
-import heronarts.lx.LX;
 import heronarts.lx.color.LXDynamicColor;
-import heronarts.lx.color.LXSwatch;
-import heronarts.lx.parameter.LXListenableParameter;
-import heronarts.lx.parameter.LXParameter;
 
 import apotheneum.doved.modulators.ApotheneumColor;
 import apotheneum.doved.modulators.ApotheneumColor.Surface;
@@ -113,8 +105,7 @@ public class UIApotheneumColorSection extends UICollapsibleSection {
   private UI2dContainer swatchRow(
     ApotheneumColor config, Surface surface, String label, float contentWidth
   ) {
-    final SwatchPair swatch =
-      new SwatchPair(config.getLX(), config, surface, contentWidth, SWATCH_HEIGHT);
+    final SwatchPair swatch = new SwatchPair(config, surface, contentWidth, SWATCH_HEIGHT);
     return stackedRow(contentWidth, label, swatch);
   }
 
@@ -133,123 +124,66 @@ public class UIApotheneumColorSection extends UICollapsibleSection {
    * Left half primary, right half secondary, for one surface — "what does the current
    * pair/swap/axis actually produce", without turning the piece on.
    *
-   * <p>Redraws on every parameter that can move either half. That is {@code pair}, {@code swap}
-   * and {@code axis} — every swatch listens to all three, since each one moves every surface's
-   * resolved color at once — <b>and the palette stops themselves</b>. The stop listeners are not
-   * optional decoration: {@link ApotheneumColor} resolves nothing but real palette stops, so a
-   * performer dragging a stop's hue changes what every one of these swatches should be showing
-   * without touching any of the three parameters above. Listening to the three alone left the
-   * swatches displaying cached pre-edit colors while the patterns had already moved to the
-   * edited ones — a preview that disagrees with the piece is worse than no preview, because it
-   * is trusted. This restores the {@code LXSwatch.Listener} + per-{@link LXDynamicColor}
-   * parameter-listener pair the {@code PaletteColorPreview} this class replaced already had.
-   *
-   * <p>{@code lx.engine.palette.swatch} is a {@code final} field on {@code LXPalette} — recalling
-   * a saved swatch copies into it rather than swapping the object — so binding to it once in the
-   * constructor stays correct for the life of this component.
-   *
-   * <p>One case is deliberately not covered: an {@link LXDynamicColor} in an animating mode
-   * (cycle/oscillate) changes color every frame with no parameter change to listen for, so its
-   * swatch here updates only when something else triggers a redraw. Following that would mean
-   * repainting this section every frame for a 208px-wide preview; the parameter-driven cases
-   * above are the ones a performer actually edits.
+   * <p>What it shows has to agree with what the room is doing, because a preview that
+   * disagrees is worse than no preview: it gets trusted. See {@link #pollResolvedColor} for how
+   * that is kept true, and for why this component polls the resolved colour rather than
+   * listening to the parameters that feed it.
    */
   private static final class SwatchPair extends UI2dComponent {
 
     private final ApotheneumColor config;
     private final Surface surface;
-    private final LXSwatch swatch;
 
-    /** The parameters this component is listening to, per palette stop, so a stop leaving the
-     * swatch can take its listeners with it -- see {@link #attachColorListeners}. Mutated only
-     * when a stop is added or removed, never per frame. */
-    private final Map<LXDynamicColor, List<LXListenableParameter>> colorListeners =
-      new HashMap<>();
+    /** The colours this swatch last actually painted, so the poll below can tell whether
+     * anything it should be showing has moved. */
+    private int drawnPrimary;
+    private int drawnSecondary;
+    private boolean everDrawn = false;
 
-    private final LXSwatch.Listener swatchListener = new LXSwatch.Listener() {
-      @Override
-      public void colorAdded(LXSwatch swatch, LXDynamicColor color) {
-        attachColorListeners(color);
-        redraw();
-      }
-
-      @Override
-      public void colorRemoved(LXSwatch swatch, LXDynamicColor color) {
-        detachColorListeners(color);
-        // A removal also changes what every *remaining* swatch resolves, since
-        // ApotheneumColor.wrapIndex wraps around the live stop count -- so this redraw is
-        // required, not merely tidy.
-        redraw();
-      }
-    };
-
-    private SwatchPair(LX lx, ApotheneumColor config, Surface surface, float width, float height) {
+    private SwatchPair(ApotheneumColor config, Surface surface, float width, float height) {
       super(0, 0, width, height);
       this.config = config;
       this.surface = surface;
       setDescription("Resolved primary (left) and secondary (right) color for " + surface);
-
-      addListener(config.pair, this.redraw);
-      addListener(config.swap, this.redraw);
-      addListener(config.axis, this.redraw);
-
-      this.swatch = lx.engine.palette.swatch;
-      for (LXDynamicColor color : this.swatch.colors) {
-        attachColorListeners(color);
-      }
-      this.swatch.addListener(this.swatchListener);
+      addLoopTask(deltaMs -> pollResolvedColor());
     }
 
     /**
-     * Repaints whenever any parameter that can move this stop's color changes.
+     * Redraws when what this swatch resolves has changed since it last painted.
      *
-     * <p>Registered straight on the parameter rather than through {@code UIObject.addListener},
-     * and tracked here, purely so {@link #detachColorListeners} can undo it. {@code UIObject}
-     * accumulates what it is given in a private list with no removal API at all, so a listener
-     * handed to it lives until this whole section is disposed -- which is the end of the
-     * session, not the moment the stop goes away. A performer adding and removing palette stops
-     * across a long show would leave every removed {@link LXDynamicColor} reachable from this
-     * component, and each one still firing a redraw for a stop that is no longer on screen.
-     * Small and slow rather than a rendering bug, but there is no reason to carry it.
+     * <p><b>Polled rather than driven by parameter listeners, and that is a correction.</b> This
+     * component first listened to {@code pair}/{@code swap}/{@code axis}, then also to every
+     * {@link LXDynamicColor}'s parameters so a palette edit would land. Neither reaches the case
+     * that matters most here: all three of those parameters are {@code
+     * CompoundDiscreteParameter}s <em>specifically so a modulator or a MIDI knob can drive
+     * them</em>, and modulation moves a parameter's effective value without ever touching the
+     * base value a listener fires on -- the same fact {@code ModColorize.writeGlobalColor} is
+     * built around, and the reason its write-through runs per frame too. A modulator sweeping
+     * Axis therefore moved every pattern in the room while these swatches sat on stale colours
+     * until something unrelated happened to redraw them.
+     *
+     * <p>Polling the resolved colour subsumes every case the listeners covered -- a base-value
+     * edit, a palette stop being edited, a stop added or removed, and a stop in an animating
+     * mode, which no parameter listener could ever have caught -- so the listener bookkeeping,
+     * including the per-stop teardown on removal, is gone rather than kept alongside this. Two
+     * integer comparisons per swatch per frame, four swatches, against a redraw that only
+     * happens when something actually moved.
      */
-    private void attachColorListeners(LXDynamicColor color) {
-      final List<LXListenableParameter> listening = new ArrayList<>();
-      for (LXParameter parameter : color.getParameters()) {
-        if (parameter instanceof LXListenableParameter listenable) {
-          listenable.addListener(this.redraw);
-          listening.add(listenable);
-        }
+    private void pollResolvedColor() {
+      final int primary = this.config.primaryColor(this.surface);
+      final int secondary = this.config.secondaryColor(this.surface);
+      if (!this.everDrawn || (primary != this.drawnPrimary) || (secondary != this.drawnSecondary)) {
+        redraw();
       }
-      this.colorListeners.put(color, listening);
-    }
-
-    /** Undoes {@link #attachColorListeners} for one stop. A no-op for a color never attached. */
-    private void detachColorListeners(LXDynamicColor color) {
-      final List<LXListenableParameter> listening = this.colorListeners.remove(color);
-      if (listening == null) {
-        return;
-      }
-      for (LXListenableParameter parameter : listening) {
-        parameter.removeListener(this.redraw);
-      }
-    }
-
-    @Override
-    public void dispose() {
-      this.swatch.removeListener(this.swatchListener);
-      for (List<LXListenableParameter> listening : this.colorListeners.values()) {
-        for (LXListenableParameter parameter : listening) {
-          parameter.removeListener(this.redraw);
-        }
-      }
-      this.colorListeners.clear();
-      super.dispose();
     }
 
     @Override
     protected void onDraw(UI ui, VGraphics vg) {
       final int primary = this.config.primaryColor(this.surface);
       final int secondary = this.config.secondaryColor(this.surface);
+      this.drawnPrimary = primary;
+      this.drawnSecondary = secondary;
+      this.everDrawn = true;
       final float half = this.width / 2f;
       vg.beginPath().rect(0, 0, half, this.height).fillColor(primary).fill();
       vg.beginPath().rect(half, 0, this.width - half, this.height).fillColor(secondary).fill();

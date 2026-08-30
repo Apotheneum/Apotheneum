@@ -62,6 +62,7 @@ public final class RenderLeftPaneSection {
   private static final Duration STARTUP_TIMEOUT = Duration.ofSeconds(30);
   private static final int DRAW_FRAMES_BEFORE_READBACK = 60;
   private static final int READBACK_SETTLE_FRAMES = 30;
+  private static final float BOUNDS_EPSILON = 0.5f;
   private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
   private static Path outputDirectory;
@@ -376,6 +377,9 @@ public final class RenderLeftPaneSection {
         if (child instanceof UIParameterComponent) {
           ++directControls;
         }
+        if (child instanceof UI2dComponent bounded) {
+          checkBounds(container, bounded, warnings);
+        }
         children.add(describe(child, warnings));
       }
       description.add("children", children);
@@ -385,10 +389,36 @@ public final class RenderLeftPaneSection {
           container.getClass().getSimpleName(), container.getX(), container.getY(), directControls));
       }
     }
-    // Bounds check every child against the section's own width -- the exact class of bug
-    // (a control silently laid out past its container's right edge) that a green test suite
-    // and a naive glance at the code both missed in ApotheneumColor's first panel.
     return description;
+  }
+
+  /**
+   * Warns when a child is laid out past its parent's edge -- a control silently clipped or
+   * spilling into whatever comes after it.
+   *
+   * <p>This check was a comment and a {@code return} until 2026-08-30: the method described
+   * exactly this bounds check and then did nothing, so the only warning the harness could ever
+   * emit was the three-direct-controls one. Every "warnings: []" this harness has printed was
+   * therefore silent about clipping rather than clearing it -- including the ones cited as
+   * evidence on this PR, and including the run that failed to flag the Spread row spilling past
+   * its budgeted height. A check that is documented but not implemented is worse than an absent
+   * one, because it gets trusted.
+   *
+   * <p>{@code EPSILON} absorbs sub-pixel float layout rounding, not real overflow: the failures
+   * this is for are whole controls landing several pixels past an edge, never a half-pixel.
+   */
+  private static void checkBounds(UI2dContainer parent, UI2dComponent child, List<String> warnings) {
+    final float right = child.getX() + child.getWidth();
+    final float bottom = child.getY() + child.getHeight();
+    if (child.getX() < -BOUNDS_EPSILON || child.getY() < -BOUNDS_EPSILON
+      || right > parent.getContentWidth() + BOUNDS_EPSILON
+      || bottom > parent.getContentHeight() + BOUNDS_EPSILON) {
+      warnings.add(String.format(Locale.ROOT,
+        "%s at [%.0f,%.0f %.0fx%.0f] extends past its %s content box (%.0fx%.0f)",
+        child.getClass().getSimpleName(), child.getX(), child.getY(),
+        child.getWidth(), child.getHeight(), parent.getClass().getSimpleName(),
+        parent.getContentWidth(), parent.getContentHeight()));
+    }
   }
 
   private static void fail(LXStudio studio, Throwable x) {
