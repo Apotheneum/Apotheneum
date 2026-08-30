@@ -18,6 +18,11 @@
 
 package apotheneum.doved;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 import heronarts.glx.ui.UI;
 import heronarts.glx.ui.UI2dComponent;
 import heronarts.glx.ui.UI2dContainer;
@@ -155,6 +160,12 @@ public class UIApotheneumColorSection extends UICollapsibleSection {
     private final Surface surface;
     private final LXSwatch swatch;
 
+    /** The parameters this component is listening to, per palette stop, so a stop leaving the
+     * swatch can take its listeners with it -- see {@link #attachColorListeners}. Mutated only
+     * when a stop is added or removed, never per frame. */
+    private final Map<LXDynamicColor, List<LXListenableParameter>> colorListeners =
+      new HashMap<>();
+
     private final LXSwatch.Listener swatchListener = new LXSwatch.Listener() {
       @Override
       public void colorAdded(LXSwatch swatch, LXDynamicColor color) {
@@ -164,11 +175,10 @@ public class UIApotheneumColorSection extends UICollapsibleSection {
 
       @Override
       public void colorRemoved(LXSwatch swatch, LXDynamicColor color) {
-        // Listeners attached to the removed color are torn down in dispose() along with
-        // everything else addListener(...) tracked; until then a removed color can cause at
-        // most one harmless extra redraw. Note a removal also changes what every *remaining*
-        // swatch resolves, since ApotheneumColor.wrapIndex wraps around the live stop count --
-        // so this redraw is required, not merely tidy.
+        detachColorListeners(color);
+        // A removal also changes what every *remaining* swatch resolves, since
+        // ApotheneumColor.wrapIndex wraps around the live stop count -- so this redraw is
+        // required, not merely tidy.
         redraw();
       }
     };
@@ -190,18 +200,49 @@ public class UIApotheneumColorSection extends UICollapsibleSection {
       this.swatch.addListener(this.swatchListener);
     }
 
-    /** Repaints whenever any parameter that can move this stop's color changes. */
+    /**
+     * Repaints whenever any parameter that can move this stop's color changes.
+     *
+     * <p>Registered straight on the parameter rather than through {@code UIObject.addListener},
+     * and tracked here, purely so {@link #detachColorListeners} can undo it. {@code UIObject}
+     * accumulates what it is given in a private list with no removal API at all, so a listener
+     * handed to it lives until this whole section is disposed -- which is the end of the
+     * session, not the moment the stop goes away. A performer adding and removing palette stops
+     * across a long show would leave every removed {@link LXDynamicColor} reachable from this
+     * component, and each one still firing a redraw for a stop that is no longer on screen.
+     * Small and slow rather than a rendering bug, but there is no reason to carry it.
+     */
     private void attachColorListeners(LXDynamicColor color) {
+      final List<LXListenableParameter> listening = new ArrayList<>();
       for (LXParameter parameter : color.getParameters()) {
         if (parameter instanceof LXListenableParameter listenable) {
-          addListener(listenable, this.redraw);
+          listenable.addListener(this.redraw);
+          listening.add(listenable);
         }
+      }
+      this.colorListeners.put(color, listening);
+    }
+
+    /** Undoes {@link #attachColorListeners} for one stop. A no-op for a color never attached. */
+    private void detachColorListeners(LXDynamicColor color) {
+      final List<LXListenableParameter> listening = this.colorListeners.remove(color);
+      if (listening == null) {
+        return;
+      }
+      for (LXListenableParameter parameter : listening) {
+        parameter.removeListener(this.redraw);
       }
     }
 
     @Override
     public void dispose() {
       this.swatch.removeListener(this.swatchListener);
+      for (List<LXListenableParameter> listening : this.colorListeners.values()) {
+        for (LXListenableParameter parameter : listening) {
+          parameter.removeListener(this.redraw);
+        }
+      }
+      this.colorListeners.clear();
       super.dispose();
     }
 
