@@ -24,6 +24,7 @@ import heronarts.glx.ui.UI2dContainer;
 import heronarts.glx.ui.component.UICollapsibleSection;
 import heronarts.glx.ui.component.UIDoubleBox;
 import heronarts.glx.ui.component.UILabel;
+import heronarts.glx.ui.component.UISlider;
 
 import apotheneum.doved.modulators.ApotheneumGradient;
 
@@ -49,13 +50,17 @@ public class UIApotheneumGradientSection extends UICollapsibleSection {
 
   private static final float SHARED_GROUP_HEIGHT =
     GROUP_HEADING_HEIGHT + GROUP_ROW_SPACING + 2 * ROW_HEIGHT + GROUP_ROW_SPACING;
-  private static final float CONTENT_HEIGHT = SHARED_GROUP_HEIGHT;
+  private static final float SHAPE_GROUP_HEIGHT =
+    GROUP_HEADING_HEIGHT + GROUP_ROW_SPACING + ROW_HEIGHT + GROUP_ROW_SPACING;
+  private static final float GROUP_SPACING = 8;
+  private static final float CONTENT_HEIGHT =
+    SHARED_GROUP_HEIGHT + GROUP_SPACING + SHAPE_GROUP_HEIGHT;
   private static final float SECTION_HEIGHT = CONTENT_HEIGHT + PADDING + BAR_HEIGHT;
 
   public UIApotheneumGradientSection(UI ui, ApotheneumGradient gradient, float width) {
     super(ui, 0, 0, width, SECTION_HEIGHT);
     setTitle("APOTHENEUM GRADIENT");
-    setLayout(UI2dContainer.Layout.VERTICAL, GROUP_ROW_SPACING);
+    setLayout(UI2dContainer.Layout.VERTICAL, GROUP_SPACING);
 
     final float contentWidth = getContentWidth();
 
@@ -67,7 +72,20 @@ public class UIApotheneumGradientSection extends UICollapsibleSection {
         new UIDoubleBox(0, 0, contentWidth, CONTROL_HEIGHT, gradient.elevation))
     );
 
-    addChildren(sharedGroup);
+    // Spread had no control at all until 2026-08-30. ApotheneumGradient is an engine-owned
+    // plain component, so this section is its only interactive UI in Chromatik -- with no row
+    // here, the flat-colour state the owner explicitly asked for ("we should also be able to
+    // disable the gradient and just make it flat colors") was reachable from OSC and from a
+    // modulator and from nowhere a performer would look. A slider rather than a box because
+    // this one is swept by hand between its two ends, not typed as an angle.
+    final UI2dContainer shapeGroup = UI2dContainer.newVerticalContainer(contentWidth, GROUP_ROW_SPACING,
+      groupHeading(contentWidth, "SHAPE"),
+      stackedRow(contentWidth, "Spread",
+        new UISlider(UISlider.Direction.HORIZONTAL, 0, 0, contentWidth, CONTROL_HEIGHT)
+          .setParameter(gradient.spread))
+    );
+
+    addChildren(sharedGroup, shapeGroup);
   }
 
   /** A caption label above a full-width control, stacked with {@link #CAPTION_SPACING} --

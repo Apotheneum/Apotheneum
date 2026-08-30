@@ -463,23 +463,53 @@ public final class RenderSpike {
    * behaviour" is itself meaningful to render, since it's the same fallback a real project would
    * hit if the core plugin failed to load.
    */
+  /**
+   * {@code spread}'s {@code [0, 1]} value from a render spec. Rejected rather than clamped
+   * outside that range: a spec is typed by hand, and silently clamping a mistyped 10 to 1 would
+   * render a full gradient while the command line claimed something else.
+   */
+  private static double parseGradientSpread(String assignment, String component) {
+    final double spread;
+    try {
+      spread = Double.parseDouble(component.trim());
+    } catch (NumberFormatException nfx) {
+      throw new IllegalArgumentException(
+        "Invalid apotheneumGradient spec '" + assignment + "'; spread '" + component
+          + "' is not a number", nfx);
+    }
+    if ((spread < 0) || (spread > 1)) {
+      throw new IllegalArgumentException(
+        "Invalid apotheneumGradient spec '" + assignment + "'; spread " + spread
+          + " is outside [0, 1]");
+    }
+    return spread;
+  }
+
   private static void applyApotheneumGradient(LX lx, String assignment) {
     if (assignment.isBlank()) {
       LX.log("RenderSpike apotheneumGradient=(none)");
       return;
     }
     final String[] components = assignment.split(",", -1);
-    if (components.length != 2) {
+    // Spread is optional and trails the two angles, so every existing two-value invocation --
+    // including the ones in docs/headless-rendering.md and any a reviewer has in scrollback --
+    // keeps meaning exactly what it did, at spread's own default of 1 (the full gradient).
+    if ((components.length != 2) && (components.length != 3)) {
       throw new IllegalArgumentException(
         "Invalid apotheneumGradient spec '" + assignment + "'; expected azimuth,elevation"
+          + " or azimuth,elevation,spread"
       );
     }
     final ApotheneumGradient gradient = new ApotheneumGradient(lx);
     lx.engine.registerComponent(ApotheneumGradient.PATH, gradient);
     gradient.azimuth.setValue(parseGradientDegrees(assignment, components[0]));
     gradient.elevation.setValue(parseGradientDegrees(assignment, components[1]));
+    if (components.length == 3) {
+      gradient.spread.setValue(parseGradientSpread(assignment, components[2]));
+    }
     LX.log("RenderSpike apotheneumGradient=azimuth:" + gradient.azimuth.getValue()
-      + ",elevation:" + gradient.elevation.getValue());
+      + ",elevation:" + gradient.elevation.getValue()
+      + ",spread:" + gradient.spread.getValue());
   }
 
   private static double parseGradientDegrees(String assignment, String raw) {

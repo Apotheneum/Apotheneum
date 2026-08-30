@@ -22,6 +22,7 @@ import heronarts.lx.model.LXPoint;
 import heronarts.lx.pattern.LXPattern;
 import heronarts.lx.pattern.color.SolidPattern;
 import heronarts.lx.structure.JsonFixture;
+import heronarts.lx.structure.view.LXViewDefinition;
 
 /**
  * Exercises the wiring {@code ColorNativePatternWiringTest} established for the pattern side:
@@ -136,6 +137,97 @@ public class GradientMultiplyEffectWiringTest {
         + "column's worth (" + perColumnSpan + "); this is the seam the 3D redesign exists "
         + "to remove"
       );
+    } finally {
+      if (lx != null) {
+        lx.dispose();
+      }
+      deleteTree(mediaPath);
+    }
+  }
+
+  /**
+   * A model view assigned to this effect has to scope what it writes.
+   *
+   * <p>A view is an <b>input model, not an output mask</b> ({@code
+   * docs/lx-coding-guidelines.md} &#167;18) -- {@code getModelView()} narrows what a device is
+   * told to draw, and nothing in the framework stops it writing any other index of the shared
+   * buffer. This effect reaches for {@code Apotheneum.cube.exterior} and writes {@code
+   * colors[point.index]} directly rather than walking the view's own points, so before the
+   * mask went in, narrowing the effect's view to the cylinder still multiplied the cube.
+   *
+   * <p>Asserted on a white {@code SolidPattern} host so "untouched" is unambiguous: a cube
+   * point outside the view must still be exactly white, and a cylinder point inside it must
+   * not be, since the gradient multiplies white down toward a palette colour.
+   */
+  @Test
+  void anAssignedViewScopesWhichSurfacesAreMultiplied() throws Exception {
+    final Path mediaPath = Files.createTempDirectory("apotheneum-gradient-view-test-");
+    LX lx = null;
+    try {
+      copyFixtureMedia(mediaPath);
+      final LX.Flags flags = new LX.Flags();
+      flags.loadPreferences = false;
+      flags.mediaPath = mediaPath.toString();
+      flags.outputMode = LX.Flags.OutputMode.INACTIVE;
+      lx = new LX(flags);
+      lx.engine.output.enabled.setValue(false);
+
+      final JsonFixture fixture = new JsonFixture(lx, FIXTURE_NAME);
+      lx.structure.addFixture(fixture);
+      lx.structure.beforeEngineRun();
+      assertFalse(fixture.error.isOn(), fixture.errorMessage.getString());
+      Apotheneum.initialize(lx);
+
+      lx.engine.palette.swatch.addColor();
+      lx.engine.palette.swatch.colors.get(0).primary.setColor(LXColor.hsb(20, 90, 70));
+      lx.engine.palette.swatch.colors.get(1).primary.setColor(LXColor.hsb(200, 90, 70));
+      registerApotheneumColor(lx);
+      registerApotheneumGradient(lx);
+
+      final LXViewDefinition view = lx.structure.views.addView();
+      view.selector.setValue("cylinder");
+      view.enabled.setValue(true);
+
+      final SolidPattern host = new SolidPattern(lx, LXColor.WHITE);
+      final GradientMultiplyEffect effect = new GradientMultiplyEffect(lx);
+      final LXChannel channel = lx.engine.mixer.addChannel(new LXPattern[] { host });
+      channel.addEffect(effect);
+      effect.view.setValue(view);
+
+      lx.engine.run();
+      for (int frame = 0; frame < 30; ++frame) {
+        lx.engine.run();
+      }
+
+      final int[] colors = host.getColors();
+      // The view has to actually resolve to something, or "the cube was untouched" is
+      // vacuously true and this test proves nothing.
+      assertTrue(effect.getModelView().size > 0, "the assigned view resolved to no points");
+      assertTrue(
+        effect.getModelView().size < lx.getModel().size,
+        "the assigned view covers the whole model, so it does not scope anything");
+
+      boolean anyCylinderMultiplied = false;
+      for (Apotheneum.Column column : Apotheneum.cylinder.exterior.columns()) {
+        for (LXPoint point : column.points) {
+          if (colors[point.index] != LXColor.WHITE) {
+            anyCylinderMultiplied = true;
+            break;
+          }
+        }
+      }
+      assertTrue(anyCylinderMultiplied,
+        "nothing inside the view was multiplied, so the comparison below is meaningless");
+
+      for (Apotheneum.Column column : Apotheneum.cube.exterior.columns()) {
+        for (LXPoint point : column.points) {
+          assertTrue(
+            colors[point.index] == LXColor.WHITE,
+            "a cube-exterior point outside the effect's assigned view was multiplied; a model "
+            + "view is an input model, not an output mask, so this effect has to carry its own "
+            + "membership check");
+        }
+      }
     } finally {
       if (lx != null) {
         lx.dispose();

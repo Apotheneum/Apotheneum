@@ -142,11 +142,30 @@ mvn -Ptests test-compile exec:exec \
 The `-DapotheneumColor=` spec is `pair,swap,axis` — three values, not four; see the
 colour-native section below for what each one does.
 
-The `-DapotheneumGradient=` spec is `azimuth,elevation` in degrees — `0,0` is fully horizontal at azimuth 0;
-`0,90` (or `0,-90`) is the vertical gradient confirmed to look right on every surface;
-something like `45,30` exercises a genuine diagonal. Render all three before trusting a
-change to the projection math: a seam that only shows up off-axis is exactly the kind of
-regression a single "looks fine" render at one direction would miss.
+The `-DapotheneumGradient=` spec is `azimuth,elevation` in degrees, with an optional third
+value for `spread` — `0,0` is fully horizontal at azimuth 0; `0,90` (or `0,-90`) is the
+vertical gradient confirmed to look right on every surface; something like `45,30`
+exercises a genuine diagonal. Render all three before trusting a change to the projection
+math: a seam that only shows up off-axis is exactly the kind of regression a single "looks
+fine" render at one direction would miss.
+
+`spread` defaults to 1 (the full gradient) when the third value is omitted, so every
+two-value invocation means exactly what it always did. Pass it to render the collapse
+toward flat colour — `0,90,0` is fully flat, `0,90,0.5` is half-collapsed:
+
+```bash
+mvn -Ptests test-compile exec:exec \
+  -Dpattern=heronarts.lx.pattern.color.SolidPattern \
+  -Deffects=apotheneum.doved.effects.GradientMultiplyEffect \
+  '-Dpalette=30,95,100;210,92,100' \
+  -DapotheneumColor=0,0,0 \
+  -DapotheneumGradient=0,90,0
+```
+
+It collapses toward the *midpoint*, not toward primary, so a flat render is the even blend
+of the two ends rather than either end — see `ApotheneumGradient.applySpread`. A value
+outside `[0, 1]` is rejected rather than clamped, so a mistyped spec fails loudly instead
+of rendering a full gradient while the command line claims otherwise.
 
 ### Colour-native patterns need an explicit `-Dpalette=` *and* `-DapotheneumColor=`
 

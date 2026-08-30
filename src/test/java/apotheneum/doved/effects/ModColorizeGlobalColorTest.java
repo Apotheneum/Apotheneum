@@ -12,6 +12,8 @@ import apotheneum.HeadlessLxTest;
 import apotheneum.doved.modulators.ApotheneumColor;
 import heronarts.lx.LX;
 import heronarts.lx.color.LXColor;
+import com.google.gson.JsonObject;
+
 import heronarts.lx.color.LXSwatch;
 
 import heronarts.lx.effect.color.ColorizeEffect.ColorMode;
@@ -129,9 +131,9 @@ public class ModColorizeGlobalColorTest extends HeadlessLxTest {
     colorize.invert.setValue(0);
     lx.engine.run();
 
-    // Global off restores manual control: a hand-set picker survives every later frame, and
-    // colorMode is no longer forced.
+    // Global off hands the device back: writeThrough must stop touching the pickers.
     colorize.global.setValue(0);
+    lx.engine.run();
     colorize.colorMode.setValue(ColorMode.PALETTE);
     final int chosen = LXColor.hsb(300, 100, 100);
     colorize.color1.setColor(chosen);
@@ -142,6 +144,88 @@ public class ModColorizeGlobalColorTest extends HeadlessLxTest {
       "with Global off, writeThrough must leave this device's own picker alone");
     assertEquals(ColorMode.PALETTE, colorize.colorMode.getEnum(),
       "with Global off, colorMode must no longer be forced to FIXED");
+
+    // The round trip, which is the whole point: Off -> On -> Off must land back on the
+    // hand-built look, not strand the device on the shared colour. Global is a modulation
+    // target precisely so a MIDI switch can do this repeatedly, so a one-way toggle would
+    // destroy a performer's setup the first time they flipped it.
+    final int chosenEnd = LXColor.hsb(120, 100, 100);
+    colorize.color2.setColor(chosenEnd);
+    lx.engine.run();
+
+    colorize.global.setValue(1);
+    lx.engine.run();
+    assertNotEquals(chosen, colorize.color1.getColor(),
+      "Global on must actually take over the ends, or the restore below proves nothing");
+    assertEquals(ColorMode.FIXED, colorize.colorMode.getEnum(),
+      "switching Global on nudges the ramp onto the two ends it is driving");
+
+    colorize.global.setValue(0);
+    lx.engine.run();
+    assertEquals(chosen, colorize.color1.getColor(),
+      "Off -> On -> Off must restore this device's own Start colour");
+    assertEquals(chosenEnd, colorize.color2.getColor(),
+      "Off -> On -> Off must restore this device's own End colour");
+    assertEquals(ColorMode.PALETTE, colorize.colorMode.getEnum(),
+      "Off -> On -> Off must restore the colorMode the performer had chosen");
+
+    // And it must survive repeating, not just the first cycle.
+    for (int cycle = 0; cycle < 3; ++cycle) {
+      colorize.global.setValue(1);
+      lx.engine.run();
+      colorize.global.setValue(0);
+      lx.engine.run();
+    }
+    assertEquals(chosen, colorize.color1.getColor(),
+      "repeated Global cycling must keep restoring the same local look");
+    assertEquals(ColorMode.PALETTE, colorize.colorMode.getEnum());
+  }
+
+  /**
+   * The captured local look has to survive a project round trip too. A project saved while
+   * Global was on carries no live Start/End of its own -- those parameters hold the shared
+   * colour at that moment -- so without persisting the capture, loading and then switching
+   * Global off would strand the device on the shared colour: the same one-way trip, just
+   * spread across a save/load instead of a single toggle.
+   */
+  @Test
+  void theCapturedLocalLookSurvivesASaveLoadRoundTrip() {
+    final LX lx = newHeadlessLx();
+    setSwatchStops(lx);
+    register(lx);
+
+    final ModColorize saved = new ModColorize(lx);
+    // A frame while Global is off, before building the local look: the capture happens on the
+    // observed off->on transition, so the device has to actually see the off state first.
+    // On a live rig frames run continuously and this is automatic.
+    saved.global.setValue(0);
+    saved.writeThroughForTest();
+
+    final int chosen = LXColor.hsb(300, 100, 100);
+    saved.color1.setColor(chosen);
+    saved.colorMode.setValue(ColorMode.PALETTE);
+
+    saved.global.setValue(1);
+    saved.writeThroughForTest();
+    assertNotEquals(chosen, saved.color1.getColor(), "Global on must have taken over the ends");
+
+    final JsonObject obj = new JsonObject();
+    saved.save(lx, obj);
+    // A real project load constructs the device from the file, not alongside the instance that
+    // wrote it. Disposing first reproduces that; leaving both alive collides on every
+    // serialized component id, this device's and its nested modulation engine's alike.
+    saved.dispose();
+
+    final ModColorize loaded = new ModColorize(lx);
+    loaded.load(lx, obj);
+    assertEquals(1, loaded.global.getValuei(), "Global's own value round-trips");
+
+    loaded.global.setValue(0);
+    loaded.writeThroughForTest();
+    assertEquals(chosen, loaded.color1.getColor(),
+      "the local Start colour captured before saving must come back when Global goes off");
+    assertEquals(ColorMode.PALETTE, loaded.colorMode.getEnum(),
+      "and so must the colorMode");
   }
 
   @Test

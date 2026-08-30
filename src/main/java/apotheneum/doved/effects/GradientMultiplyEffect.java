@@ -109,6 +109,28 @@ public class GradientMultiplyEffect extends ApotheneumEffect {
   private double frameProjectedMax;
   private double frameSpread;
 
+  /**
+   * View membership, for the same reason {@code ViewMaskedPattern} exists on the pattern side:
+   * a model view is an <b>input model, not an output mask</b> ({@code
+   * docs/lx-coding-guidelines.md} &#167;18). {@link #multiplySurface} reaches for {@code
+   * Apotheneum.cube.exterior} and writes {@code colors[point.index]} directly rather than
+   * walking {@code getModelView().points}, so nothing in the framework keeps it inside a view a
+   * performer assigned to this effect -- without this, narrowing the effect's own view still
+   * multiplied all four surfaces.
+   *
+   * <p>Simpler than the pattern case, and deliberately so: an effect transforms content that is
+   * already in the buffer, so a point outside the view is <em>skipped</em> and keeps whatever
+   * the pattern put there. There is no clear pass, and therefore none of {@code
+   * ViewMaskedPattern.updateViewMask}'s "clear the outgoing view" handling -- a shrinking view
+   * here cannot strand a stale lit point, because this effect never lit one in the first place.
+   *
+   * <p>Rebuilt only when the view identity actually changes, never per frame. With no view
+   * narrowing the effect -- the ordinary case -- {@link #viewMask} stays null and the whole
+   * facility costs one reference comparison per frame and allocates nothing.
+   */
+  private LXModel viewModel;
+  private boolean[] viewMask;
+
   public GradientMultiplyEffect(LX lx) {
     super(lx);
   }
@@ -137,6 +159,8 @@ public class GradientMultiplyEffect extends ApotheneumEffect {
     this.frameProjectedMax =
       ApotheneumGradient.apotheneumProjectedMax(model, this.frameDirX, this.frameDirY, this.frameDirZ);
     this.frameSpread = ApotheneumGradient.spreadOrDefault(gradient);
+
+    updateViewMask();
 
     multiplySurface(Apotheneum.cube.exterior, ApotheneumColor.Surface.CUBE_EXTERIOR, enabledAmount, color);
     multiplySurface(Apotheneum.cube.interior, ApotheneumColor.Surface.CUBE_INTERIOR, enabledAmount, color);
@@ -172,6 +196,9 @@ public class GradientMultiplyEffect extends ApotheneumEffect {
           ApotheneumGradient.normalize(projected, this.frameProjectedMin, this.frameProjectedMax);
         final double effectiveT = ApotheneumGradient.applySpread(t, this.frameSpread);
         final int gradientColor = LXColor.lerp(primaryColor, secondaryColor, effectiveT);
+        if (!isViewPoint(point.index)) {
+          continue;
+        }
         final int original = colors[point.index];
         final int multiplied = LXColor.multiply(original, gradientColor);
         colors[point.index] = (enabledAmount >= 1)
@@ -179,6 +206,35 @@ public class GradientMultiplyEffect extends ApotheneumEffect {
           : LXColor.lerp(original, multiplied, enabledAmount);
       }
     }
+  }
+
+  /** Rebuilds {@link #viewMask} when {@code getModelView()} has actually changed -- see the
+   * field's own javadoc for why an effect needs this and why it needs less of it than a
+   * pattern does. */
+  private void updateViewMask() {
+    final LXModel model = getModelView();
+    if (this.viewModel == model) {
+      return;
+    }
+    this.viewModel = model;
+    final LXModel whole = this.lx.getModel();
+    if ((model == null) || (model == whole)) {
+      this.viewMask = null;
+      return;
+    }
+    final boolean[] mask = new boolean[whole.size];
+    for (LXPoint point : model.points) {
+      if (point.index < mask.length) {
+        mask[point.index] = true;
+      }
+    }
+    this.viewMask = mask;
+  }
+
+  /** Whether this index is inside the effect's current view. Always true when no view narrows
+   * it, which is the ordinary case. */
+  private boolean isViewPoint(int index) {
+    return (this.viewMask == null) || this.viewMask[index];
   }
 
 }
