@@ -114,6 +114,33 @@ import heronarts.lx.utils.LXUtils;
  * clipping (a span narrower than what's actually lit) or compressing (wider, wasting most of the
  * 0-1 range on empty space off either end).
  *
+ * <h2>Collapsing to flat colour: a continuous {@link #spread}, not a boolean</h2>
+ *
+ * The owner, watching the piece: <em>"we should also be able to disable the gradient and just
+ * make it flat colors."</em> Built as a continuous {@link #spread} (1 = full gradient, 0 =
+ * flat) rather than an on/off switch, for two reasons that hold specifically for this rig, not
+ * as a general rule: {@code spread} is a strict superset of the requested toggle (either
+ * endpoint reproduces it), and this rig's owner has already preferred a knob he can turn down
+ * over a switch he flips -- {@code apotheneum.doved.patterns.Grass}'s wind and this project's
+ * theremin scalar both ended up continuous for the same reason. A boolean is also not an
+ * {@code LXCompoundModulation.Target}, where a {@link CompoundParameter} is, which matters
+ * specifically because every control on this rig eventually gets driven by something. No
+ * discontinuity or degrading-blend argument turned up against it -- see {@link #applySpread}
+ * for the formula and why it stays smooth at every value.
+ *
+ * <p><b>Flat resolves to the midpoint of primary and secondary, not primary alone.</b> The
+ * gradient position {@code t} (from {@link #normalize}) is rescaled toward the center of its own
+ * {@code [0, 1]} range -- {@code effectiveT = 0.5 + spread * (t - 0.5)} -- rather than toward
+ * zero. Both read as continuous in {@code spread}, but they say different things about what
+ * "flat" is: scaling toward zero collapses every surface onto primary alone, with secondary's
+ * whole presence fading out as an edge case of one particular colour; scaling toward the center
+ * collapses onto the blend of the two, the same way turning a literal "Spread" knob down on any
+ * two-sided control narrows the band symmetrically from both ends until it meets in the middle.
+ * The owner asked to name this control {@code spread} (or {@code amount}); {@code spread} was
+ * chosen for exactly this reason -- the metaphor it names is the symmetric one, not "fade toward
+ * the first colour" -- and midpoint-collapse is what makes turning it down look like the
+ * gradient tightening toward a colour rather than sliding toward an unrelated one.
+ *
  * <h2>The null-instance fallback</h2>
  *
  * Mirrors {@link ApotheneumColor#resolvePrimaryOrNeutral}: with no {@code ApotheneumGradient}
@@ -139,6 +166,11 @@ public class ApotheneumGradient extends LXComponent implements LXOscComponent {
   /** See the class javadoc's fallback section for why +90 (straight up) is the safe default. */
   private static final double DEFAULT_AZIMUTH_DEGREES = 0;
   private static final double DEFAULT_ELEVATION_DEGREES = 90;
+
+  /** Full gradient -- matches this class's only behavior before {@link #spread} existed, so a
+   * project with no {@code ApotheneumGradient} (or one saved before this control existed) renders
+   * exactly as it did before. */
+  private static final double DEFAULT_SPREAD = 1;
 
   /**
    * The engine's registered {@code ApotheneumGradient}, or {@code null} if
@@ -174,10 +206,23 @@ public class ApotheneumGradient extends LXComponent implements LXOscComponent {
       "Tilt of the gradient's direction away from horizontal -- +-90 is a vertical gradient, "
       + "0 is horizontal at the Azimuth heading");
 
+  /**
+   * How much of the projected {@code [0, 1]} gradient position survives, {@code 1} the full
+   * gradient down to {@code 0} flat -- see the class javadoc's collapsing-to-flat section for
+   * why this is continuous rather than a boolean, and why it narrows toward the midpoint of
+   * primary/secondary rather than toward primary alone. Applied via {@link #applySpread},
+   * alongside this class's other per-point projection math.
+   */
+  public final CompoundParameter spread = new CompoundParameter("Spread", DEFAULT_SPREAD, 0, 1)
+    .setDescription(
+      "How much of the gradient survives -- 1 is the full gradient, 0 collapses every surface "
+      + "to one flat color (the midpoint blend of primary and secondary)");
+
   public ApotheneumGradient(LX lx) {
     super(lx, "Apotheneum Gradient");
     addParameter("azimuth", this.azimuth);
     addParameter("elevation", this.elevation);
+    addParameter("spread", this.spread);
   }
 
   /**
@@ -190,6 +235,7 @@ public class ApotheneumGradient extends LXComponent implements LXOscComponent {
 
   private static ResolutionState loggedAzimuthState = ResolutionState.UNKNOWN;
   private static ResolutionState loggedElevationState = ResolutionState.UNKNOWN;
+  private static ResolutionState loggedSpreadState = ResolutionState.UNKNOWN;
 
   /** {@link #azimuth}'s value, or {@link #DEFAULT_AZIMUTH_DEGREES} with a one-time-per-transition
    * log line if {@code gradient} is {@code null}. */
@@ -237,6 +283,30 @@ public class ApotheneumGradient extends LXComponent implements LXOscComponent {
         + gradient.getPath() + " -- GradientMultiplyEffect is live again.");
     }
     return gradient.elevation.getValue();
+  }
+
+  /** {@link #spread}'s value, or {@link #DEFAULT_SPREAD} (full gradient, matching this class's
+   * pre-{@code spread} behavior) with a one-time-per-transition log line if {@code gradient} is
+   * {@code null}. */
+  public static double spreadOrDefault(ApotheneumGradient gradient) {
+    if (gradient == null) {
+      if (loggedSpreadState != ResolutionState.MISSING) {
+        loggedSpreadState = ResolutionState.MISSING;
+        LX.log(
+          "[APOTHENEUM] ApotheneumGradient: no instance registered on the engine -- "
+          + "GradientMultiplyEffect is resolving the default spread ("
+          + DEFAULT_SPREAD + "). Expected only if apotheneum.doved.ApotheneumColorPlugin failed "
+          + "to load; check the log above this line for why.");
+      }
+      return DEFAULT_SPREAD;
+    }
+    if (loggedSpreadState != ResolutionState.PRESENT) {
+      loggedSpreadState = ResolutionState.PRESENT;
+      LX.log(
+        "[APOTHENEUM] ApotheneumGradient: resolving spread from the instance at "
+        + gradient.getPath() + " -- GradientMultiplyEffect is live again.");
+    }
+    return gradient.spread.getValue();
   }
 
   /**
@@ -303,6 +373,24 @@ public class ApotheneumGradient extends LXComponent implements LXOscComponent {
       return 0.5;
     }
     return LXUtils.clamp((projected - min) / span, 0, 1);
+  }
+
+  /**
+   * Rescales a normalized gradient position {@code t} (a {@link #normalize} result) toward
+   * {@code 0.5} by {@code spread} -- see the class javadoc's collapsing-to-flat section for why
+   * this narrows toward the midpoint rather than toward 0 (primary). At {@code spread = 1} this
+   * is the identity ({@code t} unchanged, the full gradient); at {@code spread = 0} every input
+   * maps to exactly {@code 0.5} regardless of {@code t} (flat, the primary/secondary midpoint
+   * blend); every value in between narrows the effective range symmetrically around the center,
+   * continuously -- there is no value of {@code spread} at which this formula is discontinuous
+   * in either {@code spread} or {@code t}, so a performer sweeping the knob down sees the
+   * gradient's band tighten smoothly rather than jump. {@code t} is assumed to already be in
+   * {@code [0, 1]} (a {@link #normalize} result); the result is clamped defensively in case a
+   * modulation source pushes {@code spread} fractionally outside {@code [0, 1]}, not because the
+   * formula itself can leave that range for an in-range {@code spread}.
+   */
+  public static double applySpread(double t, double spread) {
+    return LXUtils.clamp(0.5 + spread * (t - 0.5), 0, 1);
   }
 
 }

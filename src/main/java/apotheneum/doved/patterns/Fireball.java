@@ -404,6 +404,10 @@ public class Fireball extends ColorNativePattern {
   final class Fire {
 
     private Apotheneum.Orientation orientation = null;
+    // The corresponding interior orientation for this shape (cube or cylinder) -- stored
+    // alongside pointIndex/mirrorIndex below so render() can resolve its own real
+    // ApotheneumColor.Surface identity, not just build the point-index mapping.
+    private Apotheneum.Orientation mirrorOrientation = null;
     private int width = 0;
     private int height = 0;
 
@@ -414,13 +418,12 @@ public class Fireball extends ColorNativePattern {
     private float[] heat = null;
     private float[] next = null;
     private int[] pointIndex = null;
-    // The interior twin of each cell. The surface is painted and mirrored in one pass rather
-    // than rendered and then block-copied: ApotheneumPattern.copyExterior() is an arraycopy
-    // over whole orientations and cannot be masked from outside, so it would paint interior
-    // points a pattern-level view excludes. Writing both points as the colour is computed
-    // guards each independently, and reads nothing back out of the shared buffer, so an
-    // interior-only view still draws instead of mirroring whatever another pattern left on
-    // the exterior.
+    // The interior twin of each cell. 2026-08-30: colour is now resolved independently per
+    // real surface via ColorNativePattern.colorizeCells (see render() below) rather than
+    // computed once and mirrored -- the substance (heat, and the recomputed colorPhysics
+    // noise term) is what's shared per cell, not the finished colour. Each write is still
+    // independently masked and never reads colors[] back to derive the other -- see
+    // colorizeCells's own javadoc for why that guarantee survives this change.
     private int[] mirrorIndex = null;
     private boolean[] usable = null;
 
@@ -458,6 +461,7 @@ public class Fireball extends ColorNativePattern {
         return;
       }
       this.orientation = orientation;
+      this.mirrorOrientation = mirror;
       configure(orientation.width(), orientation.height(), orientation::available);
 
       for (int x = 0; x < this.width; ++x) {
@@ -839,65 +843,61 @@ public class Fireball extends ColorNativePattern {
       if (this.heat == null) {
         return;
       }
-      // This Fire's own exterior orientation identifies which of the four surfaces it burns
-      // on. paint()/paintBrighter() write the same computed color to both the exterior point
-      // and its interior mirror in one pass (see their javadoc), so this pattern's cube and
-      // cylinder surfaces differ from each other via ApotheneumColor, but each one's own
-      // exterior and interior do not -- consistent with how this pattern already worked before
-      // ApotheneumColor existed, since it never distinguished them either.
-      final ApotheneumColor.Surface surface = ApotheneumColor.Surface.of(this.orientation);
+      // 2026-08-30: colour is resolved independently per real surface via
+      // ColorNativePattern.colorizeCells, rather than computed once and mirrored -- see this
+      // class's own javadoc and docs/color-native-pattern-substance.md. heat[] is the shared
+      // substance every real point's colour derives from; colorPhysics(x, y) is a pure
+      // function of (x, y, this.noiseTime) recomputed fresh rather than stored, since storing
+      // it would cost the same as recomputing it and there is nothing else that reads it.
+      final ApotheneumColor.Surface exteriorSurface = ApotheneumColor.Surface.of(this.orientation);
+      final ApotheneumColor.Surface interiorSurface = ApotheneumColor.Surface.of(this.mirrorOrientation);
       final float[] heat = this.heat;
-      for (int x = 0; x < this.width; ++x) {
-        final int column = x * this.height;
-        for (int y = 0; y < this.height; ++y) {
-          final int i = column + y;
-          if (!this.usable[i]) {
-            continue;
+      final boolean[] usable = this.usable;
+      final int height = this.height;
+      Fireball.this.colorizeCells(
+        this.width * height,
+        this.pointIndex,
+        exteriorSurface,
+        this.mirrorIndex,
+        interiorSurface,
+        (surface, cell) -> {
+          if (!usable[cell]) {
+            return LXColor.BLACK;
           }
-          final float value = heat[i];
+          final float value = heat[cell];
           if (value <= HEAT_EPSILON) {
-            continue;
+            return LXColor.BLACK;
           }
-          paint(colors, i, Fireball.this.colorHeat(surface, value, colorPhysics(x, y)));
+          return Fireball.this.colorHeat(surface, value, colorPhysics(cell / height, cell % height));
         }
-      }
-      renderSparks(colors, surface);
+      );
+      renderSparks(colors, exteriorSurface, interiorSurface);
     }
 
     /**
-     * Writes one cell to its exterior point and to the interior point mirroring it, skipping
-     * either if the pattern's model view excludes it.
+     * As {@code colorizeCells}'s dual write, but an ember only ever brightens a cell, never
+     * dims one -- each surface's own resolved brightness is compared against its own
+     * destination's current value, independently. Before this class adopted
+     * {@code colorizeCells}, both surfaces shared one resolved colour and therefore one
+     * brightness threshold; now that exterior and interior can genuinely differ (e.g. under
+     * {@code ApotheneumColor}'s In/Out axis), comparing each surface against its own value is
+     * the more correct behaviour, not merely an equivalent one.
      */
-    private void paint(int[] colors, int cell, int color) {
+    private void paintBrighter(int[] colors, int cell, int exteriorColor, int interiorColor) {
       final int exterior = this.pointIndex[cell];
-      if (Fireball.this.isViewPoint(exterior)) {
-        colors[exterior] = color;
+      if (Fireball.this.isViewPoint(exterior) && (LXColor.b(exteriorColor) > LXColor.b(colors[exterior]))) {
+        colors[exterior] = exteriorColor;
       }
       final int interior = this.mirrorIndex[cell];
-      if (Fireball.this.isViewPoint(interior)) {
-        colors[interior] = color;
-      }
-    }
-
-    /**
-     * As {@link #paint}, but an ember only ever brightens a cell, never dims one. Both
-     * surfaces carry the same value at every step of the frame, so comparing each against
-     * itself gives the same result the exterior-then-block-copy order used to.
-     */
-    private void paintBrighter(int[] colors, int cell, int color) {
-      final float brightness = LXColor.b(color);
-      final int exterior = this.pointIndex[cell];
-      if (Fireball.this.isViewPoint(exterior) && (brightness > LXColor.b(colors[exterior]))) {
-        colors[exterior] = color;
-      }
-      final int interior = this.mirrorIndex[cell];
-      if (Fireball.this.isViewPoint(interior) && (brightness > LXColor.b(colors[interior]))) {
-        colors[interior] = color;
+      if (Fireball.this.isViewPoint(interior) && (LXColor.b(interiorColor) > LXColor.b(colors[interior]))) {
+        colors[interior] = interiorColor;
       }
     }
 
     /** Draws each live ember only at its current position, never into the heat field. */
-    private void renderSparks(int[] colors, ApotheneumColor.Surface surface) {
+    private void renderSparks(
+      int[] colors, ApotheneumColor.Surface exteriorSurface, ApotheneumColor.Surface interiorSurface
+    ) {
       final float radius = sparkSize.getValuef();
       final float peak = intensity.getValuef();
       final int reach = (int) Math.ceil(radius);
@@ -929,7 +929,12 @@ public class Fireball extends ColorNativePattern {
             if (heat <= HEAT_EPSILON) {
               continue;
             }
-            paintBrighter(colors, cell, Fireball.this.colorHeat(surface, heat, colorPhysics(x, y)));
+            final float physics = colorPhysics(x, y);
+            paintBrighter(
+              colors, cell,
+              Fireball.this.colorHeat(exteriorSurface, heat, physics),
+              Fireball.this.colorHeat(interiorSurface, heat, physics)
+            );
           }
         }
       }

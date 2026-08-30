@@ -24,8 +24,6 @@ import heronarts.lx.color.LXColor;
 import heronarts.lx.color.LXSwatch;
 import heronarts.lx.osc.LXOscComponent;
 import heronarts.lx.parameter.CompoundDiscreteParameter;
-import heronarts.lx.parameter.CompoundParameter;
-import heronarts.lx.parameter.DiscreteParameter;
 
 import apotheneum.doved.patterns.ColorNativePattern;
 
@@ -73,30 +71,27 @@ import apotheneum.doved.patterns.ColorNativePattern;
  * every surface at once, which is the point — a performer is changing the room's colour, not one
  * surface's colour.
  *
- * <h2>Per-surface differentiation is structural, not gestural</h2>
+ * <h2>Three parameters, no hue/saturation maths — 2026-08-30</h2>
  *
- * The four {@link SurfaceOffset} groups — {@link #cubeExterior}, {@link #cubeInterior},
- * {@link #cylinderExterior}, {@link #cylinderInterior} — are fixed, standing relationships each
- * surface carries, not a live per-surface control surface. Each holds:
+ * This class previously gave each of the four surfaces its own standing {@code indexOffset}/
+ * {@code hueOffset}/{@code satTrim} triple — twelve extra parameters, on top of {@link #pair}/
+ * {@link #swap}. The owner's own correction, once he saw the gradient controls land: <em>"I don't
+ * know if we need different dimensions and different amounts because we should just use
+ * everything from the palette,"</em> followed by <em>"What we need is gradient controls. Not
+ * necessarily difference tweaking."</em> All of it is gone. {@link #axis} (below) replaces the
+ * whole twelve-parameter structure with one three-position selector, because the owner's own
+ * description of what he wants surfaces to do — <em>"cube surfaces on stop N, cylinder surfaces
+ * on N+1"</em> — is entirely expressible as a fixed one-stop {@link #pair}-relative shift, not a
+ * user-adjustable amount, and every surface's colour is a real, unmodified palette stop, never a
+ * hue-shifted or saturation-trimmed synthesis of one. {@code design/color-system.md} (in the
+ * sibling {@code chromatik-shows} repo, outside this repo's scope to edit directly) should say
+ * this principle outright — colour comes from the palette; anything that manufactures a colour
+ * outside it defeats the point of a deliberately-composed palette — if it does not already.
  *
- * <ul>
- *   <li>{@code indexOffset} — an integer offset on the resolved palette index, default 0 (that
- *       surface reads exactly the shared pair/swap result, identical to every other surface).
- *       Non-zero, a surface sits a stop or two off the rest, the way channel 4's per-view
- *       {@code GradientPattern}s already put genuinely different palette colours on cube versus
- *       cylinder today.</li>
- *   <li>{@code hueOffset} / {@code satTrim} — the same bounded vocabulary
- *       {@code ColorNativePattern.ColorRole} used to carry, &#177;60&#176; and 0 to &#8722;40%
- *       respectively, for the same reasons (continuity of this rig's palette ramp; headroom in
- *       this rig's swatch saturations).</li>
- * </ul>
- *
- * <p><b>{@code indexOffset} wraps, it does not clamp.</b> {@code paletteIndex} silently clamping
- * at the swatch ceiling is a known, previously-shipped failure mode in this codebase (see
- * {@code ColorNativePattern}'s "Do not give a color-native channel its own mode table" note, and
- * {@code design/color-system.md} &#167;3's clamp warning) — a clamped offset reads as a dead knob,
- * identical to a live one that simply has nothing left to give. Wrapping means every value of
- * {@code indexOffset} is visibly a different stop; there is no plateau to land on by accident.</p>
+ * <p>This class's whole colour surface, after the removal, is exactly three parameters:
+ * {@link #pair}, {@link #swap}, {@link #axis}. Paired with {@link ApotheneumGradient}'s
+ * {@code azimuth}/{@code elevation}/{@code spread}, that is six controls total across both
+ * classes — the owner's own tally of what this rig's colour system needs.
  */
 public class ApotheneumColor extends LXComponent implements LXOscComponent {
 
@@ -105,8 +100,6 @@ public class ApotheneumColor extends LXComponent implements LXOscComponent {
   public static final String PATH = "apotheneumColor";
 
   private static final int MAX_COLORS = LXSwatch.MAX_COLORS;
-  private static final double MAX_HUE_OFFSET_DEGREES = 60;
-  private static final double MAX_SATURATION_TRIM_PERCENT = 40;
 
   /**
    * The engine's registered {@code ApotheneumColor}, or {@code null} if
@@ -157,49 +150,16 @@ public class ApotheneumColor extends LXComponent implements LXOscComponent {
     }
   }
 
-  /**
-   * A surface's standing offset from the shared, gesture-driven {@link #pair}/{@link #swap}
-   * result. See the class javadoc for why these are fixed relationships rather than a second
-   * live control surface.
-   *
-   * <p>A plain field group with its three parameters registered directly on
-   * {@code ApotheneumColor} under flattened {@code <path>...} keys, not a nested
-   * {@code LXComponent} — kept exactly as it was when this class was still an
-   * {@code LXModulator} (where a nested {@code addChild} was unsafe before the modulator had a
-   * parent) so the parameter paths a live project may already reference do not move as a side
-   * effect of this relocation. Now that construction always carries a real {@code lx} (see
-   * {@link #ApotheneumColor(LX)}), a nested component would work too; not changed here because
-   * nothing asked for it and stable paths matter more than the tidier shape.</p>
-   */
-  public static final class SurfaceOffset {
-
-    public final DiscreteParameter indexOffset;
-    public final CompoundParameter hueOffset;
-    public final CompoundParameter satTrim;
-
-    private SurfaceOffset(String label) {
-      // Range +-2: the shared pair/swap result never leaves {1,2,3} (design/color-system.md
-      // section 4's whole safety argument), so +-2 reaches every one of the five swatch stops
-      // from either end without needing a wider throw than this surface's differentiation
-      // actually calls for -- "a stop or two off", not a knob that can reach clear around.
-      this.indexOffset = new DiscreteParameter(label, 0, -2, 3)
-        .setDescription(
-          "Integer offset on the resolved palette index for " + label
-          + "; wraps, does not clamp, so every value is a distinct stop");
-
-      this.hueOffset = new CompoundParameter("H-Off", 0, -MAX_HUE_OFFSET_DEGREES, MAX_HUE_OFFSET_DEGREES)
-        .setUnits(CompoundParameter.Units.DEGREES)
-        .setPolarity(CompoundParameter.Polarity.BIPOLAR)
-        .setDescription("Hue offset applied to this surface's resolved palette color");
-
-      this.satTrim = new CompoundParameter("S-Trim", 0, 0, -MAX_SATURATION_TRIM_PERCENT)
-        .setUnits(CompoundParameter.Units.PERCENT)
-        .setDescription("Saturation trim below this surface's resolved palette color");
-    }
-  }
-
   private static final String[] PAIR_OPTIONS = { "1", "2" };
   private static final String[] SWAP_OPTIONS = { "Off", "On" };
+  // Order is part of the contract, not an implementation detail: the owner plays this from one
+  // physical knob, and a 3-option discrete parameter divides a MIDI CC's 0-127 range into thirds
+  // in declaration order -- "all the way down" lands on index 0, "middle third" on index 1, "all
+  // the way up" on index 2. His words: "None would be the knob 11. If it's all the way down,
+  // it's none. If it's a third of the way, it's shape, and if it's all the way, it's inside/
+  // outside." Reordering these strings (or the Axis enum below, which must match index-for-index)
+  // silently remaps what the knob's physical position means.
+  private static final String[] AXIS_OPTIONS = { "None", "Shape", "In/Out" };
 
   /**
    * Which pair of adjacent palette stops primary/secondary resolve from, everywhere. The
@@ -230,10 +190,120 @@ public class ApotheneumColor extends LXComponent implements LXOscComponent {
     new CompoundDiscreteParameter("Swap", SWAP_OPTIONS)
     .setDescription("Exchange primary and secondary, everywhere");
 
-  public final SurfaceOffset cubeExterior;
-  public final SurfaceOffset cubeInterior;
-  public final SurfaceOffset cylinderExterior;
-  public final SurfaceOffset cylinderInterior;
+  /**
+   * Which surfaces read the same palette stop as which others, everywhere. {@code
+   * CompoundDiscreteParameter} for the same reason as {@link #pair}/{@link #swap}: an
+   * {@code LXCompoundModulation.Target}, which a {@code BooleanParameter} (or a triple of
+   * booleans) is not, and which matters because a MIDI knob is meant to drive this directly. See
+   * {@link #pair}'s javadoc for why {@link #AXIS_OPTIONS} is also passed to
+   * {@link #setOptions(String[], boolean)} explicitly in the constructor below -- the same
+   * {@code CompoundDiscreteParameter(String, String[])} storage bug applies here too.
+   *
+   * <p>See {@link Axis} for the full design: what each of the three settings means, why the
+   * order is fixed by the owner's own physical knob mapping, why there is no per-surface
+   * amount/offset knob underneath it (a fixed one-stop shift is the entire "difference" story),
+   * why {@code Axis.NONE} restores exactly rather than by zeroing anything, and the one named,
+   * narrower asymmetry ({@code Fireball}/{@code Waterfall} on {@code Axis.INSIDE_OUTSIDE}) this
+   * design could not remove without changing those two patterns' own paint architecture.
+   */
+  public final CompoundDiscreteParameter axis =
+    new CompoundDiscreteParameter("Axis", AXIS_OPTIONS)
+    .setDescription(
+      "Which surfaces share a palette stop: None (all four match), Shape (cube matches cube, "
+      + "cylinder matches cylinder, the two sit one stop apart), or In/Out (exteriors match, "
+      + "interiors match, the two sit one stop apart)");
+
+  /**
+   * The three {@link #axis} settings, index-matched to {@link #AXIS_OPTIONS} -- {@code
+   * Axis.values()[this.axis.getValuei()]} depends on this order being exactly {@code NONE},
+   * {@code SHAPE}, {@code INSIDE_OUTSIDE}, matching {@code "None"}, {@code "Shape"}, {@code
+   * "In/Out"}. This order is fixed by the owner's own physical knob mapping (see
+   * {@link #AXIS_OPTIONS}'s comment), not a stylistic choice.
+   *
+   * <h2>What each setting does, in palette-stop terms</h2>
+   *
+   * {@link #stopDelta(Surface)} is the entire mechanism: each surface's resolved index is
+   * {@code sharedIndex + stopDelta(surface)}, wrapped. {@code stopDelta} is 0 for every surface
+   * under {@link #NONE} (one shared stop, the whole piece one colour); under {@link #SHAPE} it
+   * is 0 for the two cube surfaces and 1 for the two cylinder surfaces (cube and cylinder sit
+   * one stop apart, exterior and interior of the same shape match exactly); under {@link
+   * #INSIDE_OUTSIDE} it is 0 for the two exterior surfaces and 1 for the two interior surfaces
+   * (exteriors and interiors sit one stop apart, the two surfaces of the same
+   * exterior/interior role match exactly). There is no adjustable "how many stops apart" knob:
+   * the owner's own description -- <em>"cube surfaces on stop N, cylinder surfaces on N+1"</em>
+   * -- names a fixed one-stop shift, not a tunable amount, and a per-surface offset on top of
+   * that would be exactly the "difference tweaking" he said this rig does not need.
+   *
+   * <h2>Why a mode/axis control rather than always-independent surfaces</h2>
+   *
+   * Reported directly by the owner, watching the piece: <em>"seems like the cube is always the
+   * same, and the cylinder is always the same. We can't have a difference between the cube's
+   * interior and exterior. I want to either vary interior and exterior or cube and cylinder,"</em>
+   * and, after two follow-ups: <em>"or none at all; aka all the same color,"</em> and then the
+   * exact knob mapping quoted above. Investigation (see {@code
+   * apotheneum.doved.effects.GradientMultiplyEffect}'s and each {@code
+   * apotheneum.doved.patterns.ColorNativePattern} subclass's own notes) found the underlying
+   * asymmetry is real but narrower than "colour-native patterns can't do this": of the seven
+   * {@code ColorNativePattern} subclasses, {@code Fireball} and {@code Waterfall} specifically
+   * paint each shape's colour once against its own {@code Surface.of(...exterior)} identity and
+   * mechanically duplicate that value onto the interior mirror point ({@code Fireball}'s
+   * {@code paint()}/{@code paintBrighter()}; {@code Waterfall}'s bulk {@code copyExterior()}),
+   * a deliberate, pre-{@code ApotheneumColor} design (view-mask correctness for {@code Fireball};
+   * simple bulk-copy convenience for {@code Waterfall}) -- not a limitation of this class or of
+   * {@code ColorNativePattern}. {@code Dunes}, {@code Grass}, {@code Jungle} and {@code Rockfall}
+   * already resolve {@code Surface.of(orientation)} independently for interior and exterior (see
+   * each one's {@code output}/{@code writeColors} or, for {@code Rockfall}, its per-orientation
+   * {@code SurfaceWater}), so they already support every axis setting correctly, in full parity
+   * with {@code GradientMultiplyEffect}. {@code LavaLamp} paints exterior only and never touches
+   * interior, so it is unaffected either way.
+   *
+   * <p><b>{@link #INSIDE_OUTSIDE} on {@code Fireball}/{@code Waterfall} does not merely fail to
+   * differ -- it collapses to look like {@link #NONE}.</b> Both patterns query {@code
+   * ApotheneumColor} exactly twice per frame, once for their own cube identity and once for
+   * their own cylinder identity, both nominally the *exterior* orientation (they never ask what
+   * {@code CUBE_INTERIOR}/{@code CYLINDER_INTERIOR} should be at all). Under {@link
+   * #INSIDE_OUTSIDE}, both exteriors carry {@code stopDelta = 0} -- correct for every pattern
+   * that genuinely paints all four surfaces, but on these two it means the cube query and the
+   * cylinder query resolve to the identical colour, so cube and cylinder -- which these two
+   * patterns otherwise keep genuinely different from each other -- collapse together too. The
+   * on-screen result is indistinguishable from {@link #NONE}, not a muted or absent version of
+   * {@link #INSIDE_OUTSIDE}. This is a real disagreement between the Global (effect) path, which
+   * has no such gap (below), and the Natural (colour-native pattern) path on exactly these two
+   * patterns -- named here rather than shipped silently.
+   *
+   * <p>Fixing this on {@code Fireball}/{@code Waterfall} -- resolving colour independently for
+   * the interior point instead of mirroring the exterior's -- was not undertaken here: it was
+   * not asked for, and it is a real cost, not a trivial flag flip. {@code Fireball} would need
+   * {@code colorHeat()} (and each ember's colour) resolved twice per cell instead of once, inside
+   * an already-hot per-frame loop, and {@code paint()}/{@code paintBrighter()} would need to
+   * accept two colours instead of one. {@code Waterfall}'s single bulk {@code copyExterior()}
+   * would need to become an explicit second {@code renderShape}-shaped pass over each interior
+   * orientation -- and since interior and exterior are physically coincident, the *physics*
+   * (spray/spill grids) should almost certainly stay shared and only the *colour* resolution
+   * should split, which is a real restructuring of a working, already-tuned render method, not a
+   * one-line change. Both changes are plausible but touch tuned, delicate patterns; do them as a
+   * deliberate follow-up if wanted, not as a side effect of adding this control.
+   *
+   * <h2>Global (the effect path) has no such gap</h2>
+   *
+   * {@code GradientMultiplyEffect} runs over already-finished {@code colors[]} and addresses all
+   * four real surfaces directly by geometry every frame, regardless of how the hosted pattern
+   * painted them -- so it resolves {@link #axis} correctly on all three settings, on every
+   * pattern, unconditionally. The asymmetry above is specific to two named {@code
+   * ColorNativePattern} subclasses resolving their own colour internally; it does not touch the
+   * global/effect path at all.
+   *
+   * <h2>None does not zero anything</h2>
+   *
+   * There is nothing left to zero. Earlier drafts of this control kept the four surfaces'
+   * standing offsets as separate parameters and had {@link #stopDelta(Surface)}'s predecessor
+   * choose which one to *read*; that shape is gone along with the offsets themselves (see the
+   * class javadoc's "Three parameters, no hue/saturation maths" section) -- {@link #axis} is now
+   * the entire per-surface state, computed fresh from {@link #stopDelta(Surface)} on every call,
+   * so switching it is inherently non-destructive: there is no secondary value anywhere that a
+   * switch could overwrite or lose.
+   */
+  private enum Axis { NONE, SHAPE, INSIDE_OUTSIDE }
 
   /**
    * Constructed exactly once, by {@code apotheneum.doved.ApotheneumColorPlugin.initialize},
@@ -245,32 +315,12 @@ public class ApotheneumColor extends LXComponent implements LXOscComponent {
 
     addParameter("pair", this.pair);
     addParameter("swap", this.swap);
+    addParameter("axis", this.axis);
     // See pair's javadoc: the (String, String[]) constructor above sizes the range correctly
     // but never stores the options array, so getOptions() would otherwise return null.
     this.pair.setOptions(PAIR_OPTIONS, false);
     this.swap.setOptions(SWAP_OPTIONS, false);
-
-    // "Cube Ext"/"Cube Int" truncated in a 40px-wide knob render -- confirmed, not assumed --
-    // and dropping the space alone did not reliably fix it either (proportional font: "CubeExt"
-    // still clipped while "CubeInt" happened to fit). "Cub Ext"/"Cub Int" match "Cyl Ext"/
-    // "Cyl Int" exactly in shape and length, which rendered in full. Kept even though this
-    // class no longer builds its own knobs (the GLOBAL-pane section does), since the label is
-    // still what any control binds to.
-    this.cubeExterior = surface("cubeExterior", "Cub Ext");
-    this.cubeInterior = surface("cubeInterior", "Cub Int");
-    this.cylinderExterior = surface("cylinderExterior", "Cyl Ext");
-    this.cylinderInterior = surface("cylinderInterior", "Cyl Int");
-  }
-
-  /** Builds one surface's offset group and registers its three parameters directly on this
-   * component, flattened under {@code <path>...} keys -- see {@link SurfaceOffset}'s javadoc
-   * for why. {@code label} becomes {@code indexOffset}'s own display name. */
-  private SurfaceOffset surface(String path, String label) {
-    final SurfaceOffset offset = new SurfaceOffset(label);
-    addParameter(path + "IndexOffset", offset.indexOffset);
-    addParameter(path + "HueOffset", offset.hueOffset);
-    addParameter(path + "SatTrim", offset.satTrim);
-    return offset;
+    this.axis.setOptions(AXIS_OPTIONS, false);
   }
 
   /** Base stop (1 or 2) before {@link #swap} exchanges the two roles. */
@@ -294,12 +344,12 @@ public class ApotheneumColor extends LXComponent implements LXOscComponent {
     return isSwapped() ? base : base + 1;
   }
 
-  /** This surface's fully-resolved primary color: shared index, this surface's own offsets. */
+  /** This surface's fully-resolved primary color: shared index, this surface's own stop shift. */
   public int primaryColor(Surface surface) {
     return resolvedColor(primaryIndex(), surface);
   }
 
-  /** This surface's fully-resolved secondary color: shared index, this surface's own offsets. */
+  /** This surface's fully-resolved secondary color: shared index, this surface's own stop shift. */
   public int secondaryColor(Surface surface) {
     return resolvedColor(secondaryIndex(), surface);
   }
@@ -353,27 +403,36 @@ public class ApotheneumColor extends LXComponent implements LXOscComponent {
     }
   }
 
+  /** {@code sharedIndex} shifted by {@code surface}'s {@link #stopDelta(Surface)} under the
+   * current {@link #axis}, wrapped, and looked up directly in the palette -- no hue or
+   * saturation math on top; every resolved colour is a real, unmodified palette stop. */
   private int resolvedColor(int sharedIndex, Surface surface) {
-    final SurfaceOffset offset = offsetFor(surface);
-    if (offset == null) {
+    if (surface == null) {
       return ColorNativePattern.paletteColor(this.lx.engine.palette.swatch.colors, sharedIndex - 1);
     }
-    final int index = wrapIndex(sharedIndex + offset.indexOffset.getValuei());
-    final int base = ColorNativePattern.paletteColor(this.lx.engine.palette.swatch.colors, index - 1);
-    return ColorNativePattern.applyOffsets(base, offset.hueOffset.getValue(), offset.satTrim.getValue());
+    final int index = wrapIndex(sharedIndex + stopDelta(surface));
+    return ColorNativePattern.paletteColor(this.lx.engine.palette.swatch.colors, index - 1);
   }
 
-  private SurfaceOffset offsetFor(Surface surface) {
-    if (surface == null) {
-      return null;
+  /** See {@link Axis}'s javadoc for what each setting means in palette-stop terms. */
+  private int stopDelta(Surface surface) {
+    switch (Axis.values()[this.axis.getValuei()]) {
+      case SHAPE:
+        return isCube(surface) ? 0 : 1;
+      case INSIDE_OUTSIDE:
+        return isExterior(surface) ? 0 : 1;
+      case NONE:
+      default:
+        return 0;
     }
-    switch (surface) {
-      case CUBE_EXTERIOR: return this.cubeExterior;
-      case CUBE_INTERIOR: return this.cubeInterior;
-      case CYLINDER_EXTERIOR: return this.cylinderExterior;
-      case CYLINDER_INTERIOR: return this.cylinderInterior;
-      default: return null;
-    }
+  }
+
+  private static boolean isCube(Surface surface) {
+    return (surface == Surface.CUBE_EXTERIOR) || (surface == Surface.CUBE_INTERIOR);
+  }
+
+  private static boolean isExterior(Surface surface) {
+    return (surface == Surface.CUBE_EXTERIOR) || (surface == Surface.CYLINDER_EXTERIOR);
   }
 
   /** Wraps a 1-based palette index around the swatch's stop count rather than clamping it. */

@@ -95,6 +95,38 @@ import apotheneum.doved.modulators.ApotheneumColor;
  * a brightness-only pattern should be able to inherit it too. It is entirely opt-in by call: a
  * subclass that never calls {@code updateViewMask()} behaves exactly as it did before this class
  * was reparented.</p>
+ *
+ * <h2>Physics arrays, mirrored and colorized — 2026-08-30</h2>
+ *
+ * The owner's own framing of the problem, after watching {@code Fireball} and {@code Waterfall}
+ * force their interior to match their exterior: <em>"They should be modified to just copy the
+ * pixels, like the white and black, and then the colorize happens after that. The colorize
+ * should be a global way of doing things, not different per pattern."</em> {@link
+ * #colorizeCells} is that mechanism's shared half: it walks a pattern-defined range of cells and
+ * writes each one's colour independently to its real exterior point and (if it has one) its
+ * real interior mirror point, resolving {@link ApotheneumColor.Surface} fresh for each of the
+ * (up to two) real points a cell has, and never reading {@code colors[]} back to derive one
+ * write from the other.
+ *
+ * <p><b>Deliberately not a fixed data shape.</b> An earlier design tried a single shared
+ * "substance" array per pattern; that does not fit every subclass — {@code Waterfall} carries
+ * two distinct substances (rock and water) with their own colour roles, and {@code Fireball}
+ * derives both its ember and core roles from one heat value plus a recomputed noise term. The
+ * owner's resolution: <em>"What if it's just multiple arrays that you can optionally pass
+ * through and populate?"</em> So this class prescribes no array at all — a pattern owns
+ * however many physics arrays it has, named however fits its own domain ({@code heat}, {@code
+ * rockIntensity}, {@code colorSlope}), sized once at construction or on a model change, never
+ * per frame. {@link #colorizeCells} never sees them; a pattern's own {@link PhysicsColorizer}
+ * closure reads them and returns a finished colour. This is why adopting the mechanism costs
+ * nothing for a pattern whose substance does not fit a single scalar per pixel, and nothing for
+ * one that needs no mirroring at all ({@code LavaLamp} paints exterior only — see {@code
+ * interiorPointIndexOrNull}'s own javadoc for why that falls out naturally rather than needing a
+ * branch).
+ *
+ * <p>See {@code docs/color-native-pattern-substance.md} for the full design, the worked {@code
+ * Fireball} adoption (before/after), and per-pattern notes on what the other six subclasses
+ * would need to change to adopt this — {@code Fireball} is the only one migrated as of this
+ * writing.
  */
 public abstract class ColorNativePattern extends ViewMaskedPattern
   implements UIDeviceControls<ColorNativePattern> {
@@ -249,6 +281,76 @@ public abstract class ColorNativePattern extends ViewMaskedPattern
       newKnob(this.primary.amount),
       newKnob(this.secondary.amount)
     ).setChildSpacing(6);
+  }
+
+  /**
+   * Resolves the final colour for one cell already known to belong to {@code surface} --
+   * the whole of what a pattern needs to supply {@link #colorizeCells}. A pattern's own
+   * "physics" array(s) (however many it has, named however it likes -- {@code heat},
+   * {@code rockIntensity}, {@code colorSlope}) live entirely behind this lambda's closure;
+   * {@link #colorizeCells} never sees them and never needs to know how many there are. See
+   * {@code docs/color-native-pattern-substance.md} for the full design and a worked example.
+   */
+  @FunctionalInterface
+  public interface PhysicsColorizer {
+    int colorFor(ApotheneumColor.Surface surface, int cell);
+  }
+
+  /**
+   * Walks a pattern-defined range of cells {@code [0, cellCount)}, resolving and writing each
+   * cell's colour independently for its real exterior point and -- if it has one -- its real
+   * interior mirror point, via {@code colorAt}. This is the shared "mirror the uncolorized
+   * substance, then colorize per real surface" mechanism -- see {@code
+   * docs/color-native-pattern-substance.md} for the design and {@code Fireball} for the worked
+   * adoption.
+   *
+   * <p>{@code exteriorPointIndex}/{@code interiorPointIndexOrNull} map a cell to a real point's
+   * global colour-buffer index -- generalized from {@code Fireball}'s own pre-existing {@code
+   * pointIndex}/{@code mirrorIndex} arrays. A negative entry means "no real point for this
+   * cell" and is skipped without calling {@code colorAt} for it, so a ragged or
+   * partially-usable cell range (a door-shortened column) needs no special-casing beyond
+   * marking those cells with a negative index. {@code interiorPointIndexOrNull} (and {@code
+   * interiorSurfaceOrNull}) may be {@code null} outright for a pattern with no interior
+   * geometry for this cell range at all (see {@code LavaLamp}) -- the mirror write is then
+   * skipped for every cell, not attempted and masked away; this is the "no branch needed" case
+   * falling out naturally rather than requiring the caller to special-case it.
+   *
+   * <p>Each of the up to two writes per cell is independently guarded by {@link
+   * #isViewPoint(int)} and never reads {@code colors[]} back to derive the other -- the same
+   * two properties {@code Fireball}'s own hand-written mirror already had (view-mask
+   * correctness; never assuming what a different pattern or a bulk copy left behind), now
+   * enforced once here instead of by convention in every subclass that wants them. {@code
+   * colorAt} is called once per real surface a cell actually has a point on -- once for
+   * exterior-only geometry, twice (once per surface identity) for a cell with a real interior
+   * mirror -- so a pattern with its own bespoke per-role colour blend (like {@code Fireball}'s
+   * ember/core blackbody curve) keeps that blend entirely as it was; only the surface-walking,
+   * view-masking and write mechanics move here.
+   *
+   * <p>No allocation happens in this method or anything it calls -- {@code exteriorPointIndex}/
+   * {@code interiorPointIndexOrNull} are arrays the pattern already allocated once (at
+   * construction or on a model change, exactly as {@code Fireball}'s {@code attach()} already
+   * did before this method existed).
+   */
+  protected final void colorizeCells(
+    int cellCount,
+    int[] exteriorPointIndex,
+    ApotheneumColor.Surface exteriorSurface,
+    int[] interiorPointIndexOrNull,
+    ApotheneumColor.Surface interiorSurfaceOrNull,
+    PhysicsColorizer colorAt
+  ) {
+    for (int cell = 0; cell < cellCount; ++cell) {
+      final int exteriorPoint = exteriorPointIndex[cell];
+      if ((exteriorPoint >= 0) && isViewPoint(exteriorPoint)) {
+        colors[exteriorPoint] = colorAt.colorFor(exteriorSurface, cell);
+      }
+      if (interiorPointIndexOrNull != null) {
+        final int interiorPoint = interiorPointIndexOrNull[cell];
+        if ((interiorPoint >= 0) && isViewPoint(interiorPoint)) {
+          colors[interiorPoint] = colorAt.colorFor(interiorSurfaceOrNull, cell);
+        }
+      }
+    }
   }
 
   /**

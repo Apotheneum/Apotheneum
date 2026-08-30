@@ -107,6 +107,7 @@ public class GradientMultiplyEffect extends ApotheneumEffect {
   private double frameDirZ;
   private double frameProjectedMin;
   private double frameProjectedMax;
+  private double frameSpread;
 
   public GradientMultiplyEffect(LX lx) {
     super(lx);
@@ -132,6 +133,7 @@ public class GradientMultiplyEffect extends ApotheneumEffect {
       ApotheneumGradient.projectedMin(model, this.frameDirX, this.frameDirY, this.frameDirZ);
     this.frameProjectedMax =
       ApotheneumGradient.projectedMax(model, this.frameDirX, this.frameDirY, this.frameDirZ);
+    this.frameSpread = ApotheneumGradient.spreadOrDefault(gradient);
 
     multiplySurface(Apotheneum.cube.exterior, ApotheneumColor.Surface.CUBE_EXTERIOR, enabledAmount, color);
     multiplySurface(Apotheneum.cube.interior, ApotheneumColor.Surface.CUBE_INTERIOR, enabledAmount, color);
@@ -165,7 +167,8 @@ public class GradientMultiplyEffect extends ApotheneumEffect {
           ApotheneumGradient.project(point, this.frameDirX, this.frameDirY, this.frameDirZ);
         final double t =
           ApotheneumGradient.normalize(projected, this.frameProjectedMin, this.frameProjectedMax);
-        final int gradientColor = LXColor.lerp(primaryColor, secondaryColor, t);
+        final double effectiveT = ApotheneumGradient.applySpread(t, this.frameSpread);
+        final int gradientColor = LXColor.lerp(primaryColor, secondaryColor, effectiveT);
         final int original = colors[point.index];
         final int multiplied = LXColor.multiply(original, gradientColor);
         colors[point.index] = (enabledAmount >= 1)

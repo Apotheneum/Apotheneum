@@ -422,41 +422,35 @@ public final class RenderSpike {
   }
 
   /**
-   * Builds a global {@code ApotheneumColor} from a
-   * {@code cubeExteriorOffset,cubeInteriorOffset,cylinderExteriorOffset,cylinderInteriorOffset}
-   * spec so a {@code ColorNativePattern} renders through real per-surface differentiation
-   * instead of ApotheneumColor's own neutral-white fallback (see
-   * {@code ColorNativePattern.ColorRole#resolveBase}) or a default project palette clamped onto
-   * one shared stop for every surface. {@code pair}/{@code swap} are left at their defaults (0):
-   * this flag exists to demonstrate the four surfaces differing from each other, which
-   * indexOffset alone already proves, not to exercise the shared gesture -- see
-   * {@code ApotheneumColorTest} for that. Blank input constructs nothing, matching every other
-   * optional render flag's "unset means default behaviour" convention.
+   * Builds a global {@code ApotheneumColor} from a {@code pair,swap,axis} spec so a {@code
+   * ColorNativePattern} renders through real, chosen colour state instead of {@code
+   * ApotheneumColor}'s own neutral-white fallback (see {@code
+   * ColorNativePattern.ColorRole#resolveBase}) or a default project palette clamped onto one
+   * shared stop for every surface. {@code axis} is an integer 0-2 (None/Shape/In-Out, matching
+   * {@code ApotheneumColor.AXIS_OPTIONS}' declared order) -- see {@code ApotheneumColorTest} for
+   * the shared pair/swap gesture math and {@code ApotheneumColor}'s class javadoc for what each
+   * axis setting resolves to. Blank input constructs nothing, matching every other optional
+   * render flag's "unset means default behaviour" convention.
    */
   private static void applyApotheneumColor(LX lx, String assignment) {
     if (assignment.isBlank()) {
       LX.log("RenderSpike apotheneumColor=(none)");
       return;
     }
-    final String[] offsets = assignment.split(",", -1);
-    if (offsets.length != 4) {
+    final String[] components = assignment.split(",", -1);
+    if (components.length != 3) {
       throw new IllegalArgumentException(
-        "Invalid apotheneumColor spec '" + assignment + "'; expected "
-        + "cubeExteriorOffset,cubeInteriorOffset,cylinderExteriorOffset,cylinderInteriorOffset"
+        "Invalid apotheneumColor spec '" + assignment + "'; expected pair,swap,axis"
       );
     }
     final ApotheneumColor color = new ApotheneumColor(lx);
     lx.engine.registerComponent(ApotheneumColor.PATH, color);
-    color.cubeExterior.indexOffset.setValue(parseIndexOffset(assignment, offsets[0]));
-    color.cubeInterior.indexOffset.setValue(parseIndexOffset(assignment, offsets[1]));
-    color.cylinderExterior.indexOffset.setValue(parseIndexOffset(assignment, offsets[2]));
-    color.cylinderInterior.indexOffset.setValue(parseIndexOffset(assignment, offsets[3]));
+    color.pair.setValue(parseIndexOffset(assignment, components[0]));
+    color.swap.setValue(parseIndexOffset(assignment, components[1]));
+    color.axis.setValue(parseIndexOffset(assignment, components[2]));
     LX.log("RenderSpike apotheneumColor=pair:" + color.pair.getValuei()
       + ",swap:" + color.swap.getValuei()
-      + ",cubeExteriorOffset:" + color.cubeExterior.indexOffset.getValuei()
-      + ",cubeInteriorOffset:" + color.cubeInterior.indexOffset.getValuei()
-      + ",cylinderExteriorOffset:" + color.cylinderExterior.indexOffset.getValuei()
-      + ",cylinderInteriorOffset:" + color.cylinderInterior.indexOffset.getValuei());
+      + ",axis:" + color.axis.getValuei());
   }
 
   /**

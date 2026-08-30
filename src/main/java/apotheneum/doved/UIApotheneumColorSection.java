@@ -22,26 +22,27 @@ import heronarts.glx.ui.UI;
 import heronarts.glx.ui.UI2dComponent;
 import heronarts.glx.ui.UI2dContainer;
 import heronarts.glx.ui.component.UICollapsibleSection;
-import heronarts.glx.ui.component.UIDoubleBox;
 import heronarts.glx.ui.component.UIDropMenu;
-import heronarts.glx.ui.component.UIIntegerBox;
 import heronarts.glx.ui.component.UILabel;
 import heronarts.glx.ui.vg.VGraphics;
 
 import apotheneum.doved.modulators.ApotheneumColor;
 import apotheneum.doved.modulators.ApotheneumColor.Surface;
-import apotheneum.doved.modulators.ApotheneumColor.SurfaceOffset;
 
 /**
  * Left-pane GLOBAL-tab section for {@link ApotheneumColor}: the shared {@code pair}/{@code swap}
- * gesture, a real-colour swatch per surface so the owner can see what they currently produce
- * without turning the piece on, then one subsection per surface for its standing
- * {@code indexOffset}/{@code hueOffset}/{@code satTrim}.
+ * gesture, {@code axis} (which surfaces share a stop), and a real-colour swatch per surface so
+ * the owner can see what they currently produce without turning the piece on.
  *
  * <p>Modelled directly on {@code apotheneum.video.UIVideoWallPanel} — the other
  * package-contributed GLOBAL section in this codebase, and the reason this class exists as a
  * {@link UICollapsibleSection} with stacked full-width controls rather than the knob columns a
- * device panel would use. Two things carry over verbatim rather than being rederived:
+ * device panel would use.
+ *
+ * <p><b>2026-08-30: shrunk from six groups to two.</b> The four per-surface {@code indexOffset}/
+ * {@code hueOffset}/{@code satTrim} groups are gone along with the parameters they displayed —
+ * see {@link ApotheneumColor}'s class javadoc for why. This section is now SHARED ({@code pair},
+ * {@code swap}, {@code axis}) and COLORS (the four resolved swatches) only.
  *
  * <ul>
  *   <li><b>The pane is 208px wide, full stop</b> — {@code heronarts.lx.studio.ui.UILeftPane.WIDTH},
@@ -49,11 +50,7 @@ import apotheneum.doved.modulators.ApotheneumColor.SurfaceOffset;
  *       side-by-side room for anything here; every control in this section is full width,
  *       stacked vertically, exactly like Video Wall's Source/Layout/Processor/Gap rows.</li>
  *   <li><b>The section can be as tall as it needs</b> — unlike a {@code UIDeviceModulator}'s
- *       hard-fixed 160px content cap (the constraint that pushed three of four surface groups
- *       off-panel the first time this class had knob columns), the left pane scrolls, and Video
- *       Wall itself runs to several hundred pixels across four subsections. This section is six
- *       groups tall (SHARED, COLORS, and one per surface) for exactly that reason — nothing here
- *       needed hiding to fit.</li>
+ *       hard-fixed 160px content cap, the left pane scrolls.</li>
  * </ul>
  */
 public class UIApotheneumColorSection extends UICollapsibleSection {
@@ -70,15 +67,12 @@ public class UIApotheneumColorSection extends UICollapsibleSection {
   private static final float SWATCH_ROW_HEIGHT = CAPTION_HEIGHT + CAPTION_SPACING + SWATCH_HEIGHT;
 
   private static final float SHARED_GROUP_HEIGHT =
-    GROUP_HEADING_HEIGHT + GROUP_ROW_SPACING + 2 * ROW_HEIGHT + GROUP_ROW_SPACING;
+    GROUP_HEADING_HEIGHT + GROUP_ROW_SPACING + 3 * ROW_HEIGHT + GROUP_ROW_SPACING;
   private static final float COLORS_GROUP_HEIGHT =
     GROUP_HEADING_HEIGHT + GROUP_ROW_SPACING + 4 * SWATCH_ROW_HEIGHT + 3 * GROUP_ROW_SPACING;
-  private static final float SURFACE_GROUP_HEIGHT =
-    GROUP_HEADING_HEIGHT + GROUP_ROW_SPACING + 3 * ROW_HEIGHT + 2 * GROUP_ROW_SPACING;
   private static final float CONTENT_HEIGHT =
     SHARED_GROUP_HEIGHT + GROUP_SPACING
-    + COLORS_GROUP_HEIGHT + GROUP_SPACING
-    + 4 * SURFACE_GROUP_HEIGHT + 3 * GROUP_SPACING;
+    + COLORS_GROUP_HEIGHT;
   private static final float SECTION_HEIGHT = CONTENT_HEIGHT + PADDING + BAR_HEIGHT;
 
   public UIApotheneumColorSection(UI ui, ApotheneumColor config, float width) {
@@ -91,7 +85,8 @@ public class UIApotheneumColorSection extends UICollapsibleSection {
     final UI2dContainer sharedGroup = UI2dContainer.newVerticalContainer(contentWidth, GROUP_ROW_SPACING,
       groupHeading(contentWidth, "SHARED"),
       stackedRow(contentWidth, "Pair", new UIDropMenu(0, 0, contentWidth, CONTROL_HEIGHT, config.pair)),
-      stackedRow(contentWidth, "Swap", new UIDropMenu(0, 0, contentWidth, CONTROL_HEIGHT, config.swap))
+      stackedRow(contentWidth, "Swap", new UIDropMenu(0, 0, contentWidth, CONTROL_HEIGHT, config.swap)),
+      stackedRow(contentWidth, "Axis", new UIDropMenu(0, 0, contentWidth, CONTROL_HEIGHT, config.axis))
     );
 
     final UI2dContainer colorsGroup = UI2dContainer.newVerticalContainer(contentWidth, GROUP_ROW_SPACING,
@@ -102,26 +97,7 @@ public class UIApotheneumColorSection extends UICollapsibleSection {
       swatchRow(config, Surface.CYLINDER_INTERIOR, "Cyl Int", contentWidth)
     );
 
-    addChildren(
-      sharedGroup,
-      colorsGroup,
-      surfaceGroup(contentWidth, "CUBE EXT", config.cubeExterior),
-      surfaceGroup(contentWidth, "CUBE INT", config.cubeInterior),
-      surfaceGroup(contentWidth, "CYL EXT", config.cylinderExterior),
-      surfaceGroup(contentWidth, "CYL INT", config.cylinderInterior)
-    );
-  }
-
-  private UI2dContainer surfaceGroup(float contentWidth, String title, SurfaceOffset offset) {
-    return UI2dContainer.newVerticalContainer(contentWidth, GROUP_ROW_SPACING,
-      groupHeading(contentWidth, title),
-      stackedRow(contentWidth, "Index Offset",
-        new UIIntegerBox(0, 0, contentWidth, CONTROL_HEIGHT, offset.indexOffset)),
-      stackedRow(contentWidth, "Hue Offset",
-        new UIDoubleBox(0, 0, contentWidth, CONTROL_HEIGHT, offset.hueOffset)),
-      stackedRow(contentWidth, "Sat Trim",
-        new UIDoubleBox(0, 0, contentWidth, CONTROL_HEIGHT, offset.satTrim))
-    );
+    addChildren(sharedGroup, colorsGroup);
   }
 
   private UI2dContainer swatchRow(
@@ -133,21 +109,20 @@ public class UIApotheneumColorSection extends UICollapsibleSection {
 
   /** A caption label above a full-width control, stacked with {@link #CAPTION_SPACING} --
    * identical shape to {@code UIVideoWallPanel.stackedRow}. */
-  private static UI2dContainer stackedRow(float contentWidth, String label, UI2dComponent control) {
+  static UI2dContainer stackedRow(float contentWidth, String label, UI2dComponent control) {
     final UILabel caption = new UILabel(0, 0, contentWidth, CAPTION_HEIGHT).setLabel(label);
     return UI2dContainer.newVerticalContainer(contentWidth, CAPTION_SPACING, caption, control);
   }
 
-  private static UILabel groupHeading(float contentWidth, String label) {
+  static UILabel groupHeading(float contentWidth, String label) {
     return new UILabel(0, 0, contentWidth, GROUP_HEADING_HEIGHT).setLabel(label);
   }
 
   /**
    * Left half primary, right half secondary, for one surface — "what does the current
-   * pair/swap plus this surface's own offsets actually produce", without turning the piece on.
-   * Redraws on every parameter that can move either half: the two shared gesture parameters
-   * (every swatch listens to both, since {@code pair}/{@code swap} move every surface at once)
-   * plus this surface's own three offsets.
+   * pair/swap/axis actually produce", without turning the piece on. Redraws on every parameter
+   * that can move either half: {@code pair}, {@code swap}, and {@code axis} (every swatch
+   * listens to all three, since each one moves every surface's resolved color at once).
    */
   private static final class SwatchPair extends UI2dComponent {
 
@@ -162,10 +137,7 @@ public class UIApotheneumColorSection extends UICollapsibleSection {
 
       addListener(config.pair, this.redraw);
       addListener(config.swap, this.redraw);
-      final SurfaceOffset offset = offsetFor(config, surface);
-      addListener(offset.indexOffset, this.redraw);
-      addListener(offset.hueOffset, this.redraw);
-      addListener(offset.satTrim, this.redraw);
+      addListener(config.axis, this.redraw);
     }
 
     @Override
@@ -175,16 +147,6 @@ public class UIApotheneumColorSection extends UICollapsibleSection {
       final float half = this.width / 2f;
       vg.beginPath().rect(0, 0, half, this.height).fillColor(primary).fill();
       vg.beginPath().rect(half, 0, this.width - half, this.height).fillColor(secondary).fill();
-    }
-  }
-
-  private static SurfaceOffset offsetFor(ApotheneumColor config, Surface surface) {
-    switch (surface) {
-      case CUBE_EXTERIOR: return config.cubeExterior;
-      case CUBE_INTERIOR: return config.cubeInterior;
-      case CYLINDER_EXTERIOR: return config.cylinderExterior;
-      case CYLINDER_INTERIOR: return config.cylinderInterior;
-      default: throw new IllegalArgumentException("Unknown surface: " + surface);
     }
   }
 

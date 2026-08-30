@@ -130,7 +130,7 @@ public class ColorNativePatternTest extends HeadlessLxTest {
     final ApotheneumColor apotheneumColor = registerApotheneumColor(lx);
     apotheneumColor.pair.setValue(0);
     apotheneumColor.swap.setValue(0);
-    apotheneumColor.cubeInterior.indexOffset.setValue(1);
+    apotheneumColor.axis.setValue(2); // In/Out: exterior and interior sit one stop apart
 
     final Rockfall rockfall = new Rockfall(lx);
     rockfall.rockColor.update();
@@ -139,7 +139,7 @@ public class ColorNativePatternTest extends HeadlessLxTest {
       rockfall.rockColor.color(ApotheneumColor.Surface.CUBE_EXTERIOR, 0),
       rockfall.rockColor.color(ApotheneumColor.Surface.CUBE_INTERIOR, 0),
       "the same role, same pattern, same physics, must still differ by surface when the "
-      + "surfaces' offsets differ -- this is the whole point of the redesign"
+      + "axis puts the surfaces on different stops -- this is the whole point of the redesign"
     );
     rockfall.dispose();
   }
@@ -165,30 +165,26 @@ public class ColorNativePatternTest extends HeadlessLxTest {
   }
 
   @Test
-  void resolutionOrderAppliesSurfaceOffsetsBeforePhysicsPerturbation() {
+  void resolutionOrderAppliesTheResolvedPaletteColorBeforePhysicsPerturbation() {
     final LX lx = newHeadlessLx();
-    lx.engine.palette.swatch.colors.get(0).primary.setColor(LXColor.hsb(200, 80, 60));
+    lx.engine.palette.swatch.colors.get(0).primary.setColor(LXColor.hsb(240, 40, 60));
     final ApotheneumColor apotheneumColor = registerApotheneumColor(lx);
     apotheneumColor.pair.setValue(0);
     apotheneumColor.swap.setValue(0);
-    apotheneumColor.cubeExterior.hueOffset.setValue(40);
-    apotheneumColor.cubeExterior.satTrim.setValue(-20);
 
     final Rockfall rockfall = new Rockfall(lx);
     rockfall.rockColor.amount.setValue(1);
     rockfall.rockColor.update();
 
-    // modulatedColor never touches hue, so if hueOffset were applied after (or fought by) the
-    // physics perturbation instead of before it, the hue seen downstream would drift with
-    // physics. It must not: the offset is baked into the color physics perturbs, so hue stays
-    // pinned at base+offset across the whole physics range.
+    // modulatedColor never touches hue, so the resolved palette color's hue must stay pinned
+    // across the whole physics range -- physics only ever perturbs saturation/brightness.
     assertEquals(240, LXColor.h(rockfall.rockColor.color(SURFACE, 0)), 1);
     assertEquals(240, LXColor.h(rockfall.rockColor.color(SURFACE, 1)), 1);
     assertEquals(240, LXColor.h(rockfall.rockColor.color(SURFACE, -1)), 1);
 
-    // The saturation trim is likewise baked into the color before physics perturbs it: at
-    // rest (physics=0, no perturbation) it should read as base saturation minus the trim.
-    assertEquals(60, LXColor.s(rockfall.rockColor.color(SURFACE, 0)), 1);
+    // At rest (physics=0, no perturbation) saturation reads exactly the resolved palette
+    // color's own saturation -- there is no offset left to bake in ahead of it.
+    assertEquals(40, LXColor.s(rockfall.rockColor.color(SURFACE, 0)), 1);
 
     // Physics still visibly perturbs on top of the offset color (amount=1, nonzero physics).
     assertNotEquals(rockfall.rockColor.color(SURFACE, 0), rockfall.rockColor.color(SURFACE, 1));

@@ -108,10 +108,10 @@ public class ApotheneumColorTest extends HeadlessLxTest {
   }
 
   @Test
-  void indexOffsetDifferentiatesOneSurfaceFromTheRest() {
+  void shapeAxisMatchesCubeSurfacesAndDiffersFromCylinderSurfaces() {
     final LX lx = newHeadlessLx();
-    // A fresh LX's default swatch carries one color; a second, distinct one is needed so two
-    // different resolved indices can actually be told apart.
+    // A fresh LX's default swatch carries one color; a second, distinct one is needed so the
+    // one-stop shift Shape/In-Out apply can actually be told apart from doing nothing.
     lx.engine.palette.swatch.addColor();
     lx.engine.palette.swatch.colors.get(0).primary.setColor(LXColor.hsb(0, 90, 70));
     lx.engine.palette.swatch.colors.get(1).primary.setColor(LXColor.hsb(200, 90, 70));
@@ -119,79 +119,77 @@ public class ApotheneumColorTest extends HeadlessLxTest {
     final ApotheneumColor color = register(lx);
     color.pair.setValue(0);
     color.swap.setValue(0);
-    color.cubeExterior.indexOffset.setValue(1);
+    color.axis.setValue(1); // Shape
 
-    assertNotEquals(
-      color.primaryColor(ApotheneumColor.Surface.CUBE_INTERIOR),
+    assertEquals(
       color.primaryColor(ApotheneumColor.Surface.CUBE_EXTERIOR),
-      "a non-zero indexOffset on one surface must not silently match the rest"
+      color.primaryColor(ApotheneumColor.Surface.CUBE_INTERIOR),
+      "Shape must match the two cube surfaces to each other"
+    );
+    assertEquals(
+      color.primaryColor(ApotheneumColor.Surface.CYLINDER_EXTERIOR),
+      color.primaryColor(ApotheneumColor.Surface.CYLINDER_INTERIOR),
+      "Shape must match the two cylinder surfaces to each other"
+    );
+    assertNotEquals(
+      color.primaryColor(ApotheneumColor.Surface.CUBE_EXTERIOR),
+      color.primaryColor(ApotheneumColor.Surface.CYLINDER_EXTERIOR),
+      "Shape must differ cube from cylinder by one stop"
     );
     assertEquals(
       ColorNativePattern.paletteColor(lx.engine.palette.swatch.colors, color.primaryIndex()),
-      color.primaryColor(ApotheneumColor.Surface.CUBE_EXTERIOR),
-      "indexOffset 1 reads the next palette stop up"
+      color.primaryColor(ApotheneumColor.Surface.CYLINDER_EXTERIOR),
+      "cylinder reads exactly one stop up from the shared index under Shape"
     );
   }
 
   @Test
-  void offsetAtTheCeilingStaysAtTheLastStopWithoutWrapping() {
+  void insideOutsideAxisMatchesExteriorsAndDiffersFromInteriors() {
+    final LX lx = newHeadlessLx();
+    lx.engine.palette.swatch.addColor();
+    lx.engine.palette.swatch.colors.get(0).primary.setColor(LXColor.hsb(0, 90, 70));
+    lx.engine.palette.swatch.colors.get(1).primary.setColor(LXColor.hsb(200, 90, 70));
+
+    final ApotheneumColor color = register(lx);
+    color.pair.setValue(0);
+    color.swap.setValue(0);
+    color.axis.setValue(2); // In/Out
+
+    assertEquals(
+      color.primaryColor(ApotheneumColor.Surface.CUBE_EXTERIOR),
+      color.primaryColor(ApotheneumColor.Surface.CYLINDER_EXTERIOR),
+      "In/Out must match the two exterior surfaces to each other"
+    );
+    assertEquals(
+      color.primaryColor(ApotheneumColor.Surface.CUBE_INTERIOR),
+      color.primaryColor(ApotheneumColor.Surface.CYLINDER_INTERIOR),
+      "In/Out must match the two interior surfaces to each other"
+    );
+    assertNotEquals(
+      color.primaryColor(ApotheneumColor.Surface.CUBE_EXTERIOR),
+      color.primaryColor(ApotheneumColor.Surface.CUBE_INTERIOR),
+      "In/Out must differ exterior from interior by one stop"
+    );
+  }
+
+  @Test
+  void shapeAxisWrapsAtTheCeilingRatherThanClamping() {
     final LX lx = newHeadlessLx();
     final ApotheneumColor color = register(lx);
 
     // secondaryIndex reaches its own maximum of 3 at pair=1/swap=0 (design/color-system.md
-    // section 4: neither role ever exceeds stop 3). 3 + 2 (indexOffset's own maximum) = 5,
-    // the swatch's last stop exactly -- still a legal, non-wrapped index.
+    // section 4: neither role ever exceeds stop 3). A fresh LX's default swatch carries
+    // exactly one color, so MAX_COLORS is 1 and every index wraps straight back to stop 1 --
+    // still a legal, non-clamped result, not a plateau.
     color.pair.setValue(1);
     color.swap.setValue(0);
+    color.axis.setValue(1); // Shape
     assertEquals(3, color.secondaryIndex());
-    color.cylinderExterior.indexOffset.setValue(2);
     assertEquals(
-      ColorNativePattern.paletteColor(lx.engine.palette.swatch.colors, 5 - 1),
-      color.secondaryColor(ApotheneumColor.Surface.CYLINDER_EXTERIOR)
+      ColorNativePattern.paletteColor(lx.engine.palette.swatch.colors, 0),
+      color.secondaryColor(ApotheneumColor.Surface.CYLINDER_EXTERIOR),
+      "3 + 1 must wrap around a one-stop swatch back to stop 1, not clamp at stop 3"
     );
-  }
-
-  @Test
-  void indexOffsetWrapsRatherThanClampingBelowTheFloor() {
-    final LX lx = newHeadlessLx();
-    final ApotheneumColor color = register(lx);
-
-    // primaryIndex is 1 at pair=0/swap=0, the lowest value the shared scheme ever produces.
-    // 1 + (-2) (indexOffset's own minimum) = -1, below the swatch's floor of 1. A clamp would
-    // land this back on stop 1 -- indistinguishable from indexOffset doing nothing. Wrapping
-    // instead must land on a distinct, valid stop: floorMod(-1 - 1, 5) + 1 = 4.
-    color.pair.setValue(0);
-    color.swap.setValue(0);
-    assertEquals(1, color.primaryIndex());
-    color.cubeExterior.indexOffset.setValue(-2);
-    assertEquals(
-      ColorNativePattern.paletteColor(lx.engine.palette.swatch.colors, 4 - 1),
-      color.primaryColor(ApotheneumColor.Surface.CUBE_EXTERIOR),
-      "1 + (-2) must wrap to stop 4, not clamp back to stop 1"
-    );
-    // A neighboring surface at the same shared index but zero offset must still read stop 1 --
-    // proving the wrap is local to the one surface whose offset triggered it.
-    assertEquals(
-      ColorNativePattern.paletteColor(lx.engine.palette.swatch.colors, 1 - 1),
-      color.primaryColor(ApotheneumColor.Surface.CUBE_INTERIOR)
-    );
-  }
-
-  @Test
-  void hueOffsetAndSatTrimApplyOnTopOfTheSharedIndex() {
-    final LX lx = newHeadlessLx();
-    lx.engine.palette.swatch.colors.get(0).primary.setColor(LXColor.hsb(200, 80, 60));
-    final ApotheneumColor color = register(lx);
-
-    color.pair.setValue(0);
-    color.swap.setValue(0);
-    assertEquals(1, color.primaryIndex());
-    color.cubeExterior.hueOffset.setValue(40);
-    color.cubeExterior.satTrim.setValue(-20);
-
-    final int resolved = color.primaryColor(ApotheneumColor.Surface.CUBE_EXTERIOR);
-    assertEquals(240, LXColor.h(resolved), 1);
-    assertEquals(60, LXColor.s(resolved), 1);
   }
 
   @Test
