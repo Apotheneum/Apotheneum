@@ -19,6 +19,7 @@ package apotheneum.doved.patterns;
 import java.util.Arrays;
 
 import apotheneum.Apotheneum;
+import apotheneum.doved.modulators.ApotheneumColor;
 import apotheneum.mcslee.Surfacing;
 import heronarts.lx.LX;
 import heronarts.lx.LXCategory;
@@ -351,7 +352,7 @@ public class Waterfall extends ColorNativePattern {
   private Surfacing surfacing = null;
 
   public Waterfall(LX lx) {
-    super(lx, 1, .7, 2, .7);
+    super(lx, .7, .7);
     this.rockColor = this.primary;
     this.waterColor = this.secondary;
 
@@ -433,6 +434,7 @@ public class Waterfall extends ColorNativePattern {
 
   private void renderShape(Apotheneum.Orientation orientation, int shape, float[] cos, float[] sin, float[] sprayGrid, float[] spillGrid, int height) {
     final int columnCount = cos.length;
+    final ApotheneumColor.Surface surface = ApotheneumColor.Surface.of(orientation);
 
     final float radius = this.scale.getValuef() * columnCount / 100f;
     final float flow = this.flow.getValuef() * (float) this.time;
@@ -502,8 +504,8 @@ public class Waterfall extends ColorNativePattern {
       // One color per contribution, resolved once per column: rock reads its own
       // cragginess, water reads its own fall speed. Both are static per column, like
       // the fields that drive them, so there is nothing to gain sampling per pixel.
-      final int rockPixelColor = this.rockColor.color(2f * notch - 1f);
-      final int waterPixelColor = this.waterColor.color(2f * speed - 1f);
+      final int rockPixelColor = this.rockColor.color(surface, 2f * notch - 1f);
+      final int waterPixelColor = this.waterColor.color(surface, 2f * speed - 1f);
 
       // The rock face: everything above the water's own lip on this column. A flat
       // height field, not a distance field — a column simply is rock above lipRow —

@@ -14,6 +14,7 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 
 import apotheneum.Apotheneum;
+import apotheneum.doved.modulators.ApotheneumColor;
 import heronarts.lx.LX;
 import heronarts.lx.color.LXColor;
 import heronarts.lx.mixer.LXChannel;
@@ -119,6 +120,7 @@ public class GrassTest {
   private static int[] renderGrassCylinderExteriorColors(double primaryAmount) throws Exception {
     final Path mediaPath = Files.createTempDirectory("apotheneum-grass-amount-test-");
     LX lx = null;
+    ApotheneumColor apotheneumColor = null;
     try {
       copyFixtureMedia(mediaPath);
       final LX.Flags flags = new LX.Flags();
@@ -133,6 +135,17 @@ public class GrassTest {
       lx.structure.beforeEngineRun();
       assertFalse(fixture.error.isOn(), fixture.errorMessage.getString());
       Apotheneum.initialize(lx);
+
+      // primary.amount couples a physics wobble on top of ApotheneumColor's resolved base
+      // color, and that wobble is invisible against a base already at brightness 100 (see
+      // modulatedColor: a positive shift on a maxed brightness silently clamps to itself).
+      // Without an ApotheneumColor present, a role falls back to neutral white, which is
+      // exactly that maxed-brightness case -- so this regression test needs a real, non-maxed
+      // base color for primary.amount to have anything to visibly move.
+      apotheneumColor = lx.engine.modulation.addModulator(new ApotheneumColor());
+      lx.engine.palette.swatch.colors.get(0).primary.setColor(LXColor.hsb(30, 90, 70));
+      apotheneumColor.pair.setValue(0);
+      apotheneumColor.swap.setValue(0);
 
       final Grass grass = new Grass(lx);
       grass.primary.amount.setValue(primaryAmount);
@@ -155,6 +168,14 @@ public class GrassTest {
       }
       return result;
     } finally {
+      // Removed (not just disposed) before lx.dispose() runs: removeModulator disposes it
+      // exactly once and drops it from the engine's tracked list, so the LX-level teardown
+      // below never encounters it a second time. Without this it would also dangle in the
+      // static singleton, tied to an LX this test is about to dispose, and leak into whichever
+      // test runs next in this class within the same JVM fork.
+      if (apotheneumColor != null) {
+        lx.engine.modulation.removeModulator(apotheneumColor);
+      }
       if (lx != null) {
         lx.dispose();
       }

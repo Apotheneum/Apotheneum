@@ -4,6 +4,7 @@ import java.util.Arrays;
 import java.util.Random;
 
 import apotheneum.Apotheneum;
+import apotheneum.doved.modulators.ApotheneumColor;
 import heronarts.lx.LX;
 import heronarts.lx.LXCategory;
 import heronarts.lx.LXComponent;
@@ -264,9 +265,15 @@ public class Jungle extends ColorNativePattern {
   // at 28,320 points that is the most expensive thing in the frame by far. The
   // physics driving each role is a function of shadow depth, so the index into
   // these tables is itself precomputed against the shadow tables above.
+  //
+  // Sized for all four ApotheneumColor.Surface entries, not one shared table: the surface a
+  // pixel is on is now part of what decides its color, so a table built once for "the"
+  // resolved color would silently pick one surface's answer for all four. See
+  // surfaceRgbOffset() -- each surface gets its own 3*(PHYSICS_STEPS+1)-float slice.
   private static final int PHYSICS_STEPS = 64;
-  private final float[] vegetationRgb = new float[3 * (PHYSICS_STEPS + 1)];
-  private final float[] daylightRgb = new float[3 * (PHYSICS_STEPS + 1)];
+  private static final int SURFACE_COUNT = ApotheneumColor.Surface.values().length;
+  private final float[] vegetationRgb = new float[SURFACE_COUNT * 3 * (PHYSICS_STEPS + 1)];
+  private final float[] daylightRgb = new float[SURFACE_COUNT * 3 * (PHYSICS_STEPS + 1)];
   private final int[] vegetationIndex = new int[SHADOW_STEPS + 1];
   private final int[] daylightIndex = new int[SHADOW_STEPS + 1];
 
@@ -278,7 +285,7 @@ public class Jungle extends ColorNativePattern {
 
   public Jungle(LX lx) {
     // Palette stops 1 and 2, as the other colour-native pattern on this rig uses.
-    super(lx, 1, .5, 2, .5);
+    super(lx, .5, .5);
     addParameter("wind", this.wind);
     addParameter("gust", this.gust);
     addParameter("flutter", this.flutter);
@@ -424,15 +431,26 @@ public class Jungle extends ColorNativePattern {
 
     this.primary.update();
     this.secondary.update();
-    for (int i = 0; i <= PHYSICS_STEPS; ++i) {
-      final double physics = 2. * i / PHYSICS_STEPS - 1;
-      writeRgb(this.vegetationRgb, i, this.primary.color(physics));
-      writeRgb(this.daylightRgb, i, this.secondary.color(physics));
+    for (ApotheneumColor.Surface surface : ApotheneumColor.Surface.values()) {
+      final int offset = surfaceRgbOffset(surface);
+      for (int i = 0; i <= PHYSICS_STEPS; ++i) {
+        final double physics = 2. * i / PHYSICS_STEPS - 1;
+        writeRgb(this.vegetationRgb, offset + i, this.primary.color(surface, physics));
+        writeRgb(this.daylightRgb, offset + i, this.secondary.color(surface, physics));
+      }
     }
     for (int i = 0; i <= SHADOW_STEPS; ++i) {
       this.vegetationIndex[i] = physicsIndex(this.throughLut[i]);
       this.daylightIndex[i] = physicsIndex(this.directLut[i]);
     }
+  }
+
+  /**
+   * Start, in physics-step index units (not float-array units -- see {@link #writeRgb}), of one
+   * surface's slice within {@link #vegetationRgb}/{@link #daylightRgb}.
+   */
+  private static int surfaceRgbOffset(ApotheneumColor.Surface surface) {
+    return surface.ordinal() * (PHYSICS_STEPS + 1);
   }
 
   /** Maps a 0-1 lighting term onto the roles' -1..1 physics range. */
@@ -642,6 +660,12 @@ public class Jungle extends ColorNativePattern {
     final int height = raster.height;
     final float drift = this.leafDrift;
     final int flutterRepeat = this.surfaceRepeat * 3;
+    // Which surface's RGB-table slice this call reads -- see the SURFACE_COUNT-sized tables'
+    // javadoc above. Falls back to surface 0's slice if the orientation resolves to no known
+    // surface (should not happen with Apotheneum loaded, but avoids an NPE/-1 index if it did).
+    final ApotheneumColor.Surface writeSurface = ApotheneumColor.Surface.of(orientation);
+    final int surfaceOffset = surfaceRgbOffset(
+      writeSurface != null ? writeSurface : ApotheneumColor.Surface.CUBE_EXTERIOR);
 
     int x = 0;
     for (Apotheneum.Column column : orientation.columns()) {
@@ -695,12 +719,12 @@ public class Jungle extends ColorNativePattern {
         // stop and its offsets are already resolved, the physics wobble is already
         // in the table, and this is the brightness scaling by the pattern's own
         // intensity mask.
-        final int daylight = 3 * this.daylightIndex[shadowIndex];
+        final int daylight = 3 * (surfaceOffset + this.daylightIndex[shadowIndex]);
         float red = this.daylightRgb[daylight] * level;
         float green = this.daylightRgb[daylight + 1] * level;
         float blue = this.daylightRgb[daylight + 2] * level;
 
-        final int vegetation = 3 * this.vegetationIndex[shadowIndex];
+        final int vegetation = 3 * (surfaceOffset + this.vegetationIndex[shadowIndex]);
         final float vegetationR = this.vegetationRgb[vegetation];
         final float vegetationG = this.vegetationRgb[vegetation + 1];
         final float vegetationB = this.vegetationRgb[vegetation + 2];

@@ -58,10 +58,10 @@ RenderSpike lookupProjection=equidistant-fisheye fovDegrees=180 \
 
 Numeric, boolean, discrete-option and enum parameters are supported. Names must match
 the pattern's registered parameter paths exactly. A direct child-component parameter is
-addressable as `child/parameter`; for example, Fireball's primary role can be assigned with
-`-Dparams=primary/hueOffset=20`. Option and enum values are case-insensitive. An unknown name
-fails with the complete list of available names, and the renderer logs the resolved values so
-the invocation remains self-describing.
+addressable as `child/parameter`; for example, Fireball's primary role's physics coupling can
+be assigned with `-Dparams=primary/amount=0.8`. Option and enum values are case-insensitive. An
+unknown name fails with the complete list of available names, and the renderer logs the
+resolved values so the invocation remains self-describing.
 
 ### Drive a static position parameter
 
@@ -86,7 +86,7 @@ mvn -Ptests test-compile exec:exec \
 
 The target must be a registered `CompoundParameter` or `CompoundDiscreteParameter`; direct
 child-component targets use the same `child/parameter` spelling, such as
-`-Dmodulate=primary/hueOffset:0.2` for Fireball. An unknown target lists all available names
+`-Dmodulate=primary/amount:0.2` for Fireball. An unknown target lists all available names
 and a non-modulatable target fails clearly. Without `-Dmodulate=`, existing renderer invocations
 are unchanged. When invoked directly, the modulation assignment is the sixth positional argument,
 after the view name.
@@ -113,21 +113,26 @@ classes and classes that do not extend `LXEffect` fail before rendering.
 The selected class must extend `LXPattern` and have a public constructor accepting
 `LX`. `RenderSpike.main` also accepts these as positional arguments when invoked
 directly: the class name first, then the parameter list, the effect class list, the
-palette assignment, the view name, and the modulation assignment, in that order; an
-absent or blank class name selects Fireflies.
+palette assignment, the view name, the modulation assignment, and the `ApotheneumColor`
+per-surface offsets, in that order; an absent or blank class name selects Fireflies.
 
-### Colour-native patterns need an explicit `-Dpalette=`
+### Colour-native patterns need an explicit `-Dpalette=` *and* `-DapotheneumColor=`
 
-The default project palette has **exactly one swatch stop**, pure red — a fresh
-`LX` reports `lx.engine.palette.swatch.colors.size() == 1` at hue 0 / saturation 100 /
-brightness 100. `ColorNativePattern` gives its two roles default stops 1 and 2, and its
-palette read clamps an out-of-range stop to the last one, so on the default palette
-*both* roles resolve to stop 1. **Every `ColorNativePattern` subclass** therefore renders
-monochrome red by default and reads as broken when it is not. Deliberately not listed by
-name here: the set grows with every colour-native pattern, and a list that goes stale is
-worse than none, because a reviewer checks it, does not find the pattern in hand, and
-concludes the warning does not apply. `git grep -l "extends ColorNativePattern"` is the
-current answer.
+`ColorNativePattern` no longer owns a palette index of its own — every instance reads the
+single global `apotheneum.doved.modulators.ApotheneumColor` singleton (see that class's
+javadoc). **With no `ApotheneumColor` in the render, every role resolves neutral white**
+(`ColorRole#resolveBase`'s fallback), same as an explicitly-disabled `Color` toggle — a
+colour-native pattern therefore renders in greyscale by default and reads as broken when it
+is not. Deliberately not listed by name here: the set grows with every colour-native pattern,
+and a list that goes stale is worse than none, because a reviewer checks it, does not find
+the pattern in hand, and concludes the warning does not apply. `git grep -l "extends
+ColorNativePattern"` is the current answer.
+
+The default project palette also has **exactly one swatch stop**, pure red — a fresh `LX`
+reports `lx.engine.palette.swatch.colors.size() == 1` at hue 0 / saturation 100 / brightness
+100 — so even with an `ApotheneumColor` present, every surface clamps onto that single stop
+unless a real palette is passed too. Both are required for a meaningful render, not either
+alone.
 
 Pass a palette. The spec is `hue,sat,bri` per stop, semicolon-separated, appended to the
 swatch as needed:
@@ -138,6 +143,20 @@ mvn -Ptests test-compile exec:exec \
   '-Dpalette=30,95,100;210,92,100'
 ```
 
+Pass an `ApotheneumColor`. The spec is four integers, comma-separated, in
+`RenderSurface` order — `cubeExteriorOffset,cubeInteriorOffset,cylinderExteriorOffset,
+cylinderInteriorOffset` — applied as each surface's `indexOffset` (`pair`/`swap` are left
+at their shared default of 0; see `ApotheneumColorTest` for those). A distinct offset per
+surface is what proves the four surfaces are actually resolving independently, which is
+the entire point of `ApotheneumColor`'s design:
+
+```bash
+mvn -Ptests test-compile exec:exec \
+  -Dpattern=apotheneum.doved.patterns.Rockfall \
+  -DapotheneumColor=0,1,-1,2 \
+  '-Dpalette=200,90,70;30,90,70;280,92,70'
+```
+
 Quote it — the stop separator is a `;`, which an unquoted shell reads as a command
 separator. On a cube-exterior contact sheet that example is the difference between one
 occupied hue bucket and eight. The renderer logs the resolved stops
@@ -146,7 +165,7 @@ always in the log.
 
 ### Invoke `RenderSpike` directly for `-D` properties and tight iteration
 
-The pom's exec plugin forks `java` with a **fixed** argument list — the six positional
+The pom's exec plugin forks `java` with a **fixed** argument list — the seven positional
 arguments above, plus `-Djava.awt.headless=true`. It has no `<systemProperties>` and no
 pass-through, so an arbitrary `-Dfoo=bar` on the `mvn` command line stays a Maven
 property and never reaches the forked JVM. Anything a pattern reads through

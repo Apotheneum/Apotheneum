@@ -22,6 +22,7 @@ import java.util.stream.Stream;
 import javax.imageio.ImageIO;
 
 import apotheneum.Apotheneum;
+import apotheneum.doved.modulators.ApotheneumColor;
 import heronarts.lx.LX;
 import heronarts.lx.LXComponent;
 import heronarts.lx.LXEngine;
@@ -108,6 +109,7 @@ public final class RenderSpike {
     final String paletteAssignments = optionalArgument(args, 3, "palette=");
     final RenderView renderView = resolveRenderView(optionalArgument(args, 4, "view="));
     final String modulationAssignment = optionalArgument(args, 5, "modulate=");
+    final String apotheneumColorAssignment = optionalArgument(args, 6, "apotheneumColor=");
     preflightFfmpeg();
 
     final long jvmStartMillis = ManagementFactory.getRuntimeMXBean().getStartTime();
@@ -139,6 +141,7 @@ public final class RenderSpike {
       }
 
       applyPalette(lx, paletteAssignments);
+      applyApotheneumColor(lx, apotheneumColorAssignment);
 
       final int pointCount = lx.getModel().size;
       final long startupAndParseMs = System.currentTimeMillis() - jvmStartMillis;
@@ -265,11 +268,12 @@ public final class RenderSpike {
   }
 
   private static Class<? extends LXPattern> resolvePatternClass(String[] args) {
-    if (args.length > 6) {
+    if (args.length > 7) {
       throw new IllegalArgumentException(
         "Usage: RenderSpike [fully-qualified LXPattern class] [name=value,name=value] " +
         "[fully-qualified LXEffect class,...] [hue,saturation,brightness;...] [unwrapped|lookup] " +
-        "[parameter:cyclesPerSecond]"
+        "[parameter:cyclesPerSecond] " +
+        "[cubeExteriorOffset,cubeInteriorOffset,cylinderExteriorOffset,cylinderInteriorOffset]"
       );
     }
     final String className = (args.length == 0 || args[0].isBlank()) ? DEFAULT_PATTERN_CLASS_NAME : args[0];
@@ -411,6 +415,53 @@ public final class RenderSpike {
       resolved.add(hue + "/" + saturation + "/" + brightness);
     }
     LX.log("RenderSpike palette=" + String.join(";", resolved));
+  }
+
+  /**
+   * Builds a global {@code ApotheneumColor} from a
+   * {@code cubeExteriorOffset,cubeInteriorOffset,cylinderExteriorOffset,cylinderInteriorOffset}
+   * spec so a {@code ColorNativePattern} renders through real per-surface differentiation
+   * instead of ApotheneumColor's own neutral-white fallback (see
+   * {@code ColorNativePattern.ColorRole#resolveBase}) or a default project palette clamped onto
+   * one shared stop for every surface. {@code pair}/{@code swap} are left at their defaults (0):
+   * this flag exists to demonstrate the four surfaces differing from each other, which
+   * indexOffset alone already proves, not to exercise the shared gesture -- see
+   * {@code ApotheneumColorTest} for that. Blank input constructs nothing, matching every other
+   * optional render flag's "unset means default behaviour" convention.
+   */
+  private static void applyApotheneumColor(LX lx, String assignment) {
+    if (assignment.isBlank()) {
+      LX.log("RenderSpike apotheneumColor=(none)");
+      return;
+    }
+    final String[] offsets = assignment.split(",", -1);
+    if (offsets.length != 4) {
+      throw new IllegalArgumentException(
+        "Invalid apotheneumColor spec '" + assignment + "'; expected "
+        + "cubeExteriorOffset,cubeInteriorOffset,cylinderExteriorOffset,cylinderInteriorOffset"
+      );
+    }
+    final ApotheneumColor color = lx.engine.modulation.addModulator(new ApotheneumColor());
+    color.cubeExterior.indexOffset.setValue(parseIndexOffset(assignment, offsets[0]));
+    color.cubeInterior.indexOffset.setValue(parseIndexOffset(assignment, offsets[1]));
+    color.cylinderExterior.indexOffset.setValue(parseIndexOffset(assignment, offsets[2]));
+    color.cylinderInterior.indexOffset.setValue(parseIndexOffset(assignment, offsets[3]));
+    LX.log("RenderSpike apotheneumColor=pair:" + color.pair.getValuei()
+      + ",swap:" + color.swap.getValuei()
+      + ",cubeExteriorOffset:" + color.cubeExterior.indexOffset.getValuei()
+      + ",cubeInteriorOffset:" + color.cubeInterior.indexOffset.getValuei()
+      + ",cylinderExteriorOffset:" + color.cylinderExterior.indexOffset.getValuei()
+      + ",cylinderInteriorOffset:" + color.cylinderInterior.indexOffset.getValuei());
+  }
+
+  private static int parseIndexOffset(String assignment, String raw) {
+    try {
+      return Integer.parseInt(raw.strip());
+    } catch (NumberFormatException nfe) {
+      throw new IllegalArgumentException(
+        "Invalid apotheneumColor spec '" + assignment + "': '" + raw + "' is not an integer", nfe
+      );
+    }
   }
 
   static double parsePaletteComponent(String stop, String raw, double maximum) {

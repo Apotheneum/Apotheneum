@@ -22,6 +22,7 @@ import java.util.Arrays;
 import java.util.Random;
 
 import apotheneum.Apotheneum;
+import apotheneum.doved.modulators.ApotheneumColor;
 import heronarts.lx.LX;
 import heronarts.lx.LXCategory;
 import heronarts.lx.LXComponent;
@@ -614,6 +615,7 @@ public class Dunes extends ColorNativePattern {
     }
 
     private void output(Apotheneum.Orientation orientation) {
+      final ApotheneumColor.Surface surface = ApotheneumColor.Surface.of(orientation);
       final Apotheneum.Column[] columns = orientation.columns();
       for (int x = 0; x < this.width; ++x) {
         final LXPoint[] points = columns[x].points;
@@ -635,8 +637,8 @@ public class Dunes extends ColorNativePattern {
             / SURFACE_DETAIL_FADE_ROWS);
           final double colorSlope = LXUtils.clamp(direction * slope * surfaceDetail, -1, 1);
           colors[points[y].index] = (sand <= 0 && grain <= 0) ? LXColor.BLACK : compositeColors(
-            primary.color(colorSlope), sand,
-            secondary.color(-colorSlope), grain
+            primary.color(surface, colorSlope), sand,
+            secondary.color(surface, -colorSlope), grain
           );
         }
         for (int y = available; y < points.length; ++y) {
@@ -675,7 +677,7 @@ public class Dunes extends ColorNativePattern {
   private double travelPhase;
 
   public Dunes(LX lx) {
-    super(lx, 1, .7, 2, .7);
+    super(lx, .7, .7);
     addParameter("wind", this.wind);
     addParameter("windAzimuth", this.windAzimuth);
     addParameter("drift", this.drift);

@@ -5,6 +5,7 @@ import java.util.Random;
 import java.util.function.IntUnaryOperator;
 
 import apotheneum.Apotheneum;
+import apotheneum.doved.modulators.ApotheneumColor;
 import heronarts.lx.LX;
 import heronarts.lx.LXCategory;
 import heronarts.lx.LXComponent;
@@ -189,7 +190,7 @@ public class Fireball extends ColorNativePattern {
   private float launchVelocity = 0;
 
   public Fireball(LX lx) {
-    super(lx, 1, .7, 2, .7);
+    super(lx, .7, .7);
     this.coreColor = this.primary;
     this.emberColor = this.secondary;
     addParameter("azimuth", this.azimuth);
@@ -321,7 +322,7 @@ public class Fireball extends ColorNativePattern {
     }
   }
 
-  int colorHeat(float heat, float physics) {
+  int colorHeat(ApotheneumColor.Surface surface, float heat, float physics) {
     final float shaped = this.heatCurve[
       (heat >= 1f) ? HEAT_LUT_SIZE : (int) (heat * HEAT_LUT_SIZE)
     ];
@@ -330,7 +331,7 @@ public class Fireball extends ColorNativePattern {
     }
 
     final int blended = LXColor.lerp(
-      this.emberColor.color(physics), this.coreColor.color(physics), shaped);
+      this.emberColor.color(surface, physics), this.coreColor.color(surface, physics), shaped);
     final float saturation = LXColor.s(blended) * blackbodySaturation(shaped);
     final float roleBrightness = LXColor.b(blended) / 100f;
     final float brightness = 100f * blackbodyBrightness(shaped) *
@@ -838,6 +839,13 @@ public class Fireball extends ColorNativePattern {
       if (this.heat == null) {
         return;
       }
+      // This Fire's own exterior orientation identifies which of the four surfaces it burns
+      // on. paint()/paintBrighter() write the same computed color to both the exterior point
+      // and its interior mirror in one pass (see their javadoc), so this pattern's cube and
+      // cylinder surfaces differ from each other via ApotheneumColor, but each one's own
+      // exterior and interior do not -- consistent with how this pattern already worked before
+      // ApotheneumColor existed, since it never distinguished them either.
+      final ApotheneumColor.Surface surface = ApotheneumColor.Surface.of(this.orientation);
       final float[] heat = this.heat;
       for (int x = 0; x < this.width; ++x) {
         final int column = x * this.height;
@@ -850,10 +858,10 @@ public class Fireball extends ColorNativePattern {
           if (value <= HEAT_EPSILON) {
             continue;
           }
-          paint(colors, i, Fireball.this.colorHeat(value, colorPhysics(x, y)));
+          paint(colors, i, Fireball.this.colorHeat(surface, value, colorPhysics(x, y)));
         }
       }
-      renderSparks(colors);
+      renderSparks(colors, surface);
     }
 
     /**
@@ -889,7 +897,7 @@ public class Fireball extends ColorNativePattern {
     }
 
     /** Draws each live ember only at its current position, never into the heat field. */
-    private void renderSparks(int[] colors) {
+    private void renderSparks(int[] colors, ApotheneumColor.Surface surface) {
       final float radius = sparkSize.getValuef();
       final float peak = intensity.getValuef();
       final int reach = (int) Math.ceil(radius);
@@ -921,7 +929,7 @@ public class Fireball extends ColorNativePattern {
             if (heat <= HEAT_EPSILON) {
               continue;
             }
-            paintBrighter(colors, cell, Fireball.this.colorHeat(heat, colorPhysics(x, y)));
+            paintBrighter(colors, cell, Fireball.this.colorHeat(surface, heat, colorPhysics(x, y)));
           }
         }
       }
