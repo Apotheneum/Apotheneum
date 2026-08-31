@@ -71,42 +71,8 @@ public class ModColorize extends ColorizeEffect implements UIDeviceControls<ModC
     .setDescription("Invert the palette gradient direction; drives the stock Invert, which as a BooleanParameter cannot itself be modulated");
 
   /**
-   * Take both ends from the shared {@link ApotheneumColor} instead of from this device's own
-   * Start/End pickers, so a Colorize is part of the room's colour rather than a second,
-   * independent colour decision sitting on top of it.
-   *
-   * <p>On (the default) writes {@code ApotheneumColor}'s resolved primary into {@link #color1}
-   * and its secondary into {@link #color2} every frame, and forces {@link #colorMode} to {@code
-   * FIXED} so those two are what the ramp actually reads. Off is exactly this class's
-   * pre-2026-08-30 behaviour, with every stock control back under manual control.
-   *
-   * <p><b>This changes how an already-saved ModColorize loads.</b> A project file written before
-   * this parameter existed has no value for it, so those instances come back with global colour
-   * on and their saved {@code colorMode} held at {@code FIXED}. That is the intended migration
-   * and the owner's explicit call -- <em>"it should always be on; if you enable the plugin,
-   * then it should be on"</em> -- the point of a shared colour state being that devices follow
-   * it unless told otherwise. Nothing is lost by it: {@link #load} captures the colours {@code
-   * super.load} just restored, so switching this off hands the device's own look straight back.
-   *
-   * <p>This defaulted off for one build, after driving {@code color1}/{@code color2} every frame
-   * on a device sitting in {@code LINKED} mode took Chromatik down with a {@code
-   * StackOverflowError} on the first frame. Defaulting off was the wrong half of that fix --
-   * the real one is {@link #writeGlobalColor} holding {@code colorMode} at {@code FIXED} for as
-   * long as this is on, which is what stops {@code ColorizeEffect}'s own derivation of {@code
-   * color2} from being fed its own output. With that in place, on is safe and on is correct.
-   *
-   * <p>A {@code CompoundDiscreteParameter} rather than a {@code BooleanParameter} for the same
-   * reason every other parameter on this class is one: only the former is an {@code
-   * LXCompoundModulation.Target}, and following the room's colour is exactly the kind of thing a
-   * performer wants on a knob or a MIDI switch.
-   */
-  public final CompoundDiscreteParameter global =
-    new CompoundDiscreteParameter("Global", new String[] { "Off", "On" }, 1)
-    .setDescription("Take both ends from the shared Apotheneum Color rather than this device's own Start/End pickers");
-
-  /**
-   * How many palette stops away from the shared pair this device sits, when {@link #global} is
-   * on. This is the "a bit of tweaking" half of following the global colour: 0 puts this
+   * How many palette stops away from the shared pair this device sits. The per-device tweak: 0
+   * puts this
    * Colorize on exactly the room's own pair, and a non-zero value moves both ends together
    * along the palette while still tracking every {@code pair}/{@code swap}/{@code axis} gesture.
    *
@@ -124,58 +90,11 @@ public class ModColorize extends ColorizeEffect implements UIDeviceControls<ModC
     new CompoundDiscreteParameter("Shift", 0, -4, 5)
     .setDescription("Palette stops away from the shared Apotheneum Color pair, when Global is on");
 
-  /**
-   * This device's own Start/End colours and {@code colorMode}, held from the moment {@link
-   * #global} is switched on so switching it back off can put them back.
-   *
-   * <p>Without this, {@link #global} was a one-way trip. Turning it on overwrote {@link #color1}
-   * /{@link #color2} and {@code colorMode} -- real, persisted parameters -- every frame; turning
-   * it off merely stopped writing, leaving the shared colour and {@code FIXED} sitting in the
-   * device as though the performer had chosen them. An Off&#8594;On&#8594;Off cycle therefore
-   * destroyed a hand-built local look permanently, which matters most for exactly the use this
-   * parameter was made a {@code CompoundDiscreteParameter} for: a MIDI switch or a modulator
-   * flipping it repeatedly.
-   *
-   * <p>Not the same situation as {@link #stop}/{@link #stops}/{@link #invert} overwriting the
-   * inherited {@code paletteIndex}/{@code paletteStops}/{@code paletteInvert}. Those shadows are
-   * unconditional, so the inherited parameters are readouts for the device's whole life and
-   * there is no state to lose; {@link #global} is a toggle, and a toggle that does not restore
-   * is a destructive one.
-   */
-  private int localColor1;
-  private int localColor2;
-  private ColorMode localColorMode = ColorMode.FIXED;
-
-  /** Whether {@link #localColor1} and friends hold a real captured look yet. False on a device
-   * that has never had {@link #global} switched on, where there is nothing to restore and
-   * restoring the field defaults would itself be the destructive act. */
-  private boolean hasLocalColor = false;
-
-  /** {@link #global}'s value as of the previous frame, so {@link #writeGlobalColor} can act on
-   * the transition rather than on the level. Read per frame rather than from a parameter
-   * listener because {@link #global} is a modulation target and modulation never touches the
-   * base value a listener fires on -- the same reason the rest of {@link #writeThrough} is
-   * per-frame.
-   *
-   * <p>The capture therefore happens on a transition this device actually <em>observes</em>,
-   * which means a frame has to elapse between the two states. On a rig that is automatic --
-   * frames run continuously while the effect is enabled. It is only visible in a test that
-   * flips the parameter twice with no frame in between, and in one edge case on a rig: toggling
-   * {@link #global} while this effect is disabled (so {@code run} is not being called) and then
-   * re-enabling captures at the moment of re-enable rather than at the toggle. */
-  private boolean wasGlobal = false;
-
-  private static final String KEY_HAS_LOCAL_COLOR = "hasLocalColor";
-  private static final String KEY_LOCAL_COLOR1 = "localColor1";
-  private static final String KEY_LOCAL_COLOR2 = "localColor2";
-  private static final String KEY_LOCAL_COLOR_MODE = "localColorMode";
-
   public ModColorize(LX lx) {
     super(lx);
     addParameter("stop", this.stop);
     addParameter("stops", this.stops);
     addParameter("invert", this.invert);
-    addParameter("global", this.global);
     addParameter("shift", this.shift);
     writeThrough();
   }
@@ -191,8 +110,17 @@ public class ModColorize extends ColorizeEffect implements UIDeviceControls<ModC
   }
 
   /**
-   * Drives {@link #color1}/{@link #color2} from the shared {@link ApotheneumColor} when {@link
-   * #global} is on, and forces {@link #colorMode} to {@code FIXED} so the ramp reads them.
+   * Drives {@link #color1}/{@link #color2} from the shared {@link ApotheneumColor} every frame,
+   * and holds {@link #colorMode} at {@code FIXED} so the ramp reads them.
+   *
+   * <p>Unconditional, with no opt-out. This device carried a Global toggle for two builds; the
+   * owner's call was that there is no Colorize on this rig that should not follow the room, and
+   * a toggle nobody turns off is state that can go wrong for nothing. Deleting it took the
+   * capture/restore machinery with it -- the saved local colours, the transition tracking and
+   * its save/load keys -- which is where both of this device's real bugs lived: the crash was in
+   * the transition handling, and a pre-Global project silently lost its colours on the load
+   * path. {@link #color1}, {@link #color2} and {@link #colorMode} are now readouts, exactly as
+   * {@code paletteIndex}/{@code paletteStops}/{@code paletteInvert} already are here.
    *
    * <p><b>Surface-blind on purpose.</b> Both ends resolve against a {@code null}
    * {@code ApotheneumColor.Surface}, which skips the per-surface stop shift {@code axis}
@@ -217,32 +145,15 @@ public class ModColorize extends ColorizeEffect implements UIDeviceControls<ModC
    * underneath us with no parameter change on this device at all.
    */
   private void writeGlobalColor() {
-    final boolean on = this.global.getValuei() > 0;
-    if (on != this.wasGlobal) {
-      if (on) {
-        rememberLocalColor();
-      } else {
-        restoreLocalColor();
-      }
-      this.wasGlobal = on;
-    }
-    if (!on) {
-      return;
-    }
-    // FIXED is held for as long as Global is on, not nudged once on the transition. That
-    // distinction crashed a live rig: ColorizeEffect.onParameterChanged fires setGradientColor
-    // whenever color1 moves, and in LINKED and RELATIVE modes setGradientColor *writes color2
-    // back* from color1 plus its offsets. Driving color1 and color2 every frame while the
-    // effect sat in one of those modes fed that derivation its own output and LXEngine.run()
-    // died with a StackOverflowError on the first frame. A project loaded with Global on never
-    // saw the transition -- load() seeds wasGlobal from the saved value precisely so it does
-    // not -- so the one-time nudge never ran and the mode stayed wherever the file left it.
-    //
-    // FIXED is also the only mode in which color1/color2 *are* the gradient, so this is not a
-    // workaround: outside it, driving them means nothing. setValue is a no-op on an unchanged
-    // value, so holding it costs a comparison per frame. The performer's own mode is still
-    // captured and handed back when Global goes off.
+    // FIXED is held every frame, not set once. ColorizeEffect.onParameterChanged fires
+    // setGradientColor whenever color1 moves, and in LINKED and RELATIVE modes that writes
+    // color2 back from color1 plus its offsets -- so driving both while the effect sat in one
+    // of those modes fed that derivation its own output and LXEngine.run() died with a
+    // StackOverflowError on the first frame. FIXED is also the only mode in which color1 and
+    // color2 *are* the gradient, so holding it is honest rather than a workaround. setValue is
+    // a no-op on an unchanged value, so this costs a comparison per frame.
     this.colorMode.setValue(ColorMode.FIXED);
+
     final ApotheneumColor color = ApotheneumColor.get(getLX());
     final int stopShift = this.shift.getValuei();
     final int primary = ApotheneumColor.resolvePrimaryOrNeutral(color, null, stopShift);
@@ -250,35 +161,6 @@ public class ModColorize extends ColorizeEffect implements UIDeviceControls<ModC
     final boolean swapped = this.invert.getValuei() > 0;
     this.color1.setColor(swapped ? secondary : primary);
     this.color2.setColor(swapped ? primary : secondary);
-  }
-
-  private void rememberLocalColor() {
-    this.localColor1 = this.color1.getColor();
-    this.localColor2 = this.color2.getColor();
-    this.localColorMode = this.colorMode.getEnum();
-    this.hasLocalColor = true;
-  }
-
-  private void restoreLocalColor() {
-    if (!this.hasLocalColor) {
-      return;
-    }
-    this.color1.setColor(this.localColor1);
-    this.color2.setColor(this.localColor2);
-    this.colorMode.setValue(this.localColorMode);
-  }
-
-  @Override
-  public void save(LX lx, JsonObject obj) {
-    super.save(lx, obj);
-    // See the fields' own javadoc: without this, a project saved with Global on comes back
-    // with nothing to restore, and turning Global off would strand the device on the shared
-    // colour -- the same one-way trip this state exists to prevent, just spread over a
-    // save/load rather than a single toggle.
-    obj.addProperty(KEY_HAS_LOCAL_COLOR, this.hasLocalColor);
-    obj.addProperty(KEY_LOCAL_COLOR1, this.localColor1);
-    obj.addProperty(KEY_LOCAL_COLOR2, this.localColor2);
-    obj.addProperty(KEY_LOCAL_COLOR_MODE, this.localColorMode.name());
   }
 
   @Override
@@ -297,35 +179,6 @@ public class ModColorize extends ColorizeEffect implements UIDeviceControls<ModC
   @Override
   public void load(LX lx, JsonObject obj) {
     super.load(lx, obj);
-    if (obj.has(KEY_HAS_LOCAL_COLOR)) {
-      this.hasLocalColor = obj.get(KEY_HAS_LOCAL_COLOR).getAsBoolean();
-      this.localColor1 = obj.get(KEY_LOCAL_COLOR1).getAsInt();
-      this.localColor2 = obj.get(KEY_LOCAL_COLOR2).getAsInt();
-      try {
-        this.localColorMode = ColorMode.valueOf(obj.get(KEY_LOCAL_COLOR_MODE).getAsString());
-      } catch (IllegalArgumentException x) {
-        // A mode name this build no longer has. Falling back beats refusing to load the
-        // project over a control the performer may never touch again.
-        this.localColorMode = ColorMode.FIXED;
-      }
-    } else {
-      // A project written before these keys existed. super.load() has just restored the
-      // performer's real Start, End and colorMode from the file, and this is the only moment
-      // they are visible: global defaults on, so writeThrough() below is about to overwrite
-      // all three with the shared colour. Capturing here is what makes that reversible.
-      //
-      // Skipping this branch was a quiet, permanent loss rather than a visible one. The
-      // constructor's own capture holds stock defaults, so switching Global off would have
-      // "restored" a look the performer never chose, and saving after that would write those
-      // defaults into the file as the local look -- the original configuration gone, with
-      // nothing on screen having reported a change.
-      rememberLocalColor();
-    }
-    // The device comes back with global already at its saved value, so seed the transition
-    // tracker from it -- otherwise a project saved with Global on would read as an off->on
-    // transition on the first frame and capture the *shared* colour as the local look,
-    // overwriting the very state that was just restored above.
-    this.wasGlobal = this.global.getValuei() > 0;
     // See ModGradient: this parameter is the source of truth, so re-assert it once the
     // inherited paletteIndex has been restored from the project file.
     writeThrough();
@@ -382,8 +235,8 @@ public class ModColorize extends ColorizeEffect implements UIDeviceControls<ModC
     // than inputs, so the switch that decides that has to be the first thing read, not
     // something found after wondering why the colour pickers do nothing. Its own row keeps the
     // Gradient column under the height cap a third knob row would have pushed it past.
-    addColumn(device, 92, "Global",
-      row(KNOB_ROW, newKnob(colorize.global), newKnob(colorize.shift))
+    addColumn(device, 48, "Global",
+      row(KNOB_ROW, newKnob(colorize.shift))
     );
 
     addVerticalBreak(ui, device);
