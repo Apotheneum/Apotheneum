@@ -5,10 +5,12 @@ import java.util.Random;
 import java.util.function.IntUnaryOperator;
 
 import apotheneum.Apotheneum;
+import apotheneum.doved.modulators.ApotheneumColor;
 import heronarts.lx.LX;
 import heronarts.lx.LXCategory;
 import heronarts.lx.LXComponent;
 import heronarts.lx.color.LXColor;
+import heronarts.lx.model.LXPoint;
 import heronarts.lx.parameter.BooleanParameter;
 import heronarts.lx.parameter.CompoundDiscreteParameter;
 import heronarts.lx.parameter.CompoundParameter;
@@ -75,6 +77,7 @@ public class Fireball extends ColorNativePattern {
   private static final float SIM_SECONDS = SIM_MS / 1000f;
   private static final int MAX_SIM_STEPS = 4;
   private static final double MAX_ACCUMULATE_MS = 100;
+  private static final float TWO_PI_F = (float) (2 * Math.PI);
 
   private static final int HEAT_LUT_SIZE = 256;
   private static final float HEAT_EPSILON = .004f;
@@ -187,7 +190,7 @@ public class Fireball extends ColorNativePattern {
   private float launchVelocity = 0;
 
   public Fireball(LX lx) {
-    super(lx, 1, .7, 2, .7);
+    super(lx, .7, .7);
     this.coreColor = this.primary;
     this.emberColor = this.secondary;
     addParameter("azimuth", this.azimuth);
@@ -215,6 +218,16 @@ public class Fireball extends ColorNativePattern {
   private void onClear() {
     this.cubeFire.extinguish();
     this.cylinderFire.extinguish();
+  }
+
+  /** Test-only accessor, mirroring {@link Fire#headX()}/{@link Fire#headY()}. */
+  Fire cubeFire() {
+    return this.cubeFire;
+  }
+
+  /** Test-only accessor, mirroring {@link Fire#headX()}/{@link Fire#headY()}. */
+  Fire cylinderFire() {
+    return this.cylinderFire;
   }
 
   @Override
@@ -277,7 +290,25 @@ public class Fireball extends ColorNativePattern {
       this.cubeFire.step(azimuth, elevation);
     }
     if (burnCylinder) {
-      this.cylinderFire.step(azimuth, elevation);
+      // Azimuth means two different things on the two shapes. The cube's 200 columns are
+      // four flat walls end to end, so walking them at constant arc-length speed sweeps
+      // real-world bearing non-uniformly - fast through the middle of a wall, slower past a
+      // corner. The cylinder's 120 columns are a true circle, where arc-length and bearing
+      // are the same thing. A constant offset between the two only lines them up at the
+      // azimuth it was tuned for and drifts apart everywhere else; see
+      // Fireball.Fire#bearingAt and #arcFractionForBearing.
+      //
+      // The cube is the reference: its walls are flat surfaces read directly by a viewer,
+      // so its constant arc-length sweep is what looks like constant speed. The cylinder's
+      // position is derived to match the cube's implied bearing at every azimuth, not just
+      // at one calibration point. To make the cylinder the reference instead, swap which
+      // side of this ternary computes cylinderAzimuth and which drives cubeFire.step above.
+      final float cylinderAzimuth = burnCube
+        ? this.cylinderFire.arcFractionForBearing(this.cubeFire.bearingAt(this.cubeFire.headX()))
+        // Cube isn't burning (Shape=Cylinder), so there is no cube position to follow.
+        // The cylinder's own azimuth already means bearing directly, so use it as-is.
+        : azimuth;
+      this.cylinderFire.step(cylinderAzimuth, elevation);
     }
   }
 
@@ -291,7 +322,7 @@ public class Fireball extends ColorNativePattern {
     }
   }
 
-  int colorHeat(float heat, float physics) {
+  int colorHeat(ApotheneumColor.Surface surface, float heat, float physics) {
     final float shaped = this.heatCurve[
       (heat >= 1f) ? HEAT_LUT_SIZE : (int) (heat * HEAT_LUT_SIZE)
     ];
@@ -300,7 +331,7 @@ public class Fireball extends ColorNativePattern {
     }
 
     final int blended = LXColor.lerp(
-      this.emberColor.color(physics), this.coreColor.color(physics), shaped);
+      this.emberColor.color(surface, physics), this.coreColor.color(surface, physics), shaped);
     final float saturation = LXColor.s(blended) * blackbodySaturation(shaped);
     final float roleBrightness = LXColor.b(blended) / 100f;
     final float brightness = 100f * blackbodyBrightness(shaped) *
@@ -348,6 +379,17 @@ public class Fireball extends ColorNativePattern {
     return Math.floorMod(x, width);
   }
 
+  /**
+   * The float, fractional-arc-position analog of {@link #wrapColumn}: wraps {@code x} onto
+   * {@code [0, width)}. {@code Math.floorMod} is int-only, and {@code x % width} keeps the
+   * sign of {@code x} in Java rather than the sign of {@code width}, so a negative {@code x}
+   * needs the same explicit correction {@code wrapColumn} gets from {@code floorMod}.
+   */
+  static float wrapFloat(float x, float width) {
+    final float wrapped = x % width;
+    return (wrapped < 0) ? wrapped + width : wrapped;
+  }
+
   private static final class Spark {
     float x, y, vx, vy, life, maxLife;
   }
@@ -362,6 +404,10 @@ public class Fireball extends ColorNativePattern {
   final class Fire {
 
     private Apotheneum.Orientation orientation = null;
+    // The corresponding interior orientation for this shape (cube or cylinder) -- stored
+    // alongside pointIndex/mirrorIndex below so render() can resolve its own real
+    // ApotheneumColor.Surface identity, not just build the point-index mapping.
+    private Apotheneum.Orientation mirrorOrientation = null;
     private int width = 0;
     private int height = 0;
 
@@ -372,15 +418,48 @@ public class Fireball extends ColorNativePattern {
     private float[] heat = null;
     private float[] next = null;
     private int[] pointIndex = null;
-    // The interior twin of each cell. The surface is painted and mirrored in one pass rather
-    // than rendered and then block-copied: ApotheneumPattern.copyExterior() is an arraycopy
-    // over whole orientations and cannot be masked from outside, so it would paint interior
-    // points a pattern-level view excludes. Writing both points as the colour is computed
-    // guards each independently, and reads nothing back out of the shared buffer, so an
-    // interior-only view still draws instead of mirroring whatever another pattern left on
-    // the exterior.
+    // The interior twin of each cell. 2026-08-30: colour is now resolved independently per
+    // real surface via ColorNativePattern.colorizeCells (see render() below) rather than
+    // computed once and mirrored -- the substance (heat, and the recomputed colorPhysics
+    // noise term) is what's shared per cell, not the finished colour. Each write is still
+    // independently masked and never reads colors[] back to derive the other -- see
+    // colorizeCells's own javadoc for why that guarantee survives this change.
     private int[] mirrorIndex = null;
     private boolean[] usable = null;
+
+    // Bearing (radians, unwrapped/continuous around one lap) of each column's row-0 point
+    // around this surface's own center, indexed 0..width with the extra trailing entry
+    // closing the loop: bearingLut[width] == bearingLut[0] + 2*PI. Built once per attach(),
+    // from real geometry, so bearingAt/arcFractionForBearing never assume either surface is
+    // a particular shape. See the two methods below and the comment in Fireball#simulate.
+    // Never null after configure(): a geometry-free instance carries the circular LUT
+    // buildCircularBearingLut installs, a real one the fixture-derived table from
+    // buildBearingLut. See buildCircularBearingLut for why.
+    private float[] bearingLut = null;
+
+    /**
+     * This shape's {@code PhysicsColorizer}, built once rather than per frame.
+     *
+     * <p>Written as a lambda over {@code this}'s own fields rather than one capturing
+     * {@code render}'s locals: a <em>capturing</em> lambda expression allocates a fresh object
+     * every time it is evaluated, so the previous form built one per shape per frame -- 120
+     * throwaway objects a second across the two shapes, inside the render loop {@code
+     * docs/lx-coding-guidelines.md} &#167;1 forbids allocating in. The fields it reads
+     * ({@code heat}, {@code usable}, {@code height}) are assigned in {@code attach()}/{@code
+     * configure()} and read at invocation time, so this is bound before they exist and still
+     * sees whatever the current model change installed.
+     */
+    private final PhysicsColorizer colorizer = (surface, cell) -> {
+      if (!this.usable[cell]) {
+        return LXColor.BLACK;
+      }
+      final float value = this.heat[cell];
+      if (value <= HEAT_EPSILON) {
+        return LXColor.BLACK;
+      }
+      return Fireball.this.colorHeat(
+        surface, value, colorPhysics(cell / this.height, cell % this.height));
+    };
 
     private final Spark[] sparks = new Spark[SPARK_POOL];
     private int sparkCount = 0;
@@ -409,6 +488,7 @@ public class Fireball extends ColorNativePattern {
         return;
       }
       this.orientation = orientation;
+      this.mirrorOrientation = mirror;
       configure(orientation.width(), orientation.height(), orientation::available);
 
       for (int x = 0; x < this.width; ++x) {
@@ -418,6 +498,86 @@ public class Fireball extends ColorNativePattern {
           this.mirrorIndex[i] = mirror.point(x, y).index;
         }
       }
+      buildBearingLut(orientation);
+    }
+
+    /**
+     * Fills {@link #bearingLut} from each column's real row-0 point, around this surface's
+     * own center (the mean of those same points - not the enclosing model's center, which
+     * could be pulled off-axis by an unrelated fixture sharing the model). Raw
+     * {@code Math.atan2} is discontinuous at +/-PI, so each entry is unwrapped against the
+     * previous one - adding or subtracting a full turn as needed - to keep the array
+     * monotonic and safe to interpolate. That monotonicity is not assumed: it follows from
+     * the center being enclosed by a convex ring of columns (a square or a circle, either
+     * way), which every Apotheneum surface is.
+     */
+    private void buildBearingLut(Apotheneum.Orientation orientation) {
+      final Apotheneum.Column[] columns = orientation.columns();
+      final int n = columns.length;
+      double cx = 0;
+      double cz = 0;
+      for (Apotheneum.Column column : columns) {
+        cx += column.points[0].x;
+        cz += column.points[0].z;
+      }
+      cx /= n;
+      cz /= n;
+
+      final float[] lut = new float[n + 1];
+      float previous = 0;
+      for (int x = 0; x < n; ++x) {
+        final LXPoint p = columns[x].points[0];
+        float bearing = (float) Math.atan2(p.z - cz, p.x - cx);
+        if (x > 0) {
+          while (bearing - previous > Math.PI) {
+            bearing -= TWO_PI_F;
+          }
+          while (bearing - previous < -Math.PI) {
+            bearing += TWO_PI_F;
+          }
+        }
+        lut[x] = bearing;
+        previous = bearing;
+      }
+      lut[n] = lut[0] + TWO_PI_F;
+      this.bearingLut = lut;
+    }
+
+    /**
+     * The true compass bearing (radians, unwrapped) at fractional arc position {@code x}
+     * (column units, any real value - wrapped onto this ring before use), linearly
+     * interpolated between the two columns straddling it.
+     */
+    float bearingAt(float x) {
+      final float wrapped = wrapFloat(x, this.width);
+      final int i0 = (int) Math.floor(wrapped);
+      final float frac = wrapped - i0;
+      return LXUtils.lerpf(this.bearingLut[i0], this.bearingLut[i0 + 1], frac);
+    }
+
+    /**
+     * Inverse of {@link #bearingAt}: the fractional azimuth (0-1, matching what
+     * {@link #step} expects) on this ring whose bearing matches {@code bearing} (radians,
+     * any winding). Binary search over {@link #bearingLut}, which is monotonic but not
+     * necessarily uniform - arc-length and bearing agree exactly only on a circle.
+     */
+    float arcFractionForBearing(float bearing) {
+      final float base = this.bearingLut[0];
+      float target = bearing - TWO_PI_F * (float) Math.floor((bearing - base) / TWO_PI_F);
+
+      int lo = 0;
+      int hi = this.width;
+      while (hi - lo > 1) {
+        final int mid = (lo + hi) >>> 1;
+        if (this.bearingLut[mid] <= target) {
+          lo = mid;
+        } else {
+          hi = mid;
+        }
+      }
+      final float span = this.bearingLut[hi] - this.bearingLut[lo];
+      final float frac = (span > 0) ? (target - this.bearingLut[lo]) / span : 0;
+      return wrapFloat(lo + frac, this.width) / this.width;
     }
 
     private void configure(int width, int height, IntUnaryOperator available) {
@@ -438,6 +598,37 @@ public class Fireball extends ColorNativePattern {
       this.sparkCount = 0;
       this.seeded = false;
       this.noiseTime = 0;
+      buildCircularBearingLut(width);
+    }
+
+    /**
+     * A uniform bearing LUT for a perfect circle of {@code width} columns -- installed by
+     * {@link #configure} so a {@code Fire} always has one, and overwritten immediately
+     * afterwards by {@link #buildBearingLut}'s real, fixture-derived table on every instance
+     * that {@link #attach}es to an orientation.
+     *
+     * <p>This exists because the geometry-free {@code Fire(width, height, available)}
+     * constructor -- the one the physics tests use -- calls {@link #configure} without ever
+     * calling {@link #attach}, so {@code bearingLut} stayed {@code null} and any call to
+     * {@link #bearingAt}/{@link #arcFractionForBearing} on such an instance threw {@code
+     * NullPointerException}. Nothing did that yet; the next geometry-free test written against
+     * this class would have.
+     *
+     * <p>A circle is the honest degenerate answer rather than a placeholder: bearing and
+     * arc-length agree exactly on a circle and nowhere else, so on an instance with no geometry
+     * to remap against, {@link #bearingAt} and {@link #arcFractionForBearing} become each
+     * other's exact inverse and the remap is the identity -- which is precisely the behaviour
+     * this whole LUT replaced on the cylinder, and precisely what "no geometry was supplied"
+     * should mean. It is never what a real surface sees: the cube's real LUT is markedly
+     * non-uniform (that non-uniformity is the entire bug this remap fixed), and every real
+     * instance is built through {@link #attach}.
+     */
+    private void buildCircularBearingLut(int width) {
+      final float[] lut = new float[width + 1];
+      for (int x = 0; x <= width; ++x) {
+        lut[x] = TWO_PI_F * x / width;
+      }
+      this.bearingLut = lut;
     }
 
     private void extinguish() {
@@ -710,58 +901,49 @@ public class Fireball extends ColorNativePattern {
       if (this.heat == null) {
         return;
       }
-      final float[] heat = this.heat;
-      for (int x = 0; x < this.width; ++x) {
-        final int column = x * this.height;
-        for (int y = 0; y < this.height; ++y) {
-          final int i = column + y;
-          if (!this.usable[i]) {
-            continue;
-          }
-          final float value = heat[i];
-          if (value <= HEAT_EPSILON) {
-            continue;
-          }
-          paint(colors, i, Fireball.this.colorHeat(value, colorPhysics(x, y)));
-        }
-      }
-      renderSparks(colors);
+      // 2026-08-30: colour is resolved independently per real surface via
+      // ColorNativePattern.colorizeCells, rather than computed once and mirrored -- see this
+      // class's own javadoc and docs/color-native-pattern-substance.md. heat[] is the shared
+      // substance every real point's colour derives from; colorPhysics(x, y) is a pure
+      // function of (x, y, this.noiseTime) recomputed fresh rather than stored, since storing
+      // it would cost the same as recomputing it and there is nothing else that reads it.
+      final ApotheneumColor.Surface exteriorSurface = ApotheneumColor.Surface.of(this.orientation);
+      final ApotheneumColor.Surface interiorSurface = ApotheneumColor.Surface.of(this.mirrorOrientation);
+      Fireball.this.colorizeCells(
+        this.width * this.height,
+        this.pointIndex,
+        exteriorSurface,
+        this.mirrorIndex,
+        interiorSurface,
+        this.colorizer
+      );
+      renderSparks(colors, exteriorSurface, interiorSurface);
     }
 
     /**
-     * Writes one cell to its exterior point and to the interior point mirroring it, skipping
-     * either if the pattern's model view excludes it.
+     * As {@code colorizeCells}'s dual write, but an ember only ever brightens a cell, never
+     * dims one -- each surface's own resolved brightness is compared against its own
+     * destination's current value, independently. Before this class adopted
+     * {@code colorizeCells}, both surfaces shared one resolved colour and therefore one
+     * brightness threshold; now that exterior and interior can genuinely differ (e.g. under
+     * {@code ApotheneumColor}'s In/Out axis), comparing each surface against its own value is
+     * the more correct behaviour, not merely an equivalent one.
      */
-    private void paint(int[] colors, int cell, int color) {
+    private void paintBrighter(int[] colors, int cell, int exteriorColor, int interiorColor) {
       final int exterior = this.pointIndex[cell];
-      if (Fireball.this.isViewPoint(exterior)) {
-        colors[exterior] = color;
+      if (Fireball.this.isViewPoint(exterior) && (LXColor.b(exteriorColor) > LXColor.b(colors[exterior]))) {
+        colors[exterior] = exteriorColor;
       }
       final int interior = this.mirrorIndex[cell];
-      if (Fireball.this.isViewPoint(interior)) {
-        colors[interior] = color;
-      }
-    }
-
-    /**
-     * As {@link #paint}, but an ember only ever brightens a cell, never dims one. Both
-     * surfaces carry the same value at every step of the frame, so comparing each against
-     * itself gives the same result the exterior-then-block-copy order used to.
-     */
-    private void paintBrighter(int[] colors, int cell, int color) {
-      final float brightness = LXColor.b(color);
-      final int exterior = this.pointIndex[cell];
-      if (Fireball.this.isViewPoint(exterior) && (brightness > LXColor.b(colors[exterior]))) {
-        colors[exterior] = color;
-      }
-      final int interior = this.mirrorIndex[cell];
-      if (Fireball.this.isViewPoint(interior) && (brightness > LXColor.b(colors[interior]))) {
-        colors[interior] = color;
+      if (Fireball.this.isViewPoint(interior) && (LXColor.b(interiorColor) > LXColor.b(colors[interior]))) {
+        colors[interior] = interiorColor;
       }
     }
 
     /** Draws each live ember only at its current position, never into the heat field. */
-    private void renderSparks(int[] colors) {
+    private void renderSparks(
+      int[] colors, ApotheneumColor.Surface exteriorSurface, ApotheneumColor.Surface interiorSurface
+    ) {
       final float radius = sparkSize.getValuef();
       final float peak = intensity.getValuef();
       final int reach = (int) Math.ceil(radius);
@@ -793,7 +975,12 @@ public class Fireball extends ColorNativePattern {
             if (heat <= HEAT_EPSILON) {
               continue;
             }
-            paintBrighter(colors, cell, Fireball.this.colorHeat(heat, colorPhysics(x, y)));
+            final float physics = colorPhysics(x, y);
+            paintBrighter(
+              colors, cell,
+              Fireball.this.colorHeat(exteriorSurface, heat, physics),
+              Fireball.this.colorHeat(interiorSurface, heat, physics)
+            );
           }
         }
       }
@@ -831,6 +1018,10 @@ public class Fireball extends ColorNativePattern {
 
     float headY() {
       return this.headY;
+    }
+
+    int width() {
+      return this.width;
     }
   }
 

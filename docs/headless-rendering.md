@@ -58,10 +58,10 @@ RenderSpike lookupProjection=equidistant-fisheye fovDegrees=180 \
 
 Numeric, boolean, discrete-option and enum parameters are supported. Names must match
 the pattern's registered parameter paths exactly. A direct child-component parameter is
-addressable as `child/parameter`; for example, Fireball's primary role can be assigned with
-`-Dparams=primary/hueOffset=20`. Option and enum values are case-insensitive. An unknown name
-fails with the complete list of available names, and the renderer logs the resolved values so
-the invocation remains self-describing.
+addressable as `child/parameter`; for example, Fireball's primary role's physics coupling can
+be assigned with `-Dparams=primary/amount=0.8`. Option and enum values are case-insensitive. An
+unknown name fails with the complete list of available names, and the renderer logs the
+resolved values so the invocation remains self-describing.
 
 ### Drive a static position parameter
 
@@ -86,7 +86,7 @@ mvn -Ptests test-compile exec:exec \
 
 The target must be a registered `CompoundParameter` or `CompoundDiscreteParameter`; direct
 child-component targets use the same `child/parameter` spelling, such as
-`-Dmodulate=primary/hueOffset:0.2` for Fireball. An unknown target lists all available names
+`-Dmodulate=primary/amount:0.2` for Fireball. An unknown target lists all available names
 and a non-modulatable target fails clearly. Without `-Dmodulate=`, existing renderer invocations
 are unchanged. When invoked directly, the modulation assignment is the sixth positional argument,
 after the view name.
@@ -113,21 +113,77 @@ classes and classes that do not extend `LXEffect` fail before rendering.
 The selected class must extend `LXPattern` and have a public constructor accepting
 `LX`. `RenderSpike.main` also accepts these as positional arguments when invoked
 directly: the class name first, then the parameter list, the effect class list, the
-palette assignment, the view name, and the modulation assignment, in that order; an
+palette assignment, the view name, the modulation assignment, the `ApotheneumColor`
+per-surface offsets, and the `ApotheneumGradient` azimuth/elevation, in that order; an
 absent or blank class name selects Fireflies.
 
-### Colour-native patterns need an explicit `-Dpalette=`
+### `GradientMultiplyEffect` needs an explicit `-DapotheneumColor=` *and* `-DapotheneumGradient=`
 
-The default project palette has **exactly one swatch stop**, pure red — a fresh
-`LX` reports `lx.engine.palette.swatch.colors.size() == 1` at hue 0 / saturation 100 /
-brightness 100. `ColorNativePattern` gives its two roles default stops 1 and 2, and its
-palette read clamps an out-of-range stop to the last one, so on the default palette
-*both* roles resolve to stop 1. **Every `ColorNativePattern` subclass** therefore renders
-monochrome red by default and reads as broken when it is not. Deliberately not listed by
-name here: the set grows with every colour-native pattern, and a list that goes stale is
-worse than none, because a reviewer checks it, does not find the pattern in hand, and
-concludes the warning does not apply. `git grep -l "extends ColorNativePattern"` is the
-current answer.
+`GradientMultiplyEffect` owns neither its colours nor its direction — both are read from
+the shared, engine-registered `ApotheneumColor` and `ApotheneumGradient` singletons (see
+`ApotheneumGradient`'s class javadoc for why the direction moved from four per-surface 2D
+angles to one shared 3D vector). Render it with `-Deffects=apotheneum.doved.effects.GradientMultiplyEffect`
+on a plain host pattern (a uniform field, e.g. a `SolidPattern`, isolates the effect's own
+transformation — see `GradientMultiplyEffectWiringTest` for the same choice at the test
+level). With no `-DapotheneumColor=` the multiply is a no-op (both ends resolve neutral
+white); with no `-DapotheneumGradient=` the direction falls back to straight up
+(`ApotheneumGradient`'s own default), which is a real, useful thing to render once but
+does not exercise the horizontal case. Pass both, and quote the palette per the note above:
+
+```bash
+mvn -Ptests test-compile exec:exec \
+  -Dpattern=heronarts.lx.pattern.color.SolidPattern \
+  -Deffects=apotheneum.doved.effects.GradientMultiplyEffect \
+  '-Dpalette=30,95,100;210,92,100' \
+  -DapotheneumColor=0,0,0 \
+  -DapotheneumGradient=0,0
+```
+
+The `-DapotheneumColor=` spec is `pair,swap,axis` — three values, not four; see the
+colour-native section below for what each one does.
+
+The `-DapotheneumGradient=` spec is `azimuth,elevation` in degrees, with an optional third
+value for `spread` — `0,0` is fully horizontal at azimuth 0; `0,90` (or `0,-90`) is the
+vertical gradient confirmed to look right on every surface; something like `45,30`
+exercises a genuine diagonal. Render all three before trusting a change to the projection
+math: a seam that only shows up off-axis is exactly the kind of regression a single "looks
+fine" render at one direction would miss.
+
+`spread` defaults to 1 (the full gradient) when the third value is omitted, so every
+two-value invocation means exactly what it always did. Pass it to render the collapse
+toward flat colour — `0,90,0` is fully flat, `0,90,0.5` is half-collapsed:
+
+```bash
+mvn -Ptests test-compile exec:exec \
+  -Dpattern=heronarts.lx.pattern.color.SolidPattern \
+  -Deffects=apotheneum.doved.effects.GradientMultiplyEffect \
+  '-Dpalette=30,95,100;210,92,100' \
+  -DapotheneumColor=0,0,0 \
+  -DapotheneumGradient=0,90,0
+```
+
+It collapses toward the *midpoint*, not toward primary, so a flat render is the even blend
+of the two ends rather than either end — see `ApotheneumGradient.applySpread`. A value
+outside `[0, 1]` is rejected rather than clamped, so a mistyped spec fails loudly instead
+of rendering a full gradient while the command line claims otherwise.
+
+### Colour-native patterns need an explicit `-Dpalette=` *and* `-DapotheneumColor=`
+
+`ColorNativePattern` no longer owns a palette index of its own — every instance reads the
+single global `apotheneum.doved.modulators.ApotheneumColor` singleton (see that class's
+javadoc). **With no `ApotheneumColor` in the render, every role resolves neutral white**
+(`ColorRole#resolveBase`'s fallback), same as an explicitly-disabled `Color` toggle — a
+colour-native pattern therefore renders in greyscale by default and reads as broken when it
+is not. Deliberately not listed by name here: the set grows with every colour-native pattern,
+and a list that goes stale is worse than none, because a reviewer checks it, does not find
+the pattern in hand, and concludes the warning does not apply. `git grep -l "extends
+ColorNativePattern"` is the current answer.
+
+The default project palette also has **exactly one swatch stop**, pure red — a fresh `LX`
+reports `lx.engine.palette.swatch.colors.size() == 1` at hue 0 / saturation 100 / brightness
+100 — so even with an `ApotheneumColor` present, every surface clamps onto that single stop
+unless a real palette is passed too. Both are required for a meaningful render, not either
+alone.
 
 Pass a palette. The spec is `hue,sat,bri` per stop, semicolon-separated, appended to the
 swatch as needed:
@@ -138,6 +194,31 @@ mvn -Ptests test-compile exec:exec \
   '-Dpalette=30,95,100;210,92,100'
 ```
 
+Pass an `ApotheneumColor`. The spec is **three** integers, comma-separated — `pair,swap,axis`
+— set directly on the registered singleton's three parameters. There is no per-surface value
+to pass: `ApotheneumColor` no longer has per-surface `indexOffset`/`hueOffset`/`satTrim`
+parameters, and `axis` is what makes the four surfaces resolve differently (see that class's
+`Axis` javadoc). `pair` is 0 (Same), 1 (Near) or 2 (Far); `swap` is 0 or 1; `axis` is 0
+(None), 1 (Shape) or 2 (In/Out). Anything other than three values is rejected outright with
+`Invalid apotheneumColor spec`.
+
+`pair=1,axis=1` — Near, so the room has two distinct colours, and Shape, so the cylinder
+reads them the other way round from the cube — is the setting that proves the surfaces
+resolve independently, so it is the useful default for a colour render:
+
+```bash
+mvn -Ptests test-compile exec:exec \
+  -Dpattern=apotheneum.doved.patterns.Rockfall \
+  -DapotheneumColor=1,0,1 \
+  '-Dpalette=200,90,70;30,90,70;280,92,70'
+```
+
+**`axis` has nothing to show at `pair=0`.** Same puts both roles on stop 1, and exchanging
+two identical colours is a no-op — every surface renders alike whatever `axis` says. Set
+`pair` to 1 or 2 for any render meant to show a surface split. `pair=2` (Far) additionally
+needs a three-stop palette; on a two-stop one, stop 3 wraps back onto stop 1 and Far
+resolves the same as Same.
+
 Quote it — the stop separator is a `;`, which an unquoted shell reads as a command
 separator. On a cube-exterior contact sheet that example is the difference between one
 occupied hue bucket and eight. The renderer logs the resolved stops
@@ -146,7 +227,7 @@ always in the log.
 
 ### Invoke `RenderSpike` directly for `-D` properties and tight iteration
 
-The pom's exec plugin forks `java` with a **fixed** argument list — the six positional
+The pom's exec plugin forks `java` with a **fixed** argument list — the eight positional
 arguments above, plus `-Djava.awt.headless=true`. It has no `<systemProperties>` and no
 pass-through, so an arbitrary `-Dfoo=bar` on the `mvn` command line stays a Maven
 property and never reaches the forked JVM. Anything a pattern reads through

@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.Test;
 
 import apotheneum.HeadlessLxTest;
+import apotheneum.doved.modulators.ApotheneumColor;
 import heronarts.lx.LX;
 import heronarts.lx.color.LXColor;
 
@@ -15,6 +16,7 @@ public class FireballTest extends HeadlessLxTest {
   private static final int WIDTH = 12;
   private static final int HEIGHT = 9;
   private static final float EPSILON = 1e-6f;
+  private static final ApotheneumColor.Surface SURFACE = ApotheneumColor.Surface.CUBE_EXTERIOR;
 
   @Test
   void doorCellsNeverAccumulateHeat() {
@@ -124,7 +126,7 @@ public class FireballTest extends HeadlessLxTest {
       fireball.monochrome.setValue(true);
       fireball.buildHeatCurve();
       for (float heat : new float[] { .05f, .25f, .5f, 1f }) {
-        final int color = fireball.colorHeat(heat, 0);
+        final int color = fireball.colorHeat(SURFACE, heat, 0);
         assertTrue(LXColor.b(color) > 0, "test heat must produce a lit pixel");
         assertEquals(red(color), green(color));
         assertEquals(green(color), blue(color));
@@ -138,6 +140,12 @@ public class FireballTest extends HeadlessLxTest {
   void lowHeatFavorsSecondaryAndPeakHeatIsWhiteHot() {
     final LX lx = newHeadlessLx();
     final Fireball fireball = new Fireball(lx);
+    // core (primary) reads the shared index 1, ember (secondary) reads 1 + pair -- pair=1
+    // (Near)/swap=0 reproduces the same (1, 2) pair ColorRole used to default to on its own,
+    // before palette selection moved to ApotheneumColor.
+    final ApotheneumColor apotheneumColor = registerApotheneumColor(lx);
+    apotheneumColor.pair.setValue(1);
+    apotheneumColor.swap.setValue(0);
     try {
       lx.engine.palette.swatch.addColor();
       lx.engine.palette.swatch.colors.get(0).primary.setColor(LXColor.hsb(0, 100, 100));
@@ -146,10 +154,10 @@ public class FireballTest extends HeadlessLxTest {
       fireball.emberColor.update();
       fireball.buildHeatCurve();
 
-      final int low = fireball.colorHeat(.1f, 0);
+      final int low = fireball.colorHeat(SURFACE, .1f, 0);
       assertTrue(blue(low) > red(low), "low heat should favor the blue secondary role");
 
-      final int peak = fireball.colorHeat(1, 0);
+      final int peak = fireball.colorHeat(SURFACE, 1, 0);
       assertEquals(red(peak), green(peak));
       assertEquals(green(peak), blue(peak));
       assertEquals(255, blue(peak));
@@ -250,5 +258,11 @@ public class FireballTest extends HeadlessLxTest {
 
   private static int blue(int color) {
     return color & 0xff;
+  }
+
+  private static ApotheneumColor registerApotheneumColor(LX lx) {
+    final ApotheneumColor color = new ApotheneumColor(lx);
+    lx.engine.registerComponent(ApotheneumColor.PATH, color);
+    return color;
   }
 }

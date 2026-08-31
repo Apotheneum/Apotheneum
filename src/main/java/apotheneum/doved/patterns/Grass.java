@@ -22,6 +22,7 @@ import java.util.Arrays;
 import java.util.Random;
 
 import apotheneum.Apotheneum;
+import apotheneum.doved.modulators.ApotheneumColor;
 import heronarts.lx.LX;
 import heronarts.lx.LXCategory;
 import heronarts.lx.LXComponent;
@@ -374,6 +375,7 @@ public class Grass extends ColorNativePattern {
     }
 
     private void output(Apotheneum.Orientation orientation) {
+      final ApotheneumColor.Surface surface = ApotheneumColor.Surface.of(orientation);
       final Apotheneum.Column[] columns = orientation.columns();
       for (int c = 0; c < columns.length; ++c) {
         final LXPoint[] points = columns[c].points;
@@ -392,8 +394,8 @@ public class Grass extends ColorNativePattern {
           } else {
             final int index = y * this.width + c;
             colors[points[y].index] = blendTones(
-              primary.color(0), this.primaryBuffer[index], secondary.color(silveringValue),
-              this.secondaryBuffer[index]);
+              primary.color(surface, silveringValue), this.primaryBuffer[index],
+              secondary.color(surface, silveringValue), this.secondaryBuffer[index]);
           }
         }
         for (int y = available; y < points.length; ++y) {
@@ -433,8 +435,7 @@ public class Grass extends ColorNativePattern {
   private double heightSpread;
 
   public Grass(LX lx) {
-    super(lx, 1, .1, 2, .1);
-    this.secondary.satTrim.setValue(-15);
+    super(lx, .1, .1);
     addParameter("wind", this.wind);
     addParameter("gust", this.gust);
     addParameter("gustSpeed", this.gustSpeed);

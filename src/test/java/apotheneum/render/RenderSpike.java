@@ -22,6 +22,8 @@ import java.util.stream.Stream;
 import javax.imageio.ImageIO;
 
 import apotheneum.Apotheneum;
+import apotheneum.doved.modulators.ApotheneumColor;
+import apotheneum.doved.modulators.ApotheneumGradient;
 import heronarts.lx.LX;
 import heronarts.lx.LXComponent;
 import heronarts.lx.LXEngine;
@@ -35,6 +37,8 @@ import heronarts.lx.modulation.LXParameterModulation.ModulationException;
 import heronarts.lx.modulator.SawLFO;
 import heronarts.lx.parameter.BooleanParameter;
 import heronarts.lx.parameter.DiscreteParameter;
+import heronarts.lx.parameter.CompoundDiscreteParameter;
+import heronarts.lx.parameter.CompoundParameter;
 import heronarts.lx.parameter.EnumParameter;
 import heronarts.lx.parameter.LXParameter;
 import heronarts.lx.pattern.LXPattern;
@@ -108,6 +112,8 @@ public final class RenderSpike {
     final String paletteAssignments = optionalArgument(args, 3, "palette=");
     final RenderView renderView = resolveRenderView(optionalArgument(args, 4, "view="));
     final String modulationAssignment = optionalArgument(args, 5, "modulate=");
+    final String apotheneumColorAssignment = optionalArgument(args, 6, "apotheneumColor=");
+    final String apotheneumGradientAssignment = optionalArgument(args, 7, "apotheneumGradient=");
     preflightFfmpeg();
 
     final long jvmStartMillis = ManagementFactory.getRuntimeMXBean().getStartTime();
@@ -139,6 +145,8 @@ public final class RenderSpike {
       }
 
       applyPalette(lx, paletteAssignments);
+      applyApotheneumColor(lx, apotheneumColorAssignment);
+      applyApotheneumGradient(lx, apotheneumGradientAssignment);
 
       final int pointCount = lx.getModel().size;
       final long startupAndParseMs = System.currentTimeMillis() - jvmStartMillis;
@@ -265,11 +273,13 @@ public final class RenderSpike {
   }
 
   private static Class<? extends LXPattern> resolvePatternClass(String[] args) {
-    if (args.length > 6) {
+    if (args.length > 8) {
       throw new IllegalArgumentException(
         "Usage: RenderSpike [fully-qualified LXPattern class] [name=value,name=value] " +
         "[fully-qualified LXEffect class,...] [hue,saturation,brightness;...] [unwrapped|lookup] " +
-        "[parameter:cyclesPerSecond]"
+        "[parameter:cyclesPerSecond] " +
+        "[pair,swap,axis] " +
+        "[azimuth,elevation[,spread]]"
       );
     }
     final String className = (args.length == 0 || args[0].isBlank()) ? DEFAULT_PATTERN_CLASS_NAME : args[0];
@@ -411,6 +421,160 @@ public final class RenderSpike {
       resolved.add(hue + "/" + saturation + "/" + brightness);
     }
     LX.log("RenderSpike palette=" + String.join(";", resolved));
+  }
+
+  /**
+   * Builds a global {@code ApotheneumColor} from a {@code pair,swap,axis} spec so a {@code
+   * ColorNativePattern} renders through real, chosen colour state instead of {@code
+   * ApotheneumColor}'s own neutral-white fallback (see {@code
+   * ColorNativePattern.ColorRole#resolveBase}) or a default project palette clamped onto one
+   * shared stop for every surface. {@code axis} is an integer 0-2 (None/Shape/In-Out, matching
+   * {@code ApotheneumColor.AXIS_OPTIONS}' declared order) -- see {@code ApotheneumColorTest} for
+   * the shared pair/swap gesture math and {@code ApotheneumColor}'s class javadoc for what each
+   * axis setting resolves to. Blank input constructs nothing, matching every other optional
+   * render flag's "unset means default behaviour" convention.
+   */
+  private static void applyApotheneumColor(LX lx, String assignment) {
+    if (assignment.isBlank()) {
+      LX.log("RenderSpike apotheneumColor=(none)");
+      return;
+    }
+    final String[] components = assignment.split(",", -1);
+    if (components.length != 3) {
+      throw new IllegalArgumentException(
+        "Invalid apotheneumColor spec '" + assignment + "'; expected pair,swap,axis"
+      );
+    }
+    final ApotheneumColor color = new ApotheneumColor(lx);
+    lx.engine.registerComponent(ApotheneumColor.PATH, color);
+    setOption(assignment, "pair", components[0], color.pair);
+    setOption(assignment, "swap", components[1], color.swap);
+    setOption(assignment, "axis", components[2], color.axis);
+    LX.log("RenderSpike apotheneumColor=pair:" + color.pair.getValuei()
+      + ",swap:" + color.swap.getValuei()
+      + ",axis:" + color.axis.getValuei());
+  }
+
+  /**
+   * Builds a global {@code ApotheneumGradient} from an {@code azimuth,elevation} spec (degrees)
+   * so {@code GradientMultiplyEffect} -- which as of the 3D-gradient redesign owns no direction
+   * of its own -- can be reviewed at a chosen direction instead of always falling back to
+   * {@code ApotheneumGradient}'s own straight-up default (see that class's {@code
+   * elevationOrDefault} javadoc). Blank input constructs nothing, matching every other optional
+   * render flag's "unset means default behaviour" convention -- and in this case "default
+   * behaviour" is itself meaningful to render, since it's the same fallback a real project would
+   * hit if the core plugin failed to load.
+   */
+  /**
+   * Parses one {@code apotheneumGradient} component and sets it, rejecting anything the
+   * parameter's own range does not cover -- and rejecting {@code NaN}/infinity explicitly.
+   *
+   * <p>Same reasoning as {@code setOption}: a render is review evidence, and {@code
+   * -DapotheneumGradient=0,900} silently clamping to +90 produces images that answer a
+   * different question than the command line in the reviewer's scrollback claims. Non-finite
+   * values need naming separately because they defeat range checks rather than failing them --
+   * every comparison against {@code NaN} is false, so an earlier version of this check passed
+   * {@code NaN} straight through to {@code setValue}, which is the quietest possible way to
+   * render nothing recognisable.
+   *
+   * <p>Bounds come from the parameter rather than from literals, so widening {@code azimuth} or
+   * {@code elevation} widens this check with it instead of leaving it silently stale.
+   */
+  private static void setBounded(
+    String assignment, String name, String raw, CompoundParameter parameter
+  ) {
+    final double value = parseGradientDegrees(assignment, raw);
+    if (!Double.isFinite(value)) {
+      throw new IllegalArgumentException(
+        "Invalid apotheneumGradient spec '" + assignment + "': " + name + " '" + raw.strip()
+          + "' is not a finite number"
+      );
+    }
+    final double min = parameter.range.min;
+    final double max = parameter.range.max;
+    if ((value < min) || (value > max)) {
+      throw new IllegalArgumentException(
+        "Invalid apotheneumGradient spec '" + assignment + "': " + name + " " + value
+          + " is outside [" + min + ", " + max + "]"
+      );
+    }
+    parameter.setValue(value);
+  }
+
+  private static void applyApotheneumGradient(LX lx, String assignment) {
+    if (assignment.isBlank()) {
+      LX.log("RenderSpike apotheneumGradient=(none)");
+      return;
+    }
+    final String[] components = assignment.split(",", -1);
+    // Spread is optional and trails the two angles, so every existing two-value invocation --
+    // including the ones in docs/headless-rendering.md and any a reviewer has in scrollback --
+    // keeps meaning exactly what it did, at spread's own default of 1 (the full gradient).
+    if ((components.length != 2) && (components.length != 3)) {
+      throw new IllegalArgumentException(
+        "Invalid apotheneumGradient spec '" + assignment + "'; expected azimuth,elevation"
+          + " or azimuth,elevation,spread"
+      );
+    }
+    final ApotheneumGradient gradient = new ApotheneumGradient(lx);
+    lx.engine.registerComponent(ApotheneumGradient.PATH, gradient);
+    setBounded(assignment, "azimuth", components[0], gradient.azimuth);
+    setBounded(assignment, "elevation", components[1], gradient.elevation);
+    if (components.length == 3) {
+      setBounded(assignment, "spread", components[2], gradient.spread);
+    }
+    LX.log("RenderSpike apotheneumGradient=azimuth:" + gradient.azimuth.getValue()
+      + ",elevation:" + gradient.elevation.getValue()
+      + ",spread:" + gradient.spread.getValue());
+  }
+
+  private static double parseGradientDegrees(String assignment, String raw) {
+    try {
+      return Double.parseDouble(raw.strip());
+    } catch (NumberFormatException nfe) {
+      throw new IllegalArgumentException(
+        "Invalid apotheneumGradient spec '" + assignment + "': '" + raw + "' is not a number", nfe
+      );
+    }
+  }
+
+  /**
+   * Parses one {@code apotheneumColor} component and sets it, rejecting anything outside the
+   * parameter's own option range rather than letting {@code setValue} clamp it.
+   *
+   * <p>A silent clamp is worse here than almost anywhere else in this renderer: a render is
+   * <em>review evidence</em>. {@code -DapotheneumColor=0,0,20} would have quietly rendered
+   * {@code axis=2} and produced images that look like a legitimate answer to a question nobody
+   * asked, with the command line in the reviewer's scrollback claiming something else entirely.
+   * Failing loudly is the only outcome that cannot be mistaken for a result. Matches {@code
+   * parseGradientSpread}'s handling of its own range.
+   *
+   * <p>The bounds come from the parameter rather than from literals here, so adding an {@code
+   * Axis} option widens this check automatically instead of leaving it silently stale.
+   */
+  private static void setOption(
+    String assignment, String name, String raw, CompoundDiscreteParameter parameter
+  ) {
+    final int value = parseIndexOffset(assignment, raw);
+    final int min = parameter.getMinValue();
+    final int max = parameter.getMaxValue();
+    if ((value < min) || (value > max)) {
+      throw new IllegalArgumentException(
+        "Invalid apotheneumColor spec '" + assignment + "': " + name + " " + value
+          + " is outside [" + min + ", " + max + "]"
+      );
+    }
+    parameter.setValue(value);
+  }
+
+  private static int parseIndexOffset(String assignment, String raw) {
+    try {
+      return Integer.parseInt(raw.strip());
+    } catch (NumberFormatException nfe) {
+      throw new IllegalArgumentException(
+        "Invalid apotheneumColor spec '" + assignment + "': '" + raw + "' is not an integer", nfe
+      );
+    }
   }
 
   static double parsePaletteComponent(String stop, String raw, double maximum) {

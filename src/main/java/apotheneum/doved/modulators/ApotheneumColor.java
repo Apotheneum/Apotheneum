@@ -1,0 +1,830 @@
+/**
+ * Copyright 2026- Dan Oved
+ *
+ * This file is part of the LX Studio software library. By using
+ * LX, you agree to the terms of the LX Studio Software License
+ * and Distribution Agreement, available at: http://lx.studio/license
+ *
+ * Please note that the LX license is not open-source. The license
+ * allows for free, non-commercial use.
+ *
+ * HERON ARTS MAKES NO WARRANTY, EXPRESS, IMPLIED, STATUTORY, OR
+ * OTHERWISE, AND SPECIFICALLY DISCLAIMS ANY WARRANTY OF
+ * MERCHANTABILITY, NON-INFRINGEMENT, OR FITNESS FOR A PARTICULAR
+ * PURPOSE, WITH RESPECT TO THE SOFTWARE.
+ *
+ * @author Dan Oved
+ */
+
+package apotheneum.doved.modulators;
+
+import java.util.List;
+
+import heronarts.lx.LX;
+import heronarts.lx.LXComponent;
+import heronarts.lx.LXLoopTask;
+import heronarts.lx.color.LXColor;
+import heronarts.lx.color.LXDynamicColor;
+import heronarts.lx.color.LXSwatch;
+import heronarts.lx.osc.LXOscComponent;
+import heronarts.lx.parameter.BooleanParameter;
+import heronarts.lx.parameter.CompoundDiscreteParameter;
+import heronarts.lx.parameter.CompoundParameter;
+import heronarts.lx.parameter.LXParameter;
+
+import apotheneum.doved.patterns.ColorNativePattern;
+
+/**
+ * The global colour state every {@link ColorNativePattern} (and, since the gradient-multiply
+ * work, every {@code apotheneum.doved.effects.GradientMultiplyEffect}) reads instead of owning
+ * its own palette knobs.
+ *
+ * <h2>Engine-registered, not user-addable — 2026-08-30</h2>
+ *
+ * This class used to be an {@code LXModulator} the owner added to
+ * {@code lx.engine.modulation} by hand, backed by a static {@code instance} field set in the
+ * constructor and cleared in {@code dispose()}. That broke for real the first night it shipped:
+ * deleting the live instance while a second existed left the pointer null while a perfectly
+ * good modulator sat visible in the UI, and there was no defined rule for which of two
+ * instances was authoritative. Hardening that static field was the first plan; the better fix,
+ * once {@code apotheneum.video.ApotheneumVideoPlugin}/{@code ApotheneumVideo} turned out to
+ * already solve exactly this shape of problem, was to stop the field from needing to exist at
+ * all. This class is now a plain {@link LXComponent}, constructed once and registered directly
+ * on the engine — {@code lx.engine.registerComponent(PATH, ...)} — by
+ * {@code apotheneum.doved.ApotheneumColorPlugin} the same way {@code ApotheneumVideo} registers
+ * itself, and surfaced in the studio left pane's GLOBAL tab by
+ * {@code apotheneum.doved.ApotheneumColorUIPlugin}, the same split
+ * {@code ApotheneumVideoPlugin}/{@code ApotheneumVideoUIPlugin} already use (core plugin: no
+ * studio dependency, keeps working headless; UI plugin: builds the panel, degrades to doing
+ * nothing if the core plugin didn't register). There is no add, no delete, no undo/redo churn,
+ * and therefore no second instance to have a tie-break rule about — exactly one exists for the
+ * life of the engine, the same way {@code lx.engine.palette}/{@code lx.engine.tempo} do.
+ *
+ * <p>Resolve the live instance with {@link #get(LX)}, which reads
+ * {@code lx.engine.getChild(PATH)} fresh every call rather than caching anything — there is
+ * nothing left to go stale, since the engine either has this child registered or (only if the
+ * core plugin failed to load) it does not. {@link #resolvePrimaryOrNeutral}/
+ * {@link #resolveSecondaryOrNeutral} take the already-resolved result of {@link #get(LX)} rather
+ * than re-resolving themselves, so a caller that runs per-pixel (a {@code ColorNativePattern}
+ * role) calls {@link #get(LX)} once per frame and reuses it, not once per pixel.
+ *
+ * <h2>The two-knob scheme, kept intact, not redesigned</h2>
+ *
+ * {@link #swap} is exactly the existing "Swap"/"Flip" control documented in this show's
+ * {@code design/color-system.md} &#167;4, and {@link #pair} descends from that section's
+ * "Color"/"Pair" — though it no longer does &#167;4's relay arithmetic. There is exactly one of
+ * each: turning either moves every surface at once, which is the point — a performer is changing
+ * the room's colour, not one surface's colour.
+ *
+ * <h2>Two colours, and only ever two — 2026-08-31</h2>
+ *
+ * The room resolves exactly two palette stops, and no combination of these three parameters can
+ * reach a third. {@link #pair} chooses how far apart those two sit ({@code Same}, {@code Near},
+ * {@code Far}); {@link #swap} chooses which is primary; {@link #axis} chooses which surfaces read
+ * that decision inverted. Nothing shifts an index. This replaced a scheme in which {@link #pair}
+ * selected a base stop with secondary pinned one above it and {@link #axis} shifted the whole
+ * pair one stop for half the surfaces — which put three stops on a three-stop swatch's wall
+ * simultaneously, accent included. See {@link #pair} and {@link Axis} for the owner's report and
+ * the reasoning.
+ *
+ * <h2>Three parameters, no hue/saturation maths — 2026-08-30</h2>
+ *
+ * This class previously gave each of the four surfaces its own standing {@code indexOffset}/
+ * {@code hueOffset}/{@code satTrim} triple — twelve extra parameters, on top of {@link #pair}/
+ * {@link #swap}. The owner's own correction, once he saw the gradient controls land: <em>"I don't
+ * know if we need different dimensions and different amounts because we should just use
+ * everything from the palette,"</em> followed by <em>"What we need is gradient controls. Not
+ * necessarily difference tweaking."</em> All of it is gone. {@link #axis} (below) replaces the
+ * whole twelve-parameter structure with one three-position selector, because the owner's own
+ * description of what he wants surfaces to do — <em>"cube surfaces on stop N, cylinder surfaces
+ * on N+1"</em> — is entirely expressible as a fixed one-stop {@link #pair}-relative shift, not a
+ * user-adjustable amount, and every surface's colour is a real, unmodified palette stop, never a
+ * hue-shifted or saturation-trimmed synthesis of one. {@code design/color-system.md} (in the
+ * sibling {@code chromatik-shows} repo, outside this repo's scope to edit directly) should say
+ * this principle outright — colour comes from the palette; anything that manufactures a colour
+ * outside it defeats the point of a deliberately-composed palette — if it does not already.
+ *
+ * <p>This class's whole colour surface, after the removal, is exactly three parameters:
+ * {@link #pair}, {@link #swap}, {@link #axis}. Paired with {@link ApotheneumGradient}'s
+ * {@code azimuth}/{@code elevation}/{@code spread}, that is six controls total across both
+ * classes — the owner's own tally of what this rig's colour system needs.
+ */
+public class ApotheneumColor extends LXComponent implements LXOscComponent {
+
+  /** Engine path; parameters live at {@code /lx/apotheneumColor/*}, mirroring how
+   * {@code apotheneum.video.ApotheneumVideo} registers at {@code /lx/apotheneumVideo/*}. */
+  public static final String PATH = "apotheneumColor";
+
+  /**
+   * {@link Axis#values()} hoisted once. {@code Enum.values()} clones its backing array on every
+   * call, and {@link #stopDelta(Surface)} sits on the per-pixel path every colour-native pattern
+   * now takes ({@code ColorRole.color} -> {@link #primaryColor}/{@link #secondaryColor} ->
+   * {@link #resolvedColor}), so calling it there allocated tens of thousands of throwaway arrays
+   * per frame -- exactly what {@code docs/lx-coding-guidelines.md} &#167;1 forbids, and a direct
+   * contradiction of {@code ColorNativePattern.colorizeCells}'s own "no allocation happens in
+   * this method or anything it calls" guarantee.
+   */
+  private static final Axis[] AXES = Axis.values();
+
+  /**
+   * The engine's registered {@code ApotheneumColor}, or {@code null} if
+   * {@code apotheneum.doved.ApotheneumColorPlugin} did not register one (the plugin failed to
+   * load, or is disabled). Resolved fresh every call — see the class javadoc for why there is
+   * nothing to cache across calls, only within one caller's own frame if it is called per pixel.
+   */
+  public static ApotheneumColor get(LX lx) {
+    final LXComponent child = lx.engine.getChild(PATH);
+    if (child instanceof ApotheneumColor) {
+      return (ApotheneumColor) child;
+    }
+    return mirrorOfStale(lx, child);
+  }
+
+  /**
+   * The shadow instance {@link #mirrorOfStale} keeps in step with a stale registration. One per
+   * process, built on first need and never disposed -- it is not an engine child and holds
+   * nothing but three parameters.
+   */
+  private static ApotheneumColor staleMirror = null;
+
+  /**
+   * Reads a <em>stale</em> registration -- the component left behind when the package is
+   * reinstalled over a running Chromatik -- through a locally-built mirror.
+   *
+   * <p>Reinstalling loads the new classes under a new classloader while the engine still holds
+   * the instance the previous one registered. Its class has the identical name and is a
+   * different {@code Class} object, so {@code instanceof} is false and this method used to
+   * return null: every colour-native pattern and {@code GradientMultiplyEffect} fell back to
+   * neutral white, and stayed there until Chromatik was restarted. That is a restart per
+   * install, which during a build session is most of the session.
+   *
+   * <p>Nothing here touches the registration. {@code LXEngine.registerComponent} only adds, LX
+   * exposes no child removal, and swapping the instance would break a live project's modulation
+   * mappings, which address these parameters through that exact object. Instead the stale
+   * component is <em>read</em>: {@link LXComponent#getParameter(String)} returns an {@link
+   * heronarts.lx.parameter.LXParameter}, and that type comes from LX's own classloader rather
+   * than the package's, so it is the same type on both sides of a reload and can be read across
+   * the boundary that defeats {@code instanceof}. The values come back modulated, so a
+   * modulator or MIDI knob driving the real component still moves what patterns resolve.
+   *
+   * <p>Returns null for anything that is not this class by name -- a genuinely foreign component
+   * at this path is a real error and still resolves to the neutral fallback.
+   */
+  private static ApotheneumColor mirrorOfStale(LX lx, LXComponent child) {
+    if ((child == null) || !child.getClass().getName().equals(ApotheneumColor.class.getName())) {
+      return null;
+    }
+    if (staleMirror == null) {
+      staleMirror = new ApotheneumColor(lx);
+    }
+    copyParameter(child, "pair", staleMirror.pair);
+    copyParameter(child, "swap", staleMirror.swap);
+    copyParameter(child, "axis", staleMirror.axis);
+    return staleMirror;
+  }
+
+  private static void copyParameter(LXComponent from, String path, CompoundDiscreteParameter to) {
+    final LXParameter source = from.getParameter(path);
+    if (source != null) {
+      to.setValue((int) Math.round(source.getValue()));
+    }
+  }
+
+  /** Which of the installation's four independently-addressable surfaces a pixel is on. */
+  public enum Surface {
+    CUBE_EXTERIOR,
+    CUBE_INTERIOR,
+    CYLINDER_EXTERIOR,
+    CYLINDER_INTERIOR;
+
+    /**
+     * Resolves a surface from the {@link apotheneum.Apotheneum.Orientation} object a pattern is
+     * already iterating — every {@code ColorNativePattern} subclass renders one physical
+     * orientation at a time (see e.g. {@code Rockfall}'s {@code surfaceWaters}, {@code
+     * Waterfall}/{@code Dunes}/{@code Grass}'s per-orientation {@code output}/{@code render}
+     * methods), so this is a reference-equality lookup against geometry the pattern already has
+     * in hand, not new geometry-detection machinery. Returns {@code null} if Apotheneum isn't
+     * loaded, or the orientation matches none of the four (e.g. a model without an interior).
+     */
+    public static Surface of(apotheneum.Apotheneum.Orientation orientation) {
+      if ((orientation == null)
+        || (apotheneum.Apotheneum.cube == null)
+        || (apotheneum.Apotheneum.cylinder == null)) {
+        return null;
+      }
+      if (orientation == apotheneum.Apotheneum.cube.exterior) {
+        return CUBE_EXTERIOR;
+      }
+      if (orientation == apotheneum.Apotheneum.cube.interior) {
+        return CUBE_INTERIOR;
+      }
+      if (orientation == apotheneum.Apotheneum.cylinder.exterior) {
+        return CYLINDER_EXTERIOR;
+      }
+      if (orientation == apotheneum.Apotheneum.cylinder.interior) {
+        return CYLINDER_INTERIOR;
+      }
+      return null;
+    }
+  }
+
+  // Same ordering argument as AXIS_OPTIONS below -- this is a three-position knob too, and
+  // "all the way down" must mean the least contrast. Widening distance, in declaration order.
+  private static final String[] PAIR_OPTIONS = { "Same", "Near", "Far" };
+  private static final String[] SWAP_OPTIONS = { "Off", "On" };
+  // Order is part of the contract, not an implementation detail: the owner plays this from one
+  // physical knob, and a 3-option discrete parameter divides a MIDI CC's 0-127 range into thirds
+  // in declaration order -- "all the way down" lands on index 0, "middle third" on index 1, "all
+  // the way up" on index 2. His words: "None would be the knob 11. If it's all the way down,
+  // it's none. If it's a third of the way, it's shape, and if it's all the way, it's inside/
+  // outside." Reordering these strings (or the Axis enum below, which must match index-for-index)
+  // silently remaps what the knob's physical position means.
+  private static final String[] AXIS_OPTIONS = { "None", "Shape", "In/Out" };
+
+  /**
+   * How far apart the room's two colours sit in the swatch: {@code Same} (both roles on stop 1),
+   * {@code Near} (stops 1 and 2 -- the wheel-neighbour field pair) or {@code Far} (stops 1 and 3
+   * -- the split-complement accent). Primary is always stop 1; this moves secondary only.
+   *
+   * <p><b>2026-08-31: this used to select a base stop (1 or 2) with secondary pinned one stop
+   * above it</b>, which is {@code design/color-system.md} &#167;4's knob-12 "Color"/"Pair"
+   * arithmetic carried over from the per-channel relay. That shape cannot express "the two
+   * colours are the same" at all, and worse, it made {@link #axis} reach a third stop: with the
+   * pair always adjacent, shifting the whole pair one stop for the second surface group put
+   * stops N, N+1 <em>and</em> N+2 on the wall simultaneously. On a three-stop swatch that is the
+   * entire palette at once, accent included -- the owner, seeing it live: <em>"there should only
+   * be two sets of color. Right now ... it seems like there are four different colors, and that's
+   * not how I said it was designed."</em> Distance is now this parameter's whole job, and
+   * {@link #axis} exchanges the two roles rather than shifting either of them, so no combination
+   * of the three controls can reach a third stop.
+   *
+   * <p>{@code Same} deliberately collapses primary and secondary onto one stop, which &#167;4
+   * of that document argued against ("the two roles are never equal, so a two-substance pattern
+   * can never collapse into one color"). That argument was about a knob whose <em>every</em>
+   * position had to be legal unattended; this is an explicitly-chosen position, and the owner
+   * asked for it by name -- <em>"two sets of colors that are basically all the same color"</em>.
+   * A two-substance pattern at {@code Same} reads as one substance, which is the point of the
+   * setting, not a failure of it.
+   *
+   * <p><b>{@code Far} needs a three-stop swatch.</b> On a two-stop swatch stop 3 wraps back onto
+   * stop 1 (see {@link #wrapIndex}), so {@code Far} and {@code Same} resolve identically. That is
+   * the correct behaviour for a wrap and not worth a guard, but it does mean the knob has a dead
+   * position on a two-stop palette.
+   *
+   * <p><b>{@code CompoundDiscreteParameter(String, String[])} does not actually store the
+   * options array.</b> Confirmed by disassembling {@code CompoundDiscreteParameter}'s own
+   * bytecode: unlike {@code DiscreteParameter}'s identical-looking constructor (which does
+   * {@code this.options = options}), the {@code Compound} subclass's version only reads
+   * {@code options.length} to size the range and never assigns the field, so
+   * {@code getOptions()} silently returns {@code null} afterwards -- crashing any UI control
+   * that dereferences it with no null guard. The explicit {@link #setOptions(String[])} calls
+   * in the constructor below are the real fix, not decorative.</p>
+   */
+  public final CompoundDiscreteParameter pair =
+    new CompoundDiscreteParameter("Pair", PAIR_OPTIONS)
+    .setDescription(
+      "How far apart the room's two colors sit: Same (one stop), Near (the wheel-neighbour "
+      + "field pair) or Far (the split-complement accent)");
+
+  /**
+   * Exchanges primary and secondary, everywhere. The switch-12 "Swap"/"Flip" analog. A
+   * {@code CompoundDiscreteParameter} rather than a {@code BooleanParameter}, matching
+   * {@code ModColorize.invert}'s precedent: only the former is an
+   * {@code LXCompoundModulation.Target}. See {@link #pair}'s javadoc for why its options are
+   * set explicitly in the constructor rather than trusted to this constructor call.
+   */
+  public final CompoundDiscreteParameter swap =
+    new CompoundDiscreteParameter("Swap", SWAP_OPTIONS)
+    .setDescription("Exchange primary and secondary, everywhere");
+
+  /**
+   * Which surfaces read the same palette stop as which others, everywhere. {@code
+   * CompoundDiscreteParameter} for the same reason as {@link #pair}/{@link #swap}: an
+   * {@code LXCompoundModulation.Target}, which a {@code BooleanParameter} (or a triple of
+   * booleans) is not, and which matters because a MIDI knob is meant to drive this directly. See
+   * {@link #pair}'s javadoc for why {@link #AXIS_OPTIONS} is also passed to
+   * {@link #setOptions(String[], boolean)} explicitly in the constructor below -- the same
+   * {@code CompoundDiscreteParameter(String, String[])} storage bug applies here too.
+   *
+   * <p>See {@link Axis} for the full design: what each of the three settings means, why the
+   * order is fixed by the owner's own physical knob mapping, why there is no per-surface
+   * amount/offset knob underneath it (a fixed one-stop shift is the entire "difference" story),
+   * why {@code Axis.NONE} restores exactly rather than by zeroing anything, and the one named,
+   * narrower asymmetry ({@code Fireball}/{@code Waterfall} on {@code Axis.INSIDE_OUTSIDE}) this
+   * design could not remove without changing those two patterns' own paint architecture.
+   */
+  public final CompoundDiscreteParameter axis =
+    new CompoundDiscreteParameter("Axis", AXIS_OPTIONS)
+    .setDescription(
+      "Which surfaces get the two colors exchanged: None (all four alike), Shape (cylinder "
+      + "inverts the cube's pair), or In/Out (interiors invert the exteriors' pair)");
+
+  /**
+   * The three {@link #axis} settings, index-matched to {@link #AXIS_OPTIONS} -- {@code
+   * Axis.values()[this.axis.getValuei()]} depends on this order being exactly {@code NONE},
+   * {@code SHAPE}, {@code INSIDE_OUTSIDE}, matching {@code "None"}, {@code "Shape"}, {@code
+   * "In/Out"}. This order is fixed by the owner's own physical knob mapping (see
+   * {@link #AXIS_OPTIONS}'s comment), not a stylistic choice.
+   *
+   * <h2>What each setting does, in palette-stop terms</h2>
+   *
+   * {@link #isExchanged(Surface)} is the entire mechanism: a surface on the far side of the
+   * split reads {@link #primaryIndex()} and {@link #secondaryIndex()} the other way round, and
+   * that is all it does. Under {@link #NONE} nothing is exchanged and all four surfaces read
+   * alike. Under {@link #SHAPE} the two cylinder surfaces are exchanged and the two cube
+   * surfaces are not. Under {@link #INSIDE_OUTSIDE} the two interior surfaces are exchanged and
+   * the two exterior surfaces are not.
+   *
+   * <p><b>This exchanges the two colours; it does not shift into a third -- 2026-08-31.</b>
+   * Until that date each far-side surface's resolved index was {@code sharedIndex + 1}, a
+   * literal reading of the owner's <em>"cube surfaces on stop N, cylinder surfaces on N+1"</em>.
+   * With {@link #pair} then pinning secondary one stop above primary, that put three stops on
+   * the wall at once -- on this show's three-stop swatches, the entire palette including the
+   * accent {@code design/color-system.md} &#167;3 reserves for discrete, non-ramping use. See
+   * {@link #pair}'s javadoc for the owner's report and the full correction. The distance between
+   * the room's two colours is {@link #pair}'s job now, exclusively; this control only decides
+   * who gets them which way round, so no combination of the two can reach a third stop.
+   *
+   * <h2>Why a mode/axis control rather than always-independent surfaces</h2>
+   *
+   * Reported directly by the owner, watching the piece: <em>"seems like the cube is always the
+   * same, and the cylinder is always the same. We can't have a difference between the cube's
+   * interior and exterior. I want to either vary interior and exterior or cube and cylinder,"</em>
+   * and, after two follow-ups: <em>"or none at all; aka all the same color,"</em> and then the
+   * exact knob mapping quoted above. Investigation (see {@code
+   * apotheneum.doved.effects.GradientMultiplyEffect}'s and each {@code
+   * apotheneum.doved.patterns.ColorNativePattern} subclass's own notes) found the underlying
+   * asymmetry was real but narrower than "colour-native patterns can't do this": of the seven
+   * {@code ColorNativePattern} subclasses, {@code Fireball} and {@code Waterfall} alone painted
+   * each shape's colour once against its own {@code Surface.of(...exterior)} identity and
+   * mechanically duplicated that value onto the interior mirror point ({@code Fireball}'s
+   * {@code paint()}/{@code paintBrighter()}; {@code Waterfall}'s bulk {@code copyExterior()}),
+   * a deliberate, pre-{@code ApotheneumColor} design (view-mask correctness for {@code Fireball};
+   * simple bulk-copy convenience for {@code Waterfall}) -- not a limitation of this class or of
+   * {@code ColorNativePattern}. Both have since been migrated onto {@code
+   * ColorNativePattern.colorizeCells} and resolve per surface; see the note below. {@code Dunes}, {@code Grass}, {@code Jungle} and {@code Rockfall}
+   * already resolve {@code Surface.of(orientation)} independently for interior and exterior (see
+   * each one's {@code output}/{@code writeColors} or, for {@code Rockfall}, its per-orientation
+   * {@code SurfaceWater}), so they already support every axis setting correctly, in full parity
+   * with {@code GradientMultiplyEffect}. {@code LavaLamp} paints exterior only and never touches
+   * interior, so it is unaffected either way.
+   *
+   * <p><b>The {@code Fireball}/{@code Waterfall} asymmetry this section used to describe is
+   * closed -- both are migrated.</b> Until 2026-08-30 those two patterns queried {@code
+   * ApotheneumColor} exactly twice per frame, once per shape and both times for the *exterior*
+   * identity, mirroring the result onto the interior; under {@link #INSIDE_OUTSIDE} both
+   * exteriors carry {@code stopDelta = 0}, so the cube query and the cylinder query resolved the
+   * identical colour and the setting collapsed to look exactly like {@link #NONE} rather than
+   * like a muted version of itself. Both now resolve colour independently per real surface
+   * through {@code ColorNativePattern.colorizeCells}: {@code Fireball}'s {@code Fire.render}
+   * passes both {@code Surface.of(orientation)} and {@code Surface.of(mirrorOrientation)}, and
+   * its embers do the same through {@code paintBrighter}; {@code Waterfall}'s bulk {@code
+   * copyExterior()} is gone in favour of a per-surface {@code colorizeShape} pass. The physics
+   * stays shared per cell -- correct, since interior and exterior are physically coincident --
+   * and only the colour resolution splits. All seven {@code ColorNativePattern} subclasses
+   * therefore honour all three settings, in full parity with {@code GradientMultiplyEffect};
+   * there is no remaining disagreement between the Global (effect) and Natural (pattern) paths.
+   *
+   * <p>The one thing that has not changed: {@code LavaLamp} paints exterior only and never
+   * touches interior, so {@link #INSIDE_OUTSIDE} has nothing to differentiate there. That is
+   * that pattern's own scope, not a colour-resolution gap.
+   *
+   * <h2>Global (the effect path) has no such gap</h2>
+   *
+   * {@code GradientMultiplyEffect} runs over already-finished {@code colors[]} and addresses all
+   * four real surfaces directly by geometry every frame, regardless of how the hosted pattern
+   * painted them -- so it resolves {@link #axis} correctly on all three settings, on every
+   * pattern, unconditionally. The asymmetry above is specific to two named {@code
+   * ColorNativePattern} subclasses resolving their own colour internally; it does not touch the
+   * global/effect path at all.
+   *
+   * <h2>None does not zero anything</h2>
+   *
+   * There is nothing left to zero. Earlier drafts of this control kept the four surfaces'
+   * standing offsets as separate parameters and had {@link #isExchanged(Surface)}'s predecessor
+   * choose which one to *read*; that shape is gone along with the offsets themselves (see the
+   * class javadoc's "Three parameters, no hue/saturation maths" section) -- {@link #axis} is now
+   * the entire per-surface state, computed fresh from {@link #isExchanged(Surface)} on every
+   * call, so switching it is inherently non-destructive: there is no secondary value anywhere
+   * that a switch could overwrite or lose.
+   */
+  public enum Axis { NONE, SHAPE, INSIDE_OUTSIDE }
+
+  /** The {@link #axis} setting currently selected. Public so callers and tests name a constant
+   * rather than repeating the raw ordinal {@link #AXIS_OPTIONS} happens to sit at -- {@code
+   * axis.setValue(ApotheneumColor.Axis.SHAPE.ordinal())} reads as what it means and stops
+   * compiling if the enum is ever renamed away underneath it. */
+  public Axis axis() {
+    return AXES[this.axis.getValuei()];
+  }
+
+  /**
+   * Whether a change to {@link #pair}/{@link #swap}/{@link #axis} crossfades the colours every
+   * surface resolves, instead of cutting to them.
+   *
+   * <p>Defaults <b>off</b>, so a project saved before this existed loads behaving exactly as it
+   * did. It is also the honest default for a cut: a hard change is a legitimate performance
+   * gesture, and this is the opt-in for the other one.
+   *
+   * <p>What glides is the <em>colour</em>, not the control. The dropdowns still snap between
+   * named positions and {@link #primaryIndex()}/{@link #secondaryIndex()} still answer whole
+   * stops at every instant — there is no such thing as a half-stop. Only what
+   * {@link #primaryColor(Surface, int)} and its siblings hand back is interpolated.
+   */
+  public final BooleanParameter glide =
+    new BooleanParameter("Glide", false)
+    .setDescription("Crossfade between colors when Pair, Swap or Axis moves, instead of cutting");
+
+  /** How long {@link #glide} takes. Compound so it is itself a modulation target — a performer
+   * can tighten the fade under the same hand that is moving the colour. */
+  public final CompoundParameter glideTimeSecs =
+    new CompoundParameter("Time", 2, 0, 30)
+    .setUnits(LXParameter.Units.SECONDS)
+    .setDescription("How long a Glide crossfade takes");
+
+  /**
+   * Every resolution this class can be asked for, so a crossfade can start from what was
+   * <em>on screen</em> rather than from a recomputed guess.
+   *
+   * <p>The key space is small and fixed: five surfaces (the four real ones plus the {@code null}
+   * a {@code ModColorize} passes), two roles, and the nine stop shifts {@code ModColorize.shift}
+   * spans. Ninety ints, allocated once. A shift outside that range resolves without glide rather
+   * than growing the array — see {@link #keyFor}.
+   */
+  private static final int MIN_SHIFT = -4;
+  private static final int SHIFT_SPAN = 9;
+  private static final ApotheneumColor.Surface[] SURFACES = Surface.values();
+  private static final int KEY_COUNT = (SURFACES.length + 1) * 2 * SHIFT_SPAN;
+
+  private final int[] displayed = new int[KEY_COUNT];
+  private final int[] from = new int[KEY_COUNT];
+  private double fade = 1;
+  private boolean primed = false;
+  private int lastPair = -1;
+  private int lastSwap = -1;
+  private int lastAxis = -1;
+
+  /**
+   * Advances the crossfade once per engine frame.
+   *
+   * <p><b>Polled, not driven by parameter listeners, and that is the same correction {@code
+   * UIApotheneumColorSection} and {@code ModColorize} both landed on.</b> All three parameters
+   * are {@code CompoundDiscreteParameter}s precisely so a modulator or a MIDI knob can drive
+   * them, and modulation moves a parameter's effective value without ever touching the base value
+   * a listener fires on. A listener here would glide when the dropdown moved and sit silent under
+   * exactly the modulation this class exists to allow.
+   */
+  private final LXLoopTask glideTask = this::advanceGlide;
+
+  private void advanceGlide(double deltaMs) {
+    if (!this.glide.isOn()) {
+      // Re-prime on the next frame it is switched back on, so it starts from the live colours
+      // rather than from wherever a fade was abandoned however long ago.
+      this.primed = false;
+      return;
+    }
+    final int pairNow = this.pair.getValuei();
+    final int swapNow = this.swap.getValuei();
+    final int axisNow = this.axis.getValuei();
+    if (!this.primed) {
+      fillDirect(this.displayed);
+      System.arraycopy(this.displayed, 0, this.from, 0, KEY_COUNT);
+      this.fade = 1;
+      this.primed = true;
+    } else if ((pairNow != this.lastPair) || (swapNow != this.lastSwap) || (axisNow != this.lastAxis)) {
+      // Start from what is on screen, NOT from the previous parameter triple. Retriggering
+      // mid-fade is the normal case on a performance control, and re-deriving the origin from
+      // the old triple would snap back to where the interrupted fade began.
+      System.arraycopy(this.displayed, 0, this.from, 0, KEY_COUNT);
+      this.fade = 0;
+    }
+    this.lastPair = pairNow;
+    this.lastSwap = swapNow;
+    this.lastAxis = axisNow;
+
+    final double glideMs = this.glideTimeSecs.getValue() * 1000;
+    if (glideMs <= 0) {
+      this.fade = 1;
+    } else if (this.fade < 1) {
+      this.fade = Math.min(1, this.fade + (deltaMs / glideMs));
+    }
+
+    if (this.fade >= 1) {
+      fillDirect(this.displayed);
+      return;
+    }
+    for (int surface = 0; surface <= SURFACES.length; ++surface) {
+      final Surface which = (surface == SURFACES.length) ? null : SURFACES[surface];
+      for (int shift = 0; shift < SHIFT_SPAN; ++shift) {
+        final int stopShift = MIN_SHIFT + shift;
+        final int primaryKey = keyFor(surface, false, shift);
+        final int secondaryKey = keyFor(surface, true, shift);
+        this.displayed[primaryKey] =
+          lerpHsb(this.from[primaryKey], directColor(which, false, stopShift), this.fade);
+        this.displayed[secondaryKey] =
+          lerpHsb(this.from[secondaryKey], directColor(which, true, stopShift), this.fade);
+      }
+    }
+  }
+
+  private void fillDirect(int[] into) {
+    for (int surface = 0; surface <= SURFACES.length; ++surface) {
+      final Surface which = (surface == SURFACES.length) ? null : SURFACES[surface];
+      for (int shift = 0; shift < SHIFT_SPAN; ++shift) {
+        final int stopShift = MIN_SHIFT + shift;
+        into[keyFor(surface, false, shift)] = directColor(which, false, stopShift);
+        into[keyFor(surface, true, shift)] = directColor(which, true, stopShift);
+      }
+    }
+  }
+
+  private static int keyFor(int surfaceOrdinal, boolean secondary, int shiftOrdinal) {
+    return (((surfaceOrdinal * 2) + (secondary ? 1 : 0)) * SHIFT_SPAN) + shiftOrdinal;
+  }
+
+  /** The cache slot for a resolution, or {@code -1} if the shift falls outside the range the
+   * cache covers — such a caller resolves directly and simply does not glide. */
+  private static int keyFor(Surface surface, boolean secondary, int stopShift) {
+    final int shiftOrdinal = stopShift - MIN_SHIFT;
+    if ((shiftOrdinal < 0) || (shiftOrdinal >= SHIFT_SPAN)) {
+      return -1;
+    }
+    final int surfaceOrdinal = (surface == null) ? SURFACES.length : surface.ordinal();
+    return keyFor(surfaceOrdinal, secondary, shiftOrdinal);
+  }
+
+  /**
+   * Interpolates in HSB along the shorter way round the wheel, not in RGB.
+   *
+   * <p>An RGB lerp between two saturated colours passes through a desaturated midpoint — mixing
+   * toward grey and back out. {@code design/color-system.md} &#167;1 is explicit that dropping
+   * saturation on LEDs "reads as washed out rather than deep", so an RGB crossfade would spend
+   * its middle in exactly the state that document rules out, and the wider the pair the worse it
+   * gets. Interpolating hue instead walks the wheel between the two stops at full saturation,
+   * which is the move the palette was composed for.
+   */
+  private static int lerpHsb(int from, int to, double amount) {
+    final float fromHue = LXColor.h(from);
+    float deltaHue = LXColor.h(to) - fromHue;
+    if (deltaHue > 180) {
+      deltaHue -= 360;
+    } else if (deltaHue < -180) {
+      deltaHue += 360;
+    }
+    final float fromSat = LXColor.s(from);
+    final float fromBright = LXColor.b(from);
+    return LXColor.hsb(
+      (float) (fromHue + (deltaHue * amount)),
+      (float) (fromSat + ((LXColor.s(to) - fromSat) * amount)),
+      (float) (fromBright + ((LXColor.b(to) - fromBright) * amount))
+    );
+  }
+
+  /**
+   * Constructed exactly once, by {@code apotheneum.doved.ApotheneumColorPlugin.initialize},
+   * which passes the real {@code lx} straight through -- unlike the old {@code LXModulator}
+   * shape, there is no window where this object exists without an {@code lx} reference.
+   */
+  public ApotheneumColor(LX lx) {
+    super(lx, "Apotheneum Color");
+
+    addParameter("pair", this.pair);
+    addParameter("swap", this.swap);
+    addParameter("axis", this.axis);
+    addParameter("glide", this.glide);
+    addParameter("glideTimeSecs", this.glideTimeSecs);
+    // One task per instance. Exactly two instances can exist in a process: the engine-registered
+    // one, and at most one staleMirror (see mirrorOfStale) -- both want their own crossfade
+    // advanced, and neither is ever constructed more than once.
+    lx.engine.addLoopTask(this.glideTask);
+    // See pair's javadoc: the (String, String[]) constructor above sizes the range correctly
+    // but never stores the options array, so getOptions() would otherwise return null.
+    this.pair.setOptions(PAIR_OPTIONS, false);
+    this.swap.setOptions(SWAP_OPTIONS, false);
+    this.axis.setOptions(AXIS_OPTIONS, false);
+  }
+
+  /**
+   * The two stops the whole room resolves from: always stop 1 and stop {@code 1 + pair}, so
+   * {@code Same} gives 1 and 1, {@code Near} gives 1 and 2, {@code Far} gives 1 and 3.
+   *
+   * <p>These two are the entire colour vocabulary. {@link #swap} decides which of them is
+   * primary and which is secondary, and {@link #axis} decides which surfaces get that decision
+   * inverted -- neither introduces a stop that is not one of these two. See {@link #pair} for why
+   * that is now the invariant.
+   */
+  private int nearStop() {
+    return 1;
+  }
+
+  /** Releases the per-frame crossfade task. The engine-registered instance lives as long as the
+   * engine does, so this matters for the {@code staleMirror} and for tests, which build and
+   * dispose many instances against one LX. */
+  @Override
+  public void dispose() {
+    this.lx.engine.removeLoopTask(this.glideTask);
+    super.dispose();
+  }
+
+  private int farStop() {
+    return 1 + this.pair.getValuei();
+  }
+
+  private boolean isSwapped() {
+    return this.swap.getValuei() == 1;
+  }
+
+  /** The shared, gesture-driven index primary resolves from, before {@link #axis} exchanges the
+   * two roles on a surface. */
+  public int primaryIndex() {
+    return isSwapped() ? farStop() : nearStop();
+  }
+
+  /** The shared, gesture-driven index secondary resolves from, before {@link #axis} exchanges the
+   * two roles on a surface. */
+  public int secondaryIndex() {
+    return isSwapped() ? nearStop() : farStop();
+  }
+
+  /** This surface's fully-resolved primary color: shared index, this surface's own stop shift. */
+  public int primaryColor(Surface surface) {
+    return primaryColor(surface, 0);
+  }
+
+  /** This surface's fully-resolved secondary color: shared index, this surface's own stop shift. */
+  public int secondaryColor(Surface surface) {
+    return secondaryColor(surface, 0);
+  }
+
+  /**
+   * {@link #primaryColor(Surface)} moved a further {@code stopShift} palette stops along, wrapped
+   * around the live swatch exactly as every other resolution here is.
+   *
+   * <p>For a caller that wants to <em>follow</em> the shared pair/swap gesture while sitting
+   * somewhere else in the palette than the piece as a whole -- {@code
+   * apotheneum.doved.effects.ModColorize} is the one that does, so a Colorize can be tinted a
+   * stop or two off the room without being pinned to an absolute stop that stops tracking the
+   * moment {@link #pair} moves. Deliberately a whole-stop shift and nothing else: the result is
+   * still an unmodified palette colour, which is the invariant this whole class exists to keep
+   * (see the class javadoc). {@code stopShift = 0} is exactly {@link #primaryColor(Surface)}.
+   */
+  public int primaryColor(Surface surface, int stopShift) {
+    return glidedColor(surface, false, stopShift);
+  }
+
+  /** {@link #primaryColor(Surface, int)}'s secondary counterpart. */
+  public int secondaryColor(Surface surface, int stopShift) {
+    return glidedColor(surface, true, stopShift);
+  }
+
+  /** The mid-crossfade colour when {@link #glide} is on and a fade is running, and the plain
+   * resolution otherwise. */
+  private int glidedColor(Surface surface, boolean secondary, int stopShift) {
+    if (this.glide.isOn() && this.primed) {
+      final int key = keyFor(surface, secondary, stopShift);
+      if (key >= 0) {
+        return this.displayed[key];
+      }
+    }
+    return directColor(surface, secondary, stopShift);
+  }
+
+  /** This resolution with no crossfade applied — the target a glide is heading toward. */
+  private int directColor(Surface surface, boolean secondary, int stopShift) {
+    // The two flips compose: asking for the secondary role reads the secondary index, and an
+    // exchanged surface reads the other one -- so a secondary role on an exchanged surface is
+    // back on the primary index.
+    final boolean readsSecondaryIndex = (isExchanged(surface) != secondary);
+    return resolvedColor((readsSecondaryIndex ? secondaryIndex() : primaryIndex()) + stopShift);
+  }
+
+  /**
+   * Which of "no instance" / "an instance" this process last logged, so
+   * {@link #resolvePrimaryOrNeutral}/{@link #resolveSecondaryOrNeutral} log exactly once per
+   * transition in *either* direction rather than only ever announcing the bad news. 2026-08-29's
+   * log announced the fallback starting but never announced it ending, so "no ApotheneumColor
+   * found" sitting at the end of the log was indistinguishable from "still broken right now" --
+   * the recovery needs to be exactly as loud as the loss for this to answer "is it working"
+   * instead of raising the question.
+   */
+  private enum ResolutionState { UNKNOWN, MISSING, PRESENT }
+
+  private static ResolutionState loggedState = ResolutionState.UNKNOWN;
+
+  /**
+   * {@link #primaryColor(Surface)} against an already-resolved {@code color} (see {@link
+   * #get(LX)}), or neutral white with a one-time-per-transition log line if {@code color} is
+   * {@code null}. The single place this fallback is implemented -- {@code
+   * ColorNativePattern.ColorRole} and {@code GradientMultiplyEffect} both call this rather than
+   * each re-implementing the null check and the log gate.
+   */
+  public static int resolvePrimaryOrNeutral(ApotheneumColor color, Surface surface) {
+    return resolvePrimaryOrNeutral(color, surface, 0);
+  }
+
+  /** {@link #resolvePrimaryOrNeutral(ApotheneumColor, Surface)} with a stop shift -- see
+   * {@link #primaryColor(Surface, int)} for what the shift means and who wants one. */
+  public static int resolvePrimaryOrNeutral(ApotheneumColor color, Surface surface, int stopShift) {
+    noteResolution(color);
+    return (color == null) ? LXColor.WHITE : color.primaryColor(surface, stopShift);
+  }
+
+  /** {@link #secondaryColor(Surface)}'s counterpart to {@link #resolvePrimaryOrNeutral}. */
+  public static int resolveSecondaryOrNeutral(ApotheneumColor color, Surface surface) {
+    return resolveSecondaryOrNeutral(color, surface, 0);
+  }
+
+  /** {@link #resolveSecondaryOrNeutral(ApotheneumColor, Surface)} with a stop shift. */
+  public static int resolveSecondaryOrNeutral(ApotheneumColor color, Surface surface, int stopShift) {
+    noteResolution(color);
+    return (color == null) ? LXColor.WHITE : color.secondaryColor(surface, stopShift);
+  }
+
+  private static void noteResolution(ApotheneumColor color) {
+    if (color == null) {
+      if (loggedState != ResolutionState.MISSING) {
+        loggedState = ResolutionState.MISSING;
+        LX.log(
+          "[APOTHENEUM] ApotheneumColor: no instance registered on the engine -- every "
+          + "colour-native pattern and GradientMultiplyEffect is resolving neutral white. "
+          + "Expected only if apotheneum.doved.ApotheneumColorPlugin failed to load; check the "
+          + "log above this line for why.");
+      }
+    } else if (loggedState != ResolutionState.PRESENT) {
+      loggedState = ResolutionState.PRESENT;
+      LX.log(
+        "[APOTHENEUM] ApotheneumColor: resolving from the instance at " + color.getPath()
+        + " -- colour-native patterns and GradientMultiplyEffect are live again.");
+    }
+  }
+
+  /** {@code index} wrapped and looked up directly in the palette -- no hue or saturation math on
+   * top; every resolved colour is a real, unmodified palette stop. */
+  private int resolvedColor(int index) {
+    final List<LXDynamicColor> colors = this.lx.engine.palette.swatch.colors;
+    return ColorNativePattern.paletteColor(colors, wrapIndex(index, colors.size()) - 1);
+  }
+
+  /**
+   * Whether this surface reads primary and secondary the other way round from the surfaces on
+   * the near side of the current {@link #axis} split. See {@link Axis}'s javadoc.
+   *
+   * <p>A {@code null} surface -- a caller with no geometry to name, {@code
+   * apotheneum.doved.effects.ModColorize} being the one -- is never exchanged: it gets the
+   * unexchanged, near-side reading, which is what the exteriors and the cube see.
+   */
+  private boolean isExchanged(Surface surface) {
+    if (surface == null) {
+      return false;
+    }
+    switch (AXES[this.axis.getValuei()]) {
+      case SHAPE:
+        return !isCube(surface);
+      case INSIDE_OUTSIDE:
+        return !isExterior(surface);
+      case NONE:
+      default:
+        return false;
+    }
+  }
+
+  private static boolean isCube(Surface surface) {
+    return (surface == Surface.CUBE_EXTERIOR) || (surface == Surface.CUBE_INTERIOR);
+  }
+
+  private static boolean isExterior(Surface surface) {
+    return (surface == Surface.CUBE_EXTERIOR) || (surface == Surface.CYLINDER_EXTERIOR);
+  }
+
+  /**
+   * Wraps a 1-based palette index around the swatch's <em>live</em> stop count rather than
+   * clamping it.
+   *
+   * <p><b>{@code stopCount} is the number of stops the swatch actually holds right now, not
+   * {@link LXSwatch#MAX_COLORS}.</b> This wrapped around the latter until 2026-08-30, which made
+   * the method a no-op on every real palette: {@code MAX_COLORS} is the swatch's fixed
+   * <em>capacity</em>, and this show's palettes run two to six stops, so an index that should
+   * have wrapped back to stop 1 stayed out past the end and {@link
+   * ColorNativePattern#paletteColor} then <em>clamped</em> it to the last real stop. Worked
+   * example on a two-stop swatch: {@link #pair} = 2 with any non-{@code NONE} {@link #axis}
+   * resolves the shifted surface to {@code 2 + 1 = 3}, which clamped back onto stop 2 -- the
+   * same stop the unshifted surface resolved -- so {@link #axis} had no visible effect at all,
+   * which is the opposite of what this method's own name promised. The unit test covering it
+   * used a one-colour swatch, where wrapping and clamping are indistinguishable, so it passed
+   * throughout.
+   *
+   * <p>Returns {@code 1} for an empty swatch rather than dividing by zero. That is defensive
+   * only, and deliberately not unit-tested: {@code LXSwatch.removeColor} refuses the last stop
+   * outright ({@code IllegalStateException: Cannot remove first color from a swatch}), so no
+   * sequence of API calls can produce a swatch this sees as empty. The guard costs one branch
+   * and turns a hypothetical {@code ArithmeticException} into the same white {@link
+   * ColorNativePattern#paletteColor} independently answers for an empty list.
+   */
+  private static int wrapIndex(int index, int stopCount) {
+    if (stopCount <= 0) {
+      return 1;
+    }
+    return Math.floorMod(index - 1, stopCount) + 1;
+  }
+
+}

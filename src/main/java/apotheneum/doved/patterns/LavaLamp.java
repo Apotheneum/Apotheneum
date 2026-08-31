@@ -22,6 +22,7 @@ import java.util.Arrays;
 import java.util.Random;
 
 import apotheneum.Apotheneum;
+import apotheneum.doved.modulators.ApotheneumColor;
 import heronarts.lx.LX;
 import heronarts.lx.LXCategory;
 import heronarts.lx.LXComponent;
@@ -1422,7 +1423,7 @@ public class LavaLamp extends ColorNativePattern {
   public final ColorRole coolColor;
 
   public LavaLamp(LX lx) {
-    super(lx, 1, .5, 2, .5);
+    super(lx, .5, .5);
     this.hotColor = this.primary;
     this.coolColor = this.secondary;
     addParameter("size", this.size);
@@ -1786,10 +1787,10 @@ public class LavaLamp extends ColorNativePattern {
    * at the same physics scalar, so the relief is the same on either side of the ramp and only
    * the hue travels.
    */
-  private int lavaColor(double physics, double temperature) {
+  private int lavaColor(ApotheneumColor.Surface surface, double physics, double temperature) {
     return LXColor.lerp(
-      this.coolColor.color(physics),
-      this.hotColor.color(physics),
+      this.coolColor.color(surface, physics),
+      this.hotColor.color(surface, physics),
       LXUtils.clamp(
         (temperature - TEMPERATURE_COOL) / (TEMPERATURE_HOT - TEMPERATURE_COOL), 0, 1
       )
@@ -1800,6 +1801,7 @@ public class LavaLamp extends ColorNativePattern {
     if (orientation == null) {
       return;
     }
+    final ApotheneumColor.Surface surface = ApotheneumColor.Surface.of(orientation);
     for (int x = 0; x < lamp.width; ++x) {
       final int available = orientation.available(x);
       final int column = x * lamp.height;
@@ -1819,7 +1821,7 @@ public class LavaLamp extends ColorNativePattern {
           // blob casting it -- not as a separate cool fringe, which would paint a blue rim
           // around every hot blob and say the opposite of what the ramp means.
           colors[index] = LXColor.scaleBrightness(
-            lavaColor(lamp.physics[cell], lamp.cellTemperature(cell)),
+            lavaColor(surface, lamp.physics[cell], lamp.cellTemperature(cell)),
             surfaceBrightness(field)
           );
         }

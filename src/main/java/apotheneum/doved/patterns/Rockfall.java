@@ -22,6 +22,7 @@ import java.util.Arrays;
 import java.util.Random;
 
 import apotheneum.Apotheneum;
+import apotheneum.doved.modulators.ApotheneumColor;
 import heronarts.lx.LX;
 import heronarts.lx.LXCategory;
 import heronarts.lx.LXComponent;
@@ -241,7 +242,7 @@ public class Rockfall extends ColorNativePattern {
     parameter -> updateActiveRockCount();
 
   public Rockfall(LX lx) {
-    super(lx, 1, .7, 2, .7);
+    super(lx, .7, .7);
     this.rockColor = this.primary;
     this.waterColor = this.secondary;
 
@@ -1134,6 +1135,7 @@ public class Rockfall extends ColorNativePattern {
   }
 
   private void writeColorOutput(Apotheneum.Orientation orientation) {
+    final ApotheneumColor.Surface surface = ApotheneumColor.Surface.of(orientation);
     for (int x = 0; x < orientation.width(); ++x) {
       final int available = orientation.available(x);
       for (int y = 0; y < available; ++y) {
@@ -1142,7 +1144,7 @@ public class Rockfall extends ColorNativePattern {
         final double water = this.waterIntensity[index];
         if (water <= 0) {
           colors[index] = rock <= 0 ? LXColor.BLACK : LXColor.scaleBrightness(
-            this.rockColor.color(this.rockPhysics[index]),
+            this.rockColor.color(surface, this.rockPhysics[index]),
             rock
           );
           continue;
@@ -1150,9 +1152,9 @@ public class Rockfall extends ColorNativePattern {
         final double speed = this.waterSampleWeight[index] > 0 ?
           this.waterSpeedTotal[index] / this.waterSampleWeight[index] : 0;
         colors[index] = compositeColors(
-          rock <= 0 ? LXColor.BLACK : this.rockColor.color(this.rockPhysics[index]),
+          rock <= 0 ? LXColor.BLACK : this.rockColor.color(surface, this.rockPhysics[index]),
           rock,
-          this.waterColor.color(speed * 2 - 1),
+          this.waterColor.color(surface, speed * 2 - 1),
           water
         );
       }

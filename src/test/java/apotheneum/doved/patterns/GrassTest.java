@@ -14,6 +14,7 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 
 import apotheneum.Apotheneum;
+import apotheneum.doved.modulators.ApotheneumColor;
 import heronarts.lx.LX;
 import heronarts.lx.color.LXColor;
 import heronarts.lx.mixer.LXChannel;
@@ -76,6 +77,111 @@ public class GrassTest {
       }
       deleteTree(mediaPath);
     }
+  }
+
+  /**
+   * {@code Grass.output()} used to call {@code primary.color(0)}, hardcoding away the
+   * argument {@code primary.amount} exists to scale, so the knob was exposed in the UI and did
+   * nothing: every frame read as physics=0 regardless of wind. {@code secondary.color
+   * (silveringValue)} right next to it was unaffected, which is why the bug was easy to miss by
+   * eye - the pattern still visibly reacted to wind, just only on one of its two tones.
+   *
+   * <p>Two identically-seeded, identically-driven {@code Grass} instances (the pattern uses a
+   * fixed {@code Random} seed, exactly like {@code Fireball}, so this is a real determinism
+   * guarantee and not a coincidence) differing only in {@code primary.amount} must render
+   * different colors somewhere once wind ({@code silvering}, default .25, nonzero) is flowing -
+   * otherwise the argument is still not reaching {@code primary.color(...)}.
+   */
+  @Test
+  void primaryAmountAffectsRenderedColor() throws Exception {
+    final int[] off = renderGrassCylinderExteriorColors(0);
+    final int[] on = renderGrassCylinderExteriorColors(1);
+
+    boolean differed = false;
+    for (int i = 0; i < off.length; ++i) {
+      if (off[i] != on[i]) {
+        differed = true;
+        break;
+      }
+    }
+    assertTrue(
+      differed,
+      "primary.amount=0 and primary.amount=1 rendered identical colors - "
+        + "primary.color(...) is not receiving a live physics argument");
+  }
+
+  /**
+   * Renders 60 deterministic frames (fixed simulation seed, matching {@code Fireball}) of a
+   * fresh {@code Grass} on its own {@code LX}/fixture, with {@code primary.amount} set to
+   * {@code primaryAmount}, and returns the final colors of every cylinder-exterior point in
+   * column order. A separate {@code LX} per call avoids any cross-channel interaction in the
+   * mixer affecting buffer allocation.
+   */
+  private static int[] renderGrassCylinderExteriorColors(double primaryAmount) throws Exception {
+    final Path mediaPath = Files.createTempDirectory("apotheneum-grass-amount-test-");
+    LX lx = null;
+    ApotheneumColor apotheneumColor = null;
+    try {
+      copyFixtureMedia(mediaPath);
+      final LX.Flags flags = new LX.Flags();
+      flags.loadPreferences = false;
+      flags.mediaPath = mediaPath.toString();
+      flags.outputMode = LX.Flags.OutputMode.INACTIVE;
+      lx = new LX(flags);
+      lx.engine.output.enabled.setValue(false);
+
+      final JsonFixture fixture = new JsonFixture(lx, FIXTURE_NAME);
+      lx.structure.addFixture(fixture);
+      lx.structure.beforeEngineRun();
+      assertFalse(fixture.error.isOn(), fixture.errorMessage.getString());
+      Apotheneum.initialize(lx);
+
+      // primary.amount couples a physics wobble on top of ApotheneumColor's resolved base
+      // color, and that wobble is invisible against a base already at brightness 100 (see
+      // modulatedColor: a positive shift on a maxed brightness silently clamps to itself).
+      // Without an ApotheneumColor present, a role falls back to neutral white, which is
+      // exactly that maxed-brightness case -- so this regression test needs a real, non-maxed
+      // base color for primary.amount to have anything to visibly move.
+      apotheneumColor = registerApotheneumColor(lx);
+      lx.engine.palette.swatch.colors.get(0).primary.setColor(LXColor.hsb(30, 90, 70));
+      apotheneumColor.pair.setValue(0);
+      apotheneumColor.swap.setValue(0);
+
+      final Grass grass = new Grass(lx);
+      grass.primary.amount.setValue(primaryAmount);
+      lx.engine.mixer.addChannel(new Grass[] { grass });
+
+      lx.engine.run();
+      for (int frame = 0; frame < 60; ++frame) {
+        grass.loop(1000. / 60.);
+      }
+
+      final int[] colors = grass.getColors();
+      final Apotheneum.Column[] columns = Apotheneum.cylinder.exterior.columns();
+      final int height = Apotheneum.CYLINDER_HEIGHT;
+      final int[] result = new int[columns.length * height];
+      int i = 0;
+      for (Apotheneum.Column column : columns) {
+        for (LXPoint point : column.points) {
+          result[i++] = colors[point.index];
+        }
+      }
+      return result;
+    } finally {
+      // ApotheneumColor is registered directly on lx.engine (registerComponent), so
+      // lx.dispose() below already disposes it as an ordinary engine child -- no separate
+      // teardown call needed, and no static field for it to dangle in between tests.
+      if (lx != null) {
+        lx.dispose();
+      }
+      deleteTree(mediaPath);
+    }
+  }
+
+  private static ApotheneumColor registerApotheneumColor(LX lx) {
+    final ApotheneumColor color = new ApotheneumColor(lx);
+    lx.engine.registerComponent(ApotheneumColor.PATH, color);
+    return color;
   }
 
   private static void copyFixtureMedia(Path mediaPath) throws IOException {
