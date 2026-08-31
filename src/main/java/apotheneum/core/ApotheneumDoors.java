@@ -26,6 +26,10 @@ import heronarts.lx.LXComponent;
 import heronarts.lx.color.LXColor;
 import heronarts.lx.parameter.BooleanParameter;
 
+import java.util.Arrays;
+
+import static apotheneum.Apotheneum.CYLINDER_HEIGHT;
+
 @LXCategory("Apotheneum/core")
 @LXComponent.Name("Doors")
 @LXComponent.Description("Masks out any colors on the virtual pixels where there are Apotheneum doorways")
@@ -55,12 +59,23 @@ public class ApotheneumDoors extends ApotheneumEffect {
     new BooleanParameter("Glitch 3", true)
     .setDescription("Mutes the third cylinder glitch");
 
+  // BM 2026
+
+  private static final int GLITCH4_CYL_PANEL = 9;
+  private static final int GLITCH4_NUM_COLUMNS = 4;
+
+  // TODO: To apply to all projects, default to True and recompile Apotheneum jar
+  public final BooleanParameter muteGlitch4 =
+    new BooleanParameter("Glitch 4", false)
+      .setDescription("Mutes the fourth cylinder glitch, which is the 1st glitch of 2026");
+
   public ApotheneumDoors(LX lx) {
     super(lx);
     addParameter("mute", this.mute);
 //    addParameter("muteGlitch", this.muteGlitch);
 //    addParameter("muteGlitch2", this.muteGlitch2);
 //    addParameter("muteGlitch3", this.muteGlitch3);
+      addParameter("muteGlitch4", this.muteGlitch4);
   }
 
   @Override
@@ -84,6 +99,16 @@ public class ApotheneumDoors extends ApotheneumEffect {
 //    if (this.muteGlitch3.isOn()) {
 //      muteGlitch(interiorStart+8*panelSize);
 //    }
+
+    // BM 2026
+    if (this.muteGlitch4.isOn()) {
+      // Find the start column of the glitch, for cylinder exterior and interior
+      Apotheneum.Column columnExt = Apotheneum.cylinder.exterior.columns[((GLITCH4_CYL_PANEL-2) * 10)];
+      Apotheneum.Column columnInt = Apotheneum.cylinder.interior.columns[((GLITCH4_CYL_PANEL-2) * 10)];
+      // Mute 4 columns
+      muteCylinderColumns(columnExt, GLITCH4_NUM_COLUMNS);
+      muteCylinderColumns(columnInt, GLITCH4_NUM_COLUMNS);
+    }
   }
 
   private void muteDoors() {
@@ -118,6 +143,11 @@ public class ApotheneumDoors extends ApotheneumEffect {
     for (int i = 0; i < 172; ++i) {
       colors[start+i] = LXColor.BLACK;
     }
+  }
+
+  private void muteCylinderColumns(Apotheneum.Column column, int numColumns) {
+    final int start = column.points[0].index;
+    Arrays.fill(colors, start, start + (CYLINDER_HEIGHT * numColumns), LXColor.BLACK);
   }
 
 }
