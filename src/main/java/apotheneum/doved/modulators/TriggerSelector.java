@@ -52,14 +52,16 @@ import heronarts.lx.utils.LXUtils;
  * <p>The two are otherwise the same modulator and route identically, so a patch can swap one
  * for the other without rethinking anything downstream.
  *
- * <h2>Selection is stored, not derived</h2>
+ * <h2>The pads move Select; they do not replace it</h2>
  *
- * {@code Selector} computes its selected index from Select's live value every time it is asked,
- * which is what lets a modulator sweep the selection. There is no knob here to derive from, so
- * {@link #selected} holds it as a {@link DiscreteParameter}. That is deliberately a real
- * parameter rather than a private field: it saves and loads with the project, it is visible to
- * snapshots and clip automation, and it can still be driven by a modulator or MIDI directly for
- * anyone who wants the sweep behaviour back.
+ * {@link #select} is the same knob {@code Selector} has, with the same bands and the same
+ * detents, and {@link #getSelectedIndex} reads it the same way. A pad press sets it to its
+ * input's band centre — the identical value Prev/Next lands on — so the knob always shows what
+ * is selected, a modulator can still sweep it, and a pad press and a step are indistinguishable
+ * afterwards. An earlier version of this class held the selection in a separate discrete
+ * parameter instead and dropped the knob entirely; that left the panel with no way to see or
+ * sweep the selection, and made a modulator advertised as swappable with {@code Selector}
+ * behave unlike it.
  */
 @LXModulator.Global("Trigger Selector")
 @LXModulator.Device("Trigger Selector")
@@ -116,11 +118,21 @@ public class TriggerSelector extends LXModulator
     new DiscreteParameter("Num", MAX_INPUTS, 1, MAX_INPUTS + 1)
     .setDescription("How many inputs the selector spans");
 
-  /** Which input is passing through. See the class javadoc for why this is stored rather than
-   * derived, and why it is a real parameter. */
-  public final DiscreteParameter selected =
-    new DiscreteParameter("Sel", 0, 0, MAX_INPUTS)
-    .setDescription("Which input is passed through");
+  /**
+   * Which input is passed through, spread evenly over the active inputs — the same control,
+   * with the same meaning and the same detents, as {@code Selector.select}.
+   *
+   * <p>This class first stored the selection as a {@link DiscreteParameter} of its own instead,
+   * on the reasoning that a pad-selected modulator has no knob to derive it from. That was
+   * wrong twice over. It cost the panel its Select knob, so the selection could be pressed but
+   * not seen or swept; and it meant this modulator's selection did not behave like {@code
+   * Selector}'s despite the two being advertised as swappable. The pads now do exactly what
+   * Prev/Next already did — move this knob — so there is one notion of "which input" here,
+   * not two.
+   */
+  public final CompoundParameter select =
+    new CompoundParameter("Select", 0)
+    .setDescription("Which input is passed through, spread evenly over the active inputs");
 
   public final TriggerParameter triggerNext =
     new TriggerParameter("Next", () -> step(1))
@@ -164,7 +176,7 @@ public class TriggerSelector extends LXModulator
         .setDescription("Whether input " + (i + 1) + " is the one passing through");
     }
     addParameter("numInputs", this.numInputs);
-    addParameter("selected", this.selected);
+    addParameter("select", this.select);
     addParameter("fireOnSelect", this.fireOnSelect);
     addParameter("triggerOut", this.triggerOut);
     addParameter("triggerNext", this.triggerNext);
@@ -173,6 +185,7 @@ public class TriggerSelector extends LXModulator
       addParameter("activeInput" + (i + 1), this.activeInput[i]);
     }
     setDescription("Passes one of several modulated inputs through, selected by pressing a pad");
+    updateDetents();
     updateLights();
   }
 
@@ -180,20 +193,22 @@ public class TriggerSelector extends LXModulator
   public void onParameterChanged(LXParameter p) {
     super.onParameterChanged(p);
     if (p == this.numInputs) {
-      // Shrinking Num past the live selection would otherwise leave it pointing at an input
-      // that is no longer in play, and the lights naming one the pads cannot reach.
-      clampSelection();
+      updateDetents();
       updateLights();
-    } else if (p == this.selected) {
+    } else if (p == this.select) {
       updateLights();
     }
   }
 
-  private void clampSelection() {
+  /** Snap the Select knob to the middle of each input's band, exactly as {@code Selector}
+   * does, so dragging it lands on an input rather than near a boundary. */
+  private void updateDetents() {
     final int n = this.numInputs.getValuei();
-    if (this.selected.getValuei() >= n) {
-      this.selected.setValue(n - 1);
+    final double[] detents = new double[n];
+    for (int i = 0; i < n; ++i) {
+      detents[i] = (i + .5) / n;
     }
+    this.select.setDetentsNormalized(detents);
   }
 
   /**
@@ -202,8 +217,11 @@ public class TriggerSelector extends LXModulator
    * a pad is a deliberate re-fire, not a no-op.
    */
   private void onSelect(int input) {
-    if (input < this.numInputs.getValuei()) {
-      this.selected.setValue(input);
+    final int n = this.numInputs.getValuei();
+    if (input < n) {
+      // The band's centre, which is also its detent -- the same value Prev/Next lands on, so a
+      // pad press and a step are indistinguishable afterwards.
+      this.select.setValue((input + .5) / n);
     }
     if (this.fireOnSelect.isOn()) {
       this.triggerOut.trigger();
@@ -221,15 +239,27 @@ public class TriggerSelector extends LXModulator
     }
   }
 
-  /** Step the selection, wrapping over the active inputs. */
+  /**
+   * Step the base selection by the given number of inputs, wrapping — same as {@code
+   * Selector.step}, including operating on the base value rather than the modulated one, so a
+   * modulation on Select cannot make a single press skip a band.
+   */
   private void step(int delta) {
     final int n = this.numInputs.getValuei();
-    this.selected.setValue(Math.floorMod(getSelectedIndex() + delta, n));
+    final int to = Math.floorMod(bandOf(this.select.getBaseValue()) + delta, n);
+    this.select.setValue((to + .5) / n);
   }
 
-  /** Index of the input currently passing through, constrained to the active range. */
+  /** Index of the input currently being passed through. Computed, not cached, for the reason
+   * {@code Selector.getSelectedIndex} gives. */
   public int getSelectedIndex() {
-    return LXUtils.constrain(this.selected.getValuei(), 0, this.numInputs.getValuei() - 1);
+    return bandOf(this.select.getValue());
+  }
+
+  /** The input a Select value lands on, spread evenly over the active inputs. */
+  private int bandOf(double select) {
+    final int n = this.numInputs.getValuei();
+    return LXUtils.constrain((int) (select * n), 0, n - 1);
   }
 
   @Override
@@ -319,7 +349,8 @@ public class TriggerSelector extends LXModulator
       UI2dContainer.newVerticalContainer(172, 4, rows),
       UI2dContainer.newHorizontalContainer(UIKnob.HEIGHT, 4,
         newIntegerBox(selector.numInputs, 34),
-        newButton(selector.fireOnSelect, 40).setLabel("Fire"),
+        newKnob(selector.select),
+        newButton(selector.fireOnSelect, 34).setLabel("Fire"),
         UI2dContainer.newVerticalContainer(40, 2,
           newButton(selector.triggerPrev, 40).setTriggerable(true).setLabel("Prev"),
           newButton(selector.triggerNext, 40).setTriggerable(true).setLabel("Next")
