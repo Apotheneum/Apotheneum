@@ -27,6 +27,7 @@ import heronarts.lx.color.LXDynamicColor;
 import heronarts.lx.color.LXSwatch;
 import heronarts.lx.osc.LXOscComponent;
 import heronarts.lx.parameter.CompoundDiscreteParameter;
+import heronarts.lx.parameter.LXParameter;
 
 import apotheneum.doved.patterns.ColorNativePattern;
 
@@ -121,7 +122,60 @@ public class ApotheneumColor extends LXComponent implements LXOscComponent {
    */
   public static ApotheneumColor get(LX lx) {
     final LXComponent child = lx.engine.getChild(PATH);
-    return (child instanceof ApotheneumColor) ? (ApotheneumColor) child : null;
+    if (child instanceof ApotheneumColor) {
+      return (ApotheneumColor) child;
+    }
+    return mirrorOfStale(lx, child);
+  }
+
+  /**
+   * The shadow instance {@link #mirrorOfStale} keeps in step with a stale registration. One per
+   * process, built on first need and never disposed -- it is not an engine child and holds
+   * nothing but three parameters.
+   */
+  private static ApotheneumColor staleMirror = null;
+
+  /**
+   * Reads a <em>stale</em> registration -- the component left behind when the package is
+   * reinstalled over a running Chromatik -- through a locally-built mirror.
+   *
+   * <p>Reinstalling loads the new classes under a new classloader while the engine still holds
+   * the instance the previous one registered. Its class has the identical name and is a
+   * different {@code Class} object, so {@code instanceof} is false and this method used to
+   * return null: every colour-native pattern and {@code GradientMultiplyEffect} fell back to
+   * neutral white, and stayed there until Chromatik was restarted. That is a restart per
+   * install, which during a build session is most of the session.
+   *
+   * <p>Nothing here touches the registration. {@code LXEngine.registerComponent} only adds, LX
+   * exposes no child removal, and swapping the instance would break a live project's modulation
+   * mappings, which address these parameters through that exact object. Instead the stale
+   * component is <em>read</em>: {@link LXComponent#getParameter(String)} returns an {@link
+   * heronarts.lx.parameter.LXParameter}, and that type comes from LX's own classloader rather
+   * than the package's, so it is the same type on both sides of a reload and can be read across
+   * the boundary that defeats {@code instanceof}. The values come back modulated, so a
+   * modulator or MIDI knob driving the real component still moves what patterns resolve.
+   *
+   * <p>Returns null for anything that is not this class by name -- a genuinely foreign component
+   * at this path is a real error and still resolves to the neutral fallback.
+   */
+  private static ApotheneumColor mirrorOfStale(LX lx, LXComponent child) {
+    if ((child == null) || !child.getClass().getName().equals(ApotheneumColor.class.getName())) {
+      return null;
+    }
+    if (staleMirror == null) {
+      staleMirror = new ApotheneumColor(lx);
+    }
+    copyParameter(child, "pair", staleMirror.pair);
+    copyParameter(child, "swap", staleMirror.swap);
+    copyParameter(child, "axis", staleMirror.axis);
+    return staleMirror;
+  }
+
+  private static void copyParameter(LXComponent from, String path, CompoundDiscreteParameter to) {
+    final LXParameter source = from.getParameter(path);
+    if (source != null) {
+      to.setValue((int) Math.round(source.getValue()));
+    }
   }
 
   /** Which of the installation's four independently-addressable surfaces a pixel is on. */

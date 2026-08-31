@@ -26,6 +26,7 @@ import heronarts.lx.model.LXModel;
 import heronarts.lx.model.LXPoint;
 import heronarts.lx.osc.LXOscComponent;
 import heronarts.lx.parameter.CompoundParameter;
+import heronarts.lx.parameter.LXParameter;
 import heronarts.lx.utils.LXUtils;
 
 /**
@@ -181,7 +182,43 @@ public class ApotheneumGradient extends LXComponent implements LXOscComponent {
    */
   public static ApotheneumGradient get(LX lx) {
     final LXComponent child = lx.engine.getChild(PATH);
-    return (child instanceof ApotheneumGradient) ? (ApotheneumGradient) child : null;
+    if (child instanceof ApotheneumGradient) {
+      return (ApotheneumGradient) child;
+    }
+    return mirrorOfStale(lx, child);
+  }
+
+  /** The shadow instance {@link #mirrorOfStale} keeps in step with a stale registration. */
+  private static ApotheneumGradient staleMirror = null;
+
+  /**
+   * Reads a stale registration -- the component left behind when the package is reinstalled
+   * over a running Chromatik -- through a locally-built mirror. See {@code
+   * ApotheneumColor.mirrorOfStale} for the full reasoning: the new classes load under a new
+   * classloader while the engine keeps the old instance, so {@code instanceof} fails, and the
+   * way across that boundary is {@link LXComponent#getParameter(String)}, whose {@link
+   * heronarts.lx.parameter.LXParameter} return type belongs to LX rather than to this package
+   * and is therefore the same type on both sides. The registration is never touched.
+   */
+  private static ApotheneumGradient mirrorOfStale(LX lx, LXComponent child) {
+    if ((child == null)
+      || !child.getClass().getName().equals(ApotheneumGradient.class.getName())) {
+      return null;
+    }
+    if (staleMirror == null) {
+      staleMirror = new ApotheneumGradient(lx);
+    }
+    copyParameter(child, "azimuth", staleMirror.azimuth);
+    copyParameter(child, "elevation", staleMirror.elevation);
+    copyParameter(child, "spread", staleMirror.spread);
+    return staleMirror;
+  }
+
+  private static void copyParameter(LXComponent from, String path, CompoundParameter to) {
+    final LXParameter source = from.getParameter(path);
+    if (source != null) {
+      to.setValue(source.getValue());
+    }
   }
 
   /**
