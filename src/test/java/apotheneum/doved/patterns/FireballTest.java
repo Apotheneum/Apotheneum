@@ -140,11 +140,11 @@ public class FireballTest extends HeadlessLxTest {
   void lowHeatFavorsSecondaryAndPeakHeatIsWhiteHot() {
     final LX lx = newHeadlessLx();
     final Fireball fireball = new Fireball(lx);
-    // core (primary) reads the shared index 1, ember (secondary) reads the shared index 2 --
-    // pair=0/swap=0 reproduces the same (1, 2) pair ColorRole used to default to on its own,
+    // core (primary) reads the shared index 1, ember (secondary) reads 1 + pair -- pair=1
+    // (Near)/swap=0 reproduces the same (1, 2) pair ColorRole used to default to on its own,
     // before palette selection moved to ApotheneumColor.
     final ApotheneumColor apotheneumColor = registerApotheneumColor(lx);
-    apotheneumColor.pair.setValue(0);
+    apotheneumColor.pair.setValue(1);
     apotheneumColor.swap.setValue(0);
     try {
       lx.engine.palette.swatch.addColor();

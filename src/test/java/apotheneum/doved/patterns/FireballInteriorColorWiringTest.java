@@ -64,7 +64,9 @@ public class FireballInteriorColorWiringTest {
 
       final ApotheneumColor apotheneumColor = new ApotheneumColor(lx);
       lx.engine.registerComponent(ApotheneumColor.PATH, apotheneumColor);
-      apotheneumColor.pair.setValue(0);
+      // Near, not the default Same: In/Out exchanges primary and secondary between exterior and
+      // interior, which is only observable when those two roles actually differ.
+      apotheneumColor.pair.setValue(1);
       apotheneumColor.swap.setValue(0);
       apotheneumColor.axis.setValue(ApotheneumColor.Axis.INSIDE_OUTSIDE.ordinal());
 

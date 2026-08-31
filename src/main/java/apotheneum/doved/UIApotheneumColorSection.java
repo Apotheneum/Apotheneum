@@ -46,6 +46,12 @@ import apotheneum.doved.modulators.ApotheneumColor.Surface;
  * see {@link ApotheneumColor}'s class javadoc for why. This section is now SHARED ({@code pair},
  * {@code swap}, {@code axis}) and COLORS (the four resolved swatches) only.
  *
+ * <p><b>COLORS shows four rows but never more than two distinct colours.</b> Since 2026-08-31
+ * {@code axis} exchanges the two roles on half the surfaces rather than shifting either of them
+ * into a third stop, so the four rows are always two pairs — identical, or mirrored left-to-right.
+ * Three distinct colours appearing here is the bug that change fixed, not a state to design for;
+ * see {@link ApotheneumColor#pair}.
+ *
  * <ul>
  *   <li><b>The pane is 208px wide, full stop</b> — {@code heronarts.lx.studio.ui.UILeftPane.WIDTH},
  *       confirmed by decompiling the class, not assumed from a screenshot. There is no

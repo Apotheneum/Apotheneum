@@ -56,8 +56,12 @@ public class GradientMultiplyEffectWiringTest {
 
   @Test
   void azimuthChangesWhichPixelsReadPrimaryVersusSecondary() throws Exception {
-    final int[] azimuth0 = renderCubeExteriorColors(0, 0, 0);
-    final int[] azimuth90 = renderCubeExteriorColors(0, 90, 0);
+    // pair=1 (Near), not the default Same: primary and secondary must actually differ for
+    // rotating which pixels read which of them to be visible at all -- at Same, every pixel
+    // along the gradient lerps between two equal colors and looks identical regardless of
+    // direction.
+    final int[] azimuth0 = renderCubeExteriorColors(1, 0, 0);
+    final int[] azimuth90 = renderCubeExteriorColors(1, 90, 0);
 
     assertDiffers(
       azimuth0, azimuth90,
@@ -68,8 +72,9 @@ public class GradientMultiplyEffectWiringTest {
 
   @Test
   void elevationChangesWhichPixelsReadPrimaryVersusSecondary() throws Exception {
-    final int[] elevation0 = renderCubeExteriorColors(0, 0, 0);
-    final int[] elevation90 = renderCubeExteriorColors(0, 0, 90);
+    // pair=1 (Near), not the default Same -- see azimuthChangesWhichPixelsReadPrimaryVersusSecondary.
+    final int[] elevation0 = renderCubeExteriorColors(1, 0, 0);
+    final int[] elevation90 = renderCubeExteriorColors(1, 0, 90);
 
     assertDiffers(
       elevation0, elevation90,

@@ -67,13 +67,22 @@ import apotheneum.doved.patterns.ColorNativePattern;
  *
  * <h2>The two-knob scheme, kept intact, not redesigned</h2>
  *
- * {@link #pair} and {@link #swap} are exactly the existing "Color"/"Pair" and "Swap"/"Flip"
- * controls documented in this show's {@code design/color-system.md} &#167;4 — the same relay
- * arithmetic ({@code primary} base 1, {@code secondary} base 2, {@code pair} advances both by one
- * stop, {@code swap} exchanges them), just evaluated here in integer form instead of through LX
- * modulation ranges on a {@code MacroKnobs}. There is exactly one of each: turning either moves
- * every surface at once, which is the point — a performer is changing the room's colour, not one
- * surface's colour.
+ * {@link #swap} is exactly the existing "Swap"/"Flip" control documented in this show's
+ * {@code design/color-system.md} &#167;4, and {@link #pair} descends from that section's
+ * "Color"/"Pair" — though it no longer does &#167;4's relay arithmetic. There is exactly one of
+ * each: turning either moves every surface at once, which is the point — a performer is changing
+ * the room's colour, not one surface's colour.
+ *
+ * <h2>Two colours, and only ever two — 2026-08-31</h2>
+ *
+ * The room resolves exactly two palette stops, and no combination of these three parameters can
+ * reach a third. {@link #pair} chooses how far apart those two sit ({@code Same}, {@code Near},
+ * {@code Far}); {@link #swap} chooses which is primary; {@link #axis} chooses which surfaces read
+ * that decision inverted. Nothing shifts an index. This replaced a scheme in which {@link #pair}
+ * selected a base stop with secondary pinned one above it and {@link #axis} shifted the whole
+ * pair one stop for half the surfaces — which put three stops on a three-stop swatch's wall
+ * simultaneously, accent included. See {@link #pair} and {@link Axis} for the owner's report and
+ * the reasoning.
  *
  * <h2>Three parameters, no hue/saturation maths — 2026-08-30</h2>
  *
@@ -216,7 +225,9 @@ public class ApotheneumColor extends LXComponent implements LXOscComponent {
     }
   }
 
-  private static final String[] PAIR_OPTIONS = { "1", "2" };
+  // Same ordering argument as AXIS_OPTIONS below -- this is a three-position knob too, and
+  // "all the way down" must mean the least contrast. Widening distance, in declaration order.
+  private static final String[] PAIR_OPTIONS = { "Same", "Near", "Far" };
   private static final String[] SWAP_OPTIONS = { "Off", "On" };
   // Order is part of the contract, not an implementation detail: the owner plays this from one
   // physical knob, and a 3-option discrete parameter divides a MIDI CC's 0-127 range into thirds
@@ -228,9 +239,34 @@ public class ApotheneumColor extends LXComponent implements LXOscComponent {
   private static final String[] AXIS_OPTIONS = { "None", "Shape", "In/Out" };
 
   /**
-   * Which pair of adjacent palette stops primary/secondary resolve from, everywhere. The
-   * knob-12 "Color"/"Pair" analog from {@code design/color-system.md} section 4: base 1 or
-   * base 2.
+   * How far apart the room's two colours sit in the swatch: {@code Same} (both roles on stop 1),
+   * {@code Near} (stops 1 and 2 -- the wheel-neighbour field pair) or {@code Far} (stops 1 and 3
+   * -- the split-complement accent). Primary is always stop 1; this moves secondary only.
+   *
+   * <p><b>2026-08-31: this used to select a base stop (1 or 2) with secondary pinned one stop
+   * above it</b>, which is {@code design/color-system.md} &#167;4's knob-12 "Color"/"Pair"
+   * arithmetic carried over from the per-channel relay. That shape cannot express "the two
+   * colours are the same" at all, and worse, it made {@link #axis} reach a third stop: with the
+   * pair always adjacent, shifting the whole pair one stop for the second surface group put
+   * stops N, N+1 <em>and</em> N+2 on the wall simultaneously. On a three-stop swatch that is the
+   * entire palette at once, accent included -- the owner, seeing it live: <em>"there should only
+   * be two sets of color. Right now ... it seems like there are four different colors, and that's
+   * not how I said it was designed."</em> Distance is now this parameter's whole job, and
+   * {@link #axis} exchanges the two roles rather than shifting either of them, so no combination
+   * of the three controls can reach a third stop.
+   *
+   * <p>{@code Same} deliberately collapses primary and secondary onto one stop, which &#167;4
+   * of that document argued against ("the two roles are never equal, so a two-substance pattern
+   * can never collapse into one color"). That argument was about a knob whose <em>every</em>
+   * position had to be legal unattended; this is an explicitly-chosen position, and the owner
+   * asked for it by name -- <em>"two sets of colors that are basically all the same color"</em>.
+   * A two-substance pattern at {@code Same} reads as one substance, which is the point of the
+   * setting, not a failure of it.
+   *
+   * <p><b>{@code Far} needs a three-stop swatch.</b> On a two-stop swatch stop 3 wraps back onto
+   * stop 1 (see {@link #wrapIndex}), so {@code Far} and {@code Same} resolve identically. That is
+   * the correct behaviour for a wrap and not worth a guard, but it does mean the knob has a dead
+   * position on a two-stop palette.
    *
    * <p><b>{@code CompoundDiscreteParameter(String, String[])} does not actually store the
    * options array.</b> Confirmed by disassembling {@code CompoundDiscreteParameter}'s own
@@ -243,7 +279,9 @@ public class ApotheneumColor extends LXComponent implements LXOscComponent {
    */
   public final CompoundDiscreteParameter pair =
     new CompoundDiscreteParameter("Pair", PAIR_OPTIONS)
-    .setDescription("Which pair of adjacent palette stops primary/secondary resolve from, everywhere");
+    .setDescription(
+      "How far apart the room's two colors sit: Same (one stop), Near (the wheel-neighbour "
+      + "field pair) or Far (the split-complement accent)");
 
   /**
    * Exchanges primary and secondary, everywhere. The switch-12 "Swap"/"Flip" analog. A
@@ -275,9 +313,8 @@ public class ApotheneumColor extends LXComponent implements LXOscComponent {
   public final CompoundDiscreteParameter axis =
     new CompoundDiscreteParameter("Axis", AXIS_OPTIONS)
     .setDescription(
-      "Which surfaces share a palette stop: None (all four match), Shape (cube matches cube, "
-      + "cylinder matches cylinder, the two sit one stop apart), or In/Out (exteriors match, "
-      + "interiors match, the two sit one stop apart)");
+      "Which surfaces get the two colors exchanged: None (all four alike), Shape (cylinder "
+      + "inverts the cube's pair), or In/Out (interiors invert the exteriors' pair)");
 
   /**
    * The three {@link #axis} settings, index-matched to {@link #AXIS_OPTIONS} -- {@code
@@ -288,17 +325,22 @@ public class ApotheneumColor extends LXComponent implements LXOscComponent {
    *
    * <h2>What each setting does, in palette-stop terms</h2>
    *
-   * {@link #stopDelta(Surface)} is the entire mechanism: each surface's resolved index is
-   * {@code sharedIndex + stopDelta(surface)}, wrapped. {@code stopDelta} is 0 for every surface
-   * under {@link #NONE} (one shared stop, the whole piece one colour); under {@link #SHAPE} it
-   * is 0 for the two cube surfaces and 1 for the two cylinder surfaces (cube and cylinder sit
-   * one stop apart, exterior and interior of the same shape match exactly); under {@link
-   * #INSIDE_OUTSIDE} it is 0 for the two exterior surfaces and 1 for the two interior surfaces
-   * (exteriors and interiors sit one stop apart, the two surfaces of the same
-   * exterior/interior role match exactly). There is no adjustable "how many stops apart" knob:
-   * the owner's own description -- <em>"cube surfaces on stop N, cylinder surfaces on N+1"</em>
-   * -- names a fixed one-stop shift, not a tunable amount, and a per-surface offset on top of
-   * that would be exactly the "difference tweaking" he said this rig does not need.
+   * {@link #isExchanged(Surface)} is the entire mechanism: a surface on the far side of the
+   * split reads {@link #primaryIndex()} and {@link #secondaryIndex()} the other way round, and
+   * that is all it does. Under {@link #NONE} nothing is exchanged and all four surfaces read
+   * alike. Under {@link #SHAPE} the two cylinder surfaces are exchanged and the two cube
+   * surfaces are not. Under {@link #INSIDE_OUTSIDE} the two interior surfaces are exchanged and
+   * the two exterior surfaces are not.
+   *
+   * <p><b>This exchanges the two colours; it does not shift into a third -- 2026-08-31.</b>
+   * Until that date each far-side surface's resolved index was {@code sharedIndex + 1}, a
+   * literal reading of the owner's <em>"cube surfaces on stop N, cylinder surfaces on N+1"</em>.
+   * With {@link #pair} then pinning secondary one stop above primary, that put three stops on
+   * the wall at once -- on this show's three-stop swatches, the entire palette including the
+   * accent {@code design/color-system.md} &#167;3 reserves for discrete, non-ramping use. See
+   * {@link #pair}'s javadoc for the owner's report and the full correction. The distance between
+   * the room's two colours is {@link #pair}'s job now, exclusively; this control only decides
+   * who gets them which way round, so no combination of the two can reach a third stop.
    *
    * <h2>Why a mode/axis control rather than always-independent surfaces</h2>
    *
@@ -356,12 +398,12 @@ public class ApotheneumColor extends LXComponent implements LXOscComponent {
    * <h2>None does not zero anything</h2>
    *
    * There is nothing left to zero. Earlier drafts of this control kept the four surfaces'
-   * standing offsets as separate parameters and had {@link #stopDelta(Surface)}'s predecessor
+   * standing offsets as separate parameters and had {@link #isExchanged(Surface)}'s predecessor
    * choose which one to *read*; that shape is gone along with the offsets themselves (see the
    * class javadoc's "Three parameters, no hue/saturation maths" section) -- {@link #axis} is now
-   * the entire per-surface state, computed fresh from {@link #stopDelta(Surface)} on every call,
-   * so switching it is inherently non-destructive: there is no secondary value anywhere that a
-   * switch could overwrite or lose.
+   * the entire per-surface state, computed fresh from {@link #isExchanged(Surface)} on every
+   * call, so switching it is inherently non-destructive: there is no secondary value anywhere
+   * that a switch could overwrite or lose.
    */
   public enum Axis { NONE, SHAPE, INSIDE_OUTSIDE }
 
@@ -391,25 +433,37 @@ public class ApotheneumColor extends LXComponent implements LXOscComponent {
     this.axis.setOptions(AXIS_OPTIONS, false);
   }
 
-  /** Base stop (1 or 2) before {@link #swap} exchanges the two roles. */
-  private int baseIndex() {
-    return (this.pair.getValuei() == 1) ? 2 : 1;
+  /**
+   * The two stops the whole room resolves from: always stop 1 and stop {@code 1 + pair}, so
+   * {@code Same} gives 1 and 1, {@code Near} gives 1 and 2, {@code Far} gives 1 and 3.
+   *
+   * <p>These two are the entire colour vocabulary. {@link #swap} decides which of them is
+   * primary and which is secondary, and {@link #axis} decides which surfaces get that decision
+   * inverted -- neither introduces a stop that is not one of these two. See {@link #pair} for why
+   * that is now the invariant.
+   */
+  private int nearStop() {
+    return 1;
+  }
+
+  private int farStop() {
+    return 1 + this.pair.getValuei();
   }
 
   private boolean isSwapped() {
     return this.swap.getValuei() == 1;
   }
 
-  /** The shared, gesture-driven index primary resolves from, before any surface offset. */
+  /** The shared, gesture-driven index primary resolves from, before {@link #axis} exchanges the
+   * two roles on a surface. */
   public int primaryIndex() {
-    final int base = baseIndex();
-    return isSwapped() ? base + 1 : base;
+    return isSwapped() ? farStop() : nearStop();
   }
 
-  /** The shared, gesture-driven index secondary resolves from, before any surface offset. */
+  /** The shared, gesture-driven index secondary resolves from, before {@link #axis} exchanges the
+   * two roles on a surface. */
   public int secondaryIndex() {
-    final int base = baseIndex();
-    return isSwapped() ? base : base + 1;
+    return isSwapped() ? nearStop() : farStop();
   }
 
   /** This surface's fully-resolved primary color: shared index, this surface's own stop shift. */
@@ -435,12 +489,12 @@ public class ApotheneumColor extends LXComponent implements LXOscComponent {
    * (see the class javadoc). {@code stopShift = 0} is exactly {@link #primaryColor(Surface)}.
    */
   public int primaryColor(Surface surface, int stopShift) {
-    return resolvedColor(primaryIndex() + stopShift, surface);
+    return resolvedColor((isExchanged(surface) ? secondaryIndex() : primaryIndex()) + stopShift);
   }
 
   /** {@link #primaryColor(Surface, int)}'s secondary counterpart. */
   public int secondaryColor(Surface surface, int stopShift) {
-    return resolvedColor(secondaryIndex() + stopShift, surface);
+    return resolvedColor((isExchanged(surface) ? primaryIndex() : secondaryIndex()) + stopShift);
   }
 
   /**
@@ -503,25 +557,33 @@ public class ApotheneumColor extends LXComponent implements LXOscComponent {
     }
   }
 
-  /** {@code sharedIndex} shifted by {@code surface}'s {@link #stopDelta(Surface)} under the
-   * current {@link #axis}, wrapped, and looked up directly in the palette -- no hue or
-   * saturation math on top; every resolved colour is a real, unmodified palette stop. */
-  private int resolvedColor(int sharedIndex, Surface surface) {
+  /** {@code index} wrapped and looked up directly in the palette -- no hue or saturation math on
+   * top; every resolved colour is a real, unmodified palette stop. */
+  private int resolvedColor(int index) {
     final List<LXDynamicColor> colors = this.lx.engine.palette.swatch.colors;
-    final int index = (surface == null) ? sharedIndex : (sharedIndex + stopDelta(surface));
     return ColorNativePattern.paletteColor(colors, wrapIndex(index, colors.size()) - 1);
   }
 
-  /** See {@link Axis}'s javadoc for what each setting means in palette-stop terms. */
-  private int stopDelta(Surface surface) {
+  /**
+   * Whether this surface reads primary and secondary the other way round from the surfaces on
+   * the near side of the current {@link #axis} split. See {@link Axis}'s javadoc.
+   *
+   * <p>A {@code null} surface -- a caller with no geometry to name, {@code
+   * apotheneum.doved.effects.ModColorize} being the one -- is never exchanged: it gets the
+   * unexchanged, near-side reading, which is what the exteriors and the cube see.
+   */
+  private boolean isExchanged(Surface surface) {
+    if (surface == null) {
+      return false;
+    }
     switch (AXES[this.axis.getValuei()]) {
       case SHAPE:
-        return isCube(surface) ? 0 : 1;
+        return !isCube(surface);
       case INSIDE_OUTSIDE:
-        return isExterior(surface) ? 0 : 1;
+        return !isExterior(surface);
       case NONE:
       default:
-        return 0;
+        return false;
     }
   }
 

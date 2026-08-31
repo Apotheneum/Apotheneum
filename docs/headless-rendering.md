@@ -197,25 +197,27 @@ mvn -Ptests test-compile exec:exec \
 Pass an `ApotheneumColor`. The spec is **three** integers, comma-separated — `pair,swap,axis`
 — set directly on the registered singleton's three parameters. There is no per-surface value
 to pass: `ApotheneumColor` no longer has per-surface `indexOffset`/`hueOffset`/`satTrim`
-parameters, and `axis` is what makes the four surfaces resolve to different stops (see that
-class's `Axis` javadoc). `pair` is 0 or 1, `swap` is 0 or 1, and `axis` is 0 (None), 1
-(Shape) or 2 (In/Out). Anything other than three values is rejected outright with
+parameters, and `axis` is what makes the four surfaces resolve differently (see that class's
+`Axis` javadoc). `pair` is 0 (Same), 1 (Near) or 2 (Far); `swap` is 0 or 1; `axis` is 0
+(None), 1 (Shape) or 2 (In/Out). Anything other than three values is rejected outright with
 `Invalid apotheneumColor spec`.
 
-`axis=1` (Shape, cube and cylinder one stop apart) is the setting that proves the surfaces
+`pair=1,axis=1` — Near, so the room has two distinct colours, and Shape, so the cylinder
+reads them the other way round from the cube — is the setting that proves the surfaces
 resolve independently, so it is the useful default for a colour render:
 
 ```bash
 mvn -Ptests test-compile exec:exec \
   -Dpattern=apotheneum.doved.patterns.Rockfall \
-  -DapotheneumColor=0,0,1 \
+  -DapotheneumColor=1,0,1 \
   '-Dpalette=200,90,70;30,90,70;280,92,70'
 ```
 
-Give the palette **at least as many stops as the axis will reach** — `axis` shifts a surface
-by one stop and `ApotheneumColor` wraps around the live stop count, so a two-stop palette
-under `axis=1` puts the cylinder on the same stop pair the cube already has, wrapped, rather
-than on a visibly distinct one. Three or more stops, as above, makes the shift legible.
+**`axis` has nothing to show at `pair=0`.** Same puts both roles on stop 1, and exchanging
+two identical colours is a no-op — every surface renders alike whatever `axis` says. Set
+`pair` to 1 or 2 for any render meant to show a surface split. `pair=2` (Far) additionally
+needs a three-stop palette; on a two-stop one, stop 3 wraps back onto stop 1 and Far
+resolves the same as Same.
 
 Quote it — the stop separator is a `;`, which an unquoted shell reads as a command
 separator. On a cube-exterior contact sheet that example is the difference between one

@@ -180,7 +180,11 @@ public class WaterfallInteriorColorWiringTest {
 
       final ApotheneumColor apotheneumColor = new ApotheneumColor(lx);
       lx.engine.registerComponent(ApotheneumColor.PATH, apotheneumColor);
-      apotheneumColor.pair.setValue(0);
+      // Near, not the default Same: both In/Out and Shape exchange primary and secondary
+      // between the two surfaces under test, which is only observable when those two roles
+      // actually differ. (Shape's cube-matches-cube assertions hold regardless of pair, since
+      // the cube is never the exchanged side -- but In/Out's differ assertions need this.)
+      apotheneumColor.pair.setValue(1);
       apotheneumColor.swap.setValue(0);
       apotheneumColor.axis.setValue(axisOrdinal);
 

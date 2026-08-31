@@ -78,20 +78,36 @@ public class ModColorizeGlobalColorTest extends HeadlessLxTest {
     channel.addEffect(colorize);
     colorize.enabled.setValue(true);
 
+    // Same: primary and secondary both sit on stop 1, so the two ends start out equal -- that
+    // is a deliberate setting (see ApotheneumColor.pair's javadoc), not a broken wiring.
     global.pair.setValue(0);
     lx.engine.run();
     assertEquals(global.primaryColor(null), colorize.color1.getColor());
     assertEquals(global.secondaryColor(null), colorize.color2.getColor());
+    assertEquals(colorize.color1.getColor(), colorize.color2.getColor(),
+      "Same must collapse both ends onto one stop");
     assertEquals(ColorMode.FIXED, colorize.colorMode.getEnum(),
       "colorMode is held at FIXED, the only mode in which color1/color2 are the gradient");
 
-    // A gesture on the shared control reaches a running device on the next frame.
-    final int atPairOne = colorize.color1.getColor();
-    global.pair.setValue(1);
+    // A gesture on Pair reaches a running device's secondary end (color2) on the next frame --
+    // Pair only ever moves secondary; primary is pinned at stop 1 (see ApotheneumColor.pair).
+    final int atSame = colorize.color2.getColor();
+    global.pair.setValue(1); // Near
     lx.engine.run();
-    assertNotEquals(atPairOne, colorize.color1.getColor(),
-      "moving the shared Pair must move a running ModColorize on the next frame");
+    assertNotEquals(atSame, colorize.color2.getColor(),
+      "moving the shared Pair must move a running ModColorize's color2 on the next frame");
+    assertEquals(global.secondaryColor(null), colorize.color2.getColor());
+
+    // A gesture on Swap reaches a running device's primary end (color1) on the next frame --
+    // Swap is what exchanges which shared color primary reads.
+    final int beforeSwap = colorize.color1.getColor();
+    global.swap.setValue(1);
+    lx.engine.run();
+    assertNotEquals(beforeSwap, colorize.color1.getColor(),
+      "moving the shared Swap must move a running ModColorize's color1 on the next frame");
     assertEquals(global.primaryColor(null), colorize.color1.getColor());
+    global.swap.setValue(0);
+    lx.engine.run();
 
     // Shift: a whole-stop offset that still tracks the gesture and stays on the palette.
     final int unshifted = colorize.color1.getColor();

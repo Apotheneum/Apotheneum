@@ -128,9 +128,12 @@ public class ColorNativePatternTest extends HeadlessLxTest {
     lx.engine.palette.swatch.colors.get(1).primary.setColor(LXColor.hsb(200, 90, 70));
 
     final ApotheneumColor apotheneumColor = registerApotheneumColor(lx);
-    apotheneumColor.pair.setValue(0);
+    // Near: primary and secondary differ (stops 1 and 2), so In/Out's exchange between exterior
+    // and interior is actually observable. At the default Same they would be equal roles and
+    // exchanging them would be an invisible no-op by design.
+    apotheneumColor.pair.setValue(1);
     apotheneumColor.swap.setValue(0);
-    // In/Out: exterior and interior sit one stop apart
+    // In/Out: exterior and interior read primary/secondary the other way round from each other
     apotheneumColor.axis.setValue(ApotheneumColor.Axis.INSIDE_OUTSIDE.ordinal());
 
     final Rockfall rockfall = new Rockfall(lx);
