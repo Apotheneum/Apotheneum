@@ -1,152 +1,133 @@
-Copyright 2013-2025 Mark C. Slee, Heron Arts LLC		
+# PolyForm Noncommercial License 1.0.0
 
-CHROMATIK / LX SOFTWARE LICENSE AND DISTRIBUTION AGREEMENT
+<https://polyformproject.org/licenses/noncommercial/1.0.0>
 
-This Software License and Distribution Agreement (the "Agreement") is entered 
-into by and between Heron Arts LLC, with offices at 7 Heron Street, San 
-Francisco, CA 94103 ("Heron Arts") and you ("Licensee"). By downloading or
-using the Software (as defined below), you agree to the following terms:
+## Acceptance
 
-1. Definitions.
+In order to get any license under these terms, you must agree
+to them as both strict obligations and conditions to all
+your licenses.
 
-1.1. "Application" means a Licensee installation or project that includes the 
-Software, in object code or executable form only.
+## Copyright License
 
-1.2. "Effective Date" means the date you first obtain a copy of the Software.
+The licensor grants you a copyright license for the
+software to do everything you might do with the software
+that would otherwise infringe the licensor's copyright
+in it for any permitted purpose. However, you may
+only distribute the software according to [Distribution
+License](#distribution-license) and make changes or new works
+based on the software according to [Changes and New Works
+License](#changes-and-new-works-license).
 
-1.3. "Revenue Limit" means the gross revenue accrued by Licensee in connection 
-with all Licensee Applications, taken together, for any 12-month period during 
-the term of this Agreement, with no deductions.
+## Distribution License
 
-1.4. "Software" means the Heron Arts LX, GLX, Chromatik, and LX Studio software libraries, including all 
-Updates supplied by Heron Arts under this Agreement.
+The licensor grants you an additional copyright license
+to distribute copies of the software. Your license
+to distribute covers distributing the software with
+changes and new works permitted by [Changes and New Works
+License](#changes-and-new-works-license).
 
-1.5. "Update" means any correction, update, upgrade, patch or other 
-modification or addition to the Software made available to Licensee by Heron 
-Arts.
+## Notices
 
-2. License.
+You must ensure that anyone who gets a copy of any part of
+the software from you also gets a copy of these terms or the
+URL for them above, as well as copies of any plain-text lines
+beginning with `Required Notice:` that the licensor provided
+with the software. For example:
 
-2.1. Grant. Subject to the limitations of this Section 2, Heron Arts hereby 
-grants to Licensee a nonexclusive, worldwide, non-transferable, 
-non-sublicenseable license, during the term of this Agreement: (i) to modify 
-the Software to create Applications that add substantial value to the Software; 
-(ii) to distribute copies of the Software, in object code form only, only as 
-part of Applications in accordance with this Section 2; (iii) to use the 
-Software to run Applications, including to provide a service consisting of 
-display of the Applications; and (iv) to reproduce copies of the Software, 
-solely as necessary to exercise the rights granted in clauses (i) through (iv). 
-Licensee may not sublicense any of these rights or licenses to any third party. 
-Licensee shall not provide any third party with access to the source code for 
-the Software without Heron Arts' prior written permission.
+> Required Notice: Copyright Yoyodyne, Inc. (http://example.com)
 
-The license granted in this Section 2.1 is subject to a Revenue Limit of 
-$25,000 and is only valid for Applications that fall within such Revenue Limit. 
-The license granted herein is royalty free, in consideration of the Revenue 
-Limit being a condition of the license granted herein.
+Required Notice: Apotheneum — created by the Apotheneum contributors (https://github.com/Apotheneum/Apotheneum).
 
-2.2. End User Licensing. If the Application is distributed, provided or sold 
-pursuant to an agreement between Licensee and an end user, Licensee shall 
-distribute each copy of the Software with an end user license agreement on the 
-same licensing terms applicable to the remainder of the Application, but that 
-is at least as favorable to Heron Arts as this Agreement.
+## Changes and New Works License
 
-2.3. Proprietary Notices. On each Software copy, Licensee shall reproduce all 
-copyright or other proprietary notices contained on the Software, as provided 
-by Heron Arts. Licensee shall not alter or remove or in any other way obscure 
-or hide from display any any Heron Arts, Chromatik, or LX Studio logo or proprietary notice 
-from the Application user interface or in the Software.
+The licensor grants you an additional copyright license to
+make changes and new works based on the software for any
+permitted purpose.
 
-2.4. Third Party Open Source Software. Notwithstanding Section 2.1, Licensee 
-acknowledges that certain components of the Software may be covered by 
-so-called "open source" software licenses ("Open Source Components"), which 
-means any software licenses approved as open source licenses by the Open Source 
-Initiative or any substantially similar licenses. To the extent required by the 
-licenses covering Open Source Components, the terms of such licenses will apply 
-to such Open Source Components in lieu of the terms of this Agreement. To the 
-extent the terms of the licenses applicable to Open Source Components prohibit 
-any of the restrictions in this Agreement with respect to such Open Source 
-Component, such restrictions will not apply to such Open Source Component. To 
-the extent the terms of the licenses applicable to Open Source Components 
-require Licensor to make an offer to provide source code or related information 
-in connection with the Open Source Components, such offer is hereby made.
+## Patent License
 
-3. Ownership. As between the parties, Heron Arts will retain all right, title, 
-and interest in the Software, and all intellectual property rights therein.
+The licensor grants you a patent license for the software that
+covers patent claims the licensor can license, or becomes able
+to license, that you would infringe by using the software.
 
-4. Use of Heron Arts Trademarks. Licensee shall state that the Application 
-includes the Software and may use such applicable trademarks, trade names and
-logos of Heron Arts (including the Chromatik and LX Studio trademarks) as required to do so
-(collectively, the "Heron Arts Trademarks"). Any and all good will arising from
-Licensee's use of the Heron Arts Trademarks will inure solely to the benefit of
-Heron Arts. Licensee shall not assert any claim to the Heron Arts Trademarks
-(or any confusingly similar mark) or such good will. Licensee shall not
-register any Heron Arts Trademark, or any mark confusingly similar to any Heron
-Arts Trademark, in any jurisdiction.
+## Noncommercial Purposes
 
-5. Heron Arts Portfolio. (i) Licensee hereby grants to Heron Arts the right to
-publicize Licensee's use of the Software and (ii) Heron Arts may use Licensee's
-logo on the Chromatik or LX Studio website in areas naming licensees of the software, and in
-Chromatik or LX Studio portfolios or marketing presentations listing licensees of the
-Software.
+Any noncommercial purpose is a permitted purpose.
 
-6. Term and Termination.
+## Personal Uses
 
-6.1. Term. This Agreement will commence on the Effective Date and continue 
-unless and until terminated as described herein.
+Personal use for research, experiment, and testing for
+the benefit of public knowledge, personal study, private
+entertainment, hobby projects, amateur pursuits, or religious
+observance, without any anticipated commercial application,
+is use for a permitted purpose.
 
-6.2. Default. If Licensee defaults in the performance of any of its material 
-obligations hereunder this Agreement and the licenses granted herein will 
-automatically terminate.
+## Noncommercial Organizations
 
-6.3. Insolvency. This Agreement and the licenses granted herein will 
-automatically terminate, (i) upon the institution by Licensee of insolvency, 
-receivership or bankruptcy proceedings or any other proceedings for the 
-settlement of its debts, (ii) upon the institution of such proceedings against 
-Licensee, which are not dismissed or otherwise resolved in its favor within 60 
-days thereafter, (iii) upon Licensee making a general assignment for the 
-benefit of creditors, or (iv) upon Licensee's dissolution or ceasing to conduct 
-business in the ordinary course.
+Use by any charitable organization, educational institution,
+public research organization, public safety or health
+organization, environmental protection organization,
+or government institution is use for a permitted purpose
+regardless of the source of funding or obligations resulting
+from the funding.
 
-6.4. Survival. The parties' rights and obligations of Sections 1, 3, 4, 5, 6.4, 
-7, 8 and 9 will survive any termination or expiration of this Agreement. Upon 
-expiration or termination of this Agreement, all of Licensee's rights and 
-licenses with respect to the Software will terminate, except each Software end 
-user license properly granted as part of an Application before the effective 
-date of termination will survive in accordance with its terms.
+## Fair Use
 
-7. Warranty Disclaimer.
+You may have "fair use" rights for the software under the
+law. These terms do not limit them.
 
-7.1. DISCLAIMER. HERON ARTS MAKES NO WARRANTY, EXPRESS, IMPLIED, STATUTORY, OR 
-OTHERWISE, AND SPECIFICALLY DISCLAIMS ANY WARRANTY OF MERCHANTABILITY, 
-NON-INFRINGEMENT, OR FITNESS FOR A PARTICULAR PURPOSE, WITH RESPECT TO THE 
-SOFTWARE.
+## No Other Rights
 
-8. LIMITATION OF LIABILITY. HERON ARTS'S LIABILITY ARISING OUT OF THIS 
-AGREEMENT WILL NOT EXCEED $50. HERON ARTS WILL NOT BE LIABLE FOR LOST PROFITS 
-OR ANY CONSEQUENTIAL, SPECIAL, INCIDENTAL, OR INDIRECT DAMAGES, HOWEVER CAUSED 
-AND ON ANY THEORY OF LIABILITY, ARISING OUT OF THIS AGREEMENT. LICENSEE 
-ACKNOWLEDGES THAT THE ROYALTY-FREE NATURE OF THE LICENSE HEREIN IS BASED IN 
-PART UPON THESE LIMITATIONS, AND THAT THESE LIMITATIONS WILL APPLY 
-NOTWITHSTANDING ANY FAILURE OF ESSENTIAL PURPOSE OF ANY LIMITED REMEDY.
+These terms do not allow you to sublicense or transfer any of
+your licenses to anyone else, or prevent the licensor from
+granting licenses to anyone else. These terms do not imply
+any other licenses.
 
-9. General. This Agreement is the entire agreement between the parties on the 
-subject matter hereof. No amendment or modification hereof will be valid or 
-binding upon the parties unless made in writing and signed by the duly 
-authorized representatives of both parties. The relationship of the parties 
-hereunder is that of independent contractors, and this Agreement will not be 
-construed to imply that either party is the agent, employee, or joint venturer 
-of the other. In the event that any provision of this Agreement is held to be 
-unenforceable, this Agreement will continue in full force and effect and will 
-be interpreted to reflect the original intent of the parties. This Agreement 
-will be governed by the laws of the State of California, without regard to its 
-conflict of laws principles. The parties consent to the personal and exclusive 
-jurisdiction of courts located in San Francisco, California. Licensee may not 
-assign this Agreement (by operation of law or otherwise) without the prior 
-written consent of Heron Arts, and any prohibited assignment will be null and 
-void. Heron Arts may assign this Agreement without consent in its sole 
-discretion. This Agreement will be binding upon and will inure to the benefit 
-of the parties permitted successors and assignees. Waiver by either party of a 
-breach of any provision of this Agreement or the failure by either party to 
-exercise any right hereunder will not operate or be construed as a waiver of 
-any subsequent breach of that right or as a waiver of any other right.
+## Patent Defense
+
+If you make any written claim that the software infringes or
+contributes to infringement of any patent, your patent license
+for the software granted under these terms ends immediately. If
+your company makes such a claim, your patent license ends
+immediately for work on behalf of your company.
+
+## Violations
+
+The first time you are notified in writing that you have
+violated any of these terms, or done anything with the software
+not covered by your licenses, your licenses can nonetheless
+continue if you come into full compliance with these terms,
+and take practical steps to correct past violations, within
+32 days of receiving notice. Otherwise, all your licenses
+end immediately.
+
+## No Liability
+
+***As far as the law allows, the software comes as is, without
+any warranty or condition, and the licensor will not be liable
+to you for any damages arising out of these terms or the use
+or nature of the software, under any kind of legal claim.***
+
+## Definitions
+
+The **licensor** is the individual or entity offering these
+terms, and the **software** is the software the licensor makes
+available under these terms.
+
+**You** refers to the individual or entity agreeing to these
+terms.
+
+**Your company** is any legal entity, sole proprietorship,
+or other kind of organization that you work for, plus all
+organizations that have control over, are under the control of,
+or are under common control with that organization. **Control**
+means ownership of substantially all the assets of an entity,
+or the power to direct its management and policies by vote,
+contract, or otherwise. Control can be direct or indirect.
+
+**Your licenses** are all the licenses granted to you for the
+software under these terms.
+
+**Use** means anything you do with the software requiring one
+of your licenses.
