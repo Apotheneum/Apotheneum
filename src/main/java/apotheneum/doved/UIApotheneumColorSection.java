@@ -22,9 +22,11 @@ package apotheneum.doved;
 import heronarts.glx.ui.UI;
 import heronarts.glx.ui.UI2dComponent;
 import heronarts.glx.ui.UI2dContainer;
+import heronarts.glx.ui.component.UIButton;
 import heronarts.glx.ui.component.UICollapsibleSection;
 import heronarts.glx.ui.component.UIDropMenu;
 import heronarts.glx.ui.component.UILabel;
+import heronarts.glx.ui.component.UISlider;
 import heronarts.glx.ui.vg.VGraphics;
 import heronarts.lx.color.LXDynamicColor;
 
@@ -76,10 +78,13 @@ public class UIApotheneumColorSection extends UICollapsibleSection {
 
   private static final float SHARED_GROUP_HEIGHT =
     GROUP_HEADING_HEIGHT + GROUP_ROW_SPACING + 3 * ROW_HEIGHT + GROUP_ROW_SPACING;
+  private static final float GLIDE_GROUP_HEIGHT =
+    GROUP_HEADING_HEIGHT + GROUP_ROW_SPACING + CONTROL_HEIGHT + ROW_HEIGHT + 2 * GROUP_ROW_SPACING;
   private static final float COLORS_GROUP_HEIGHT =
     GROUP_HEADING_HEIGHT + GROUP_ROW_SPACING + 4 * SWATCH_ROW_HEIGHT + 3 * GROUP_ROW_SPACING;
   private static final float CONTENT_HEIGHT =
     SHARED_GROUP_HEIGHT + GROUP_SPACING
+    + GLIDE_GROUP_HEIGHT + GROUP_SPACING
     + COLORS_GROUP_HEIGHT;
   private static final float SECTION_HEIGHT = CONTENT_HEIGHT + PADDING + BAR_HEIGHT;
 
@@ -97,6 +102,25 @@ public class UIApotheneumColorSection extends UICollapsibleSection {
       stackedRow(contentWidth, "Axis", new UIDropMenu(0, 0, contentWidth, CONTROL_HEIGHT, config.axis))
     );
 
+    // A button rather than a UIDropMenu because glide is a genuine on/off, and a slider for the
+    // time because it is swept by hand rather than typed -- same reasoning as the gradient
+    // section's Spread, and the same setShowLabel(false) for the same reason: UISlider draws its
+    // own label under the track and stackedRow already puts a caption above it.
+    final UI2dContainer glideGroup = UI2dContainer.newVerticalContainer(contentWidth, GROUP_ROW_SPACING,
+      groupHeading(contentWidth, "GLIDE"),
+      // Bare, with no stackedRow caption above it: UIButton draws its own label on its face and
+      // lights when active, so a caption would render "Glide" twice -- the same duplicate the
+      // gradient section's Spread slider produced, and the reason that one passes
+      // setShowLabel(false). Caught here by rendering, not by reading.
+      new UIButton(0, 0, contentWidth, CONTROL_HEIGHT)
+        .setParameter(config.glide)
+        .setLabel("Glide"),
+      stackedRow(contentWidth, "Time",
+        (UI2dComponent) new UISlider(UISlider.Direction.HORIZONTAL, 0, 0, contentWidth, CONTROL_HEIGHT)
+          .setParameter(config.glideTimeSecs)
+          .setShowLabel(false))
+    );
+
     final UI2dContainer colorsGroup = UI2dContainer.newVerticalContainer(contentWidth, GROUP_ROW_SPACING,
       groupHeading(contentWidth, "COLORS"),
       swatchRow(config, Surface.CUBE_EXTERIOR, "Cube Ext", contentWidth),
@@ -105,7 +129,7 @@ public class UIApotheneumColorSection extends UICollapsibleSection {
       swatchRow(config, Surface.CYLINDER_INTERIOR, "Cyl Int", contentWidth)
     );
 
-    addChildren(sharedGroup, colorsGroup);
+    addChildren(sharedGroup, glideGroup, colorsGroup);
   }
 
   private UI2dContainer swatchRow(

@@ -22,11 +22,14 @@ import java.util.List;
 
 import heronarts.lx.LX;
 import heronarts.lx.LXComponent;
+import heronarts.lx.LXLoopTask;
 import heronarts.lx.color.LXColor;
 import heronarts.lx.color.LXDynamicColor;
 import heronarts.lx.color.LXSwatch;
 import heronarts.lx.osc.LXOscComponent;
+import heronarts.lx.parameter.BooleanParameter;
 import heronarts.lx.parameter.CompoundDiscreteParameter;
+import heronarts.lx.parameter.CompoundParameter;
 import heronarts.lx.parameter.LXParameter;
 
 import apotheneum.doved.patterns.ColorNativePattern;
@@ -416,6 +419,168 @@ public class ApotheneumColor extends LXComponent implements LXOscComponent {
   }
 
   /**
+   * Whether a change to {@link #pair}/{@link #swap}/{@link #axis} crossfades the colours every
+   * surface resolves, instead of cutting to them.
+   *
+   * <p>Defaults <b>off</b>, so a project saved before this existed loads behaving exactly as it
+   * did. It is also the honest default for a cut: a hard change is a legitimate performance
+   * gesture, and this is the opt-in for the other one.
+   *
+   * <p>What glides is the <em>colour</em>, not the control. The dropdowns still snap between
+   * named positions and {@link #primaryIndex()}/{@link #secondaryIndex()} still answer whole
+   * stops at every instant — there is no such thing as a half-stop. Only what
+   * {@link #primaryColor(Surface, int)} and its siblings hand back is interpolated.
+   */
+  public final BooleanParameter glide =
+    new BooleanParameter("Glide", false)
+    .setDescription("Crossfade between colors when Pair, Swap or Axis moves, instead of cutting");
+
+  /** How long {@link #glide} takes. Compound so it is itself a modulation target — a performer
+   * can tighten the fade under the same hand that is moving the colour. */
+  public final CompoundParameter glideTimeSecs =
+    new CompoundParameter("Time", 2, 0, 30)
+    .setUnits(LXParameter.Units.SECONDS)
+    .setDescription("How long a Glide crossfade takes");
+
+  /**
+   * Every resolution this class can be asked for, so a crossfade can start from what was
+   * <em>on screen</em> rather than from a recomputed guess.
+   *
+   * <p>The key space is small and fixed: five surfaces (the four real ones plus the {@code null}
+   * a {@code ModColorize} passes), two roles, and the nine stop shifts {@code ModColorize.shift}
+   * spans. Ninety ints, allocated once. A shift outside that range resolves without glide rather
+   * than growing the array — see {@link #keyFor}.
+   */
+  private static final int MIN_SHIFT = -4;
+  private static final int SHIFT_SPAN = 9;
+  private static final ApotheneumColor.Surface[] SURFACES = Surface.values();
+  private static final int KEY_COUNT = (SURFACES.length + 1) * 2 * SHIFT_SPAN;
+
+  private final int[] displayed = new int[KEY_COUNT];
+  private final int[] from = new int[KEY_COUNT];
+  private double fade = 1;
+  private boolean primed = false;
+  private int lastPair = -1;
+  private int lastSwap = -1;
+  private int lastAxis = -1;
+
+  /**
+   * Advances the crossfade once per engine frame.
+   *
+   * <p><b>Polled, not driven by parameter listeners, and that is the same correction {@code
+   * UIApotheneumColorSection} and {@code ModColorize} both landed on.</b> All three parameters
+   * are {@code CompoundDiscreteParameter}s precisely so a modulator or a MIDI knob can drive
+   * them, and modulation moves a parameter's effective value without ever touching the base value
+   * a listener fires on. A listener here would glide when the dropdown moved and sit silent under
+   * exactly the modulation this class exists to allow.
+   */
+  private final LXLoopTask glideTask = this::advanceGlide;
+
+  private void advanceGlide(double deltaMs) {
+    if (!this.glide.isOn()) {
+      // Re-prime on the next frame it is switched back on, so it starts from the live colours
+      // rather than from wherever a fade was abandoned however long ago.
+      this.primed = false;
+      return;
+    }
+    final int pairNow = this.pair.getValuei();
+    final int swapNow = this.swap.getValuei();
+    final int axisNow = this.axis.getValuei();
+    if (!this.primed) {
+      fillDirect(this.displayed);
+      System.arraycopy(this.displayed, 0, this.from, 0, KEY_COUNT);
+      this.fade = 1;
+      this.primed = true;
+    } else if ((pairNow != this.lastPair) || (swapNow != this.lastSwap) || (axisNow != this.lastAxis)) {
+      // Start from what is on screen, NOT from the previous parameter triple. Retriggering
+      // mid-fade is the normal case on a performance control, and re-deriving the origin from
+      // the old triple would snap back to where the interrupted fade began.
+      System.arraycopy(this.displayed, 0, this.from, 0, KEY_COUNT);
+      this.fade = 0;
+    }
+    this.lastPair = pairNow;
+    this.lastSwap = swapNow;
+    this.lastAxis = axisNow;
+
+    final double glideMs = this.glideTimeSecs.getValue() * 1000;
+    if (glideMs <= 0) {
+      this.fade = 1;
+    } else if (this.fade < 1) {
+      this.fade = Math.min(1, this.fade + (deltaMs / glideMs));
+    }
+
+    if (this.fade >= 1) {
+      fillDirect(this.displayed);
+      return;
+    }
+    for (int surface = 0; surface <= SURFACES.length; ++surface) {
+      final Surface which = (surface == SURFACES.length) ? null : SURFACES[surface];
+      for (int shift = 0; shift < SHIFT_SPAN; ++shift) {
+        final int stopShift = MIN_SHIFT + shift;
+        final int primaryKey = keyFor(surface, false, shift);
+        final int secondaryKey = keyFor(surface, true, shift);
+        this.displayed[primaryKey] =
+          lerpHsb(this.from[primaryKey], directColor(which, false, stopShift), this.fade);
+        this.displayed[secondaryKey] =
+          lerpHsb(this.from[secondaryKey], directColor(which, true, stopShift), this.fade);
+      }
+    }
+  }
+
+  private void fillDirect(int[] into) {
+    for (int surface = 0; surface <= SURFACES.length; ++surface) {
+      final Surface which = (surface == SURFACES.length) ? null : SURFACES[surface];
+      for (int shift = 0; shift < SHIFT_SPAN; ++shift) {
+        final int stopShift = MIN_SHIFT + shift;
+        into[keyFor(surface, false, shift)] = directColor(which, false, stopShift);
+        into[keyFor(surface, true, shift)] = directColor(which, true, stopShift);
+      }
+    }
+  }
+
+  private static int keyFor(int surfaceOrdinal, boolean secondary, int shiftOrdinal) {
+    return (((surfaceOrdinal * 2) + (secondary ? 1 : 0)) * SHIFT_SPAN) + shiftOrdinal;
+  }
+
+  /** The cache slot for a resolution, or {@code -1} if the shift falls outside the range the
+   * cache covers — such a caller resolves directly and simply does not glide. */
+  private static int keyFor(Surface surface, boolean secondary, int stopShift) {
+    final int shiftOrdinal = stopShift - MIN_SHIFT;
+    if ((shiftOrdinal < 0) || (shiftOrdinal >= SHIFT_SPAN)) {
+      return -1;
+    }
+    final int surfaceOrdinal = (surface == null) ? SURFACES.length : surface.ordinal();
+    return keyFor(surfaceOrdinal, secondary, shiftOrdinal);
+  }
+
+  /**
+   * Interpolates in HSB along the shorter way round the wheel, not in RGB.
+   *
+   * <p>An RGB lerp between two saturated colours passes through a desaturated midpoint — mixing
+   * toward grey and back out. {@code design/color-system.md} &#167;1 is explicit that dropping
+   * saturation on LEDs "reads as washed out rather than deep", so an RGB crossfade would spend
+   * its middle in exactly the state that document rules out, and the wider the pair the worse it
+   * gets. Interpolating hue instead walks the wheel between the two stops at full saturation,
+   * which is the move the palette was composed for.
+   */
+  private static int lerpHsb(int from, int to, double amount) {
+    final float fromHue = LXColor.h(from);
+    float deltaHue = LXColor.h(to) - fromHue;
+    if (deltaHue > 180) {
+      deltaHue -= 360;
+    } else if (deltaHue < -180) {
+      deltaHue += 360;
+    }
+    final float fromSat = LXColor.s(from);
+    final float fromBright = LXColor.b(from);
+    return LXColor.hsb(
+      (float) (fromHue + (deltaHue * amount)),
+      (float) (fromSat + ((LXColor.s(to) - fromSat) * amount)),
+      (float) (fromBright + ((LXColor.b(to) - fromBright) * amount))
+    );
+  }
+
+  /**
    * Constructed exactly once, by {@code apotheneum.doved.ApotheneumColorPlugin.initialize},
    * which passes the real {@code lx} straight through -- unlike the old {@code LXModulator}
    * shape, there is no window where this object exists without an {@code lx} reference.
@@ -426,6 +591,12 @@ public class ApotheneumColor extends LXComponent implements LXOscComponent {
     addParameter("pair", this.pair);
     addParameter("swap", this.swap);
     addParameter("axis", this.axis);
+    addParameter("glide", this.glide);
+    addParameter("glideTimeSecs", this.glideTimeSecs);
+    // One task per instance. Exactly two instances can exist in a process: the engine-registered
+    // one, and at most one staleMirror (see mirrorOfStale) -- both want their own crossfade
+    // advanced, and neither is ever constructed more than once.
+    lx.engine.addLoopTask(this.glideTask);
     // See pair's javadoc: the (String, String[]) constructor above sizes the range correctly
     // but never stores the options array, so getOptions() would otherwise return null.
     this.pair.setOptions(PAIR_OPTIONS, false);
@@ -444,6 +615,15 @@ public class ApotheneumColor extends LXComponent implements LXOscComponent {
    */
   private int nearStop() {
     return 1;
+  }
+
+  /** Releases the per-frame crossfade task. The engine-registered instance lives as long as the
+   * engine does, so this matters for the {@code staleMirror} and for tests, which build and
+   * dispose many instances against one LX. */
+  @Override
+  public void dispose() {
+    this.lx.engine.removeLoopTask(this.glideTask);
+    super.dispose();
   }
 
   private int farStop() {
@@ -489,12 +669,33 @@ public class ApotheneumColor extends LXComponent implements LXOscComponent {
    * (see the class javadoc). {@code stopShift = 0} is exactly {@link #primaryColor(Surface)}.
    */
   public int primaryColor(Surface surface, int stopShift) {
-    return resolvedColor((isExchanged(surface) ? secondaryIndex() : primaryIndex()) + stopShift);
+    return glidedColor(surface, false, stopShift);
   }
 
   /** {@link #primaryColor(Surface, int)}'s secondary counterpart. */
   public int secondaryColor(Surface surface, int stopShift) {
-    return resolvedColor((isExchanged(surface) ? primaryIndex() : secondaryIndex()) + stopShift);
+    return glidedColor(surface, true, stopShift);
+  }
+
+  /** The mid-crossfade colour when {@link #glide} is on and a fade is running, and the plain
+   * resolution otherwise. */
+  private int glidedColor(Surface surface, boolean secondary, int stopShift) {
+    if (this.glide.isOn() && this.primed) {
+      final int key = keyFor(surface, secondary, stopShift);
+      if (key >= 0) {
+        return this.displayed[key];
+      }
+    }
+    return directColor(surface, secondary, stopShift);
+  }
+
+  /** This resolution with no crossfade applied — the target a glide is heading toward. */
+  private int directColor(Surface surface, boolean secondary, int stopShift) {
+    // The two flips compose: asking for the secondary role reads the secondary index, and an
+    // exchanged surface reads the other one -- so a secondary role on an exchanged surface is
+    // back on the primary index.
+    final boolean readsSecondaryIndex = (isExchanged(surface) != secondary);
+    return resolvedColor((readsSecondaryIndex ? secondaryIndex() : primaryIndex()) + stopShift);
   }
 
   /**
