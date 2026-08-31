@@ -93,7 +93,7 @@ public class ModColorize extends ColorizeEffect implements UIDeviceControls<ModC
    * performer wants on a knob or a MIDI switch.
    */
   public final CompoundDiscreteParameter global =
-    new CompoundDiscreteParameter("Global", new String[] { "Off", "On" }, 1)
+    new CompoundDiscreteParameter("Global", new String[] { "Off", "On" }, 0)
     .setDescription("Take both ends from the shared Apotheneum Color rather than this device's own Start/End pickers");
 
   /**
@@ -213,10 +213,6 @@ public class ModColorize extends ColorizeEffect implements UIDeviceControls<ModC
     if (on != this.wasGlobal) {
       if (on) {
         rememberLocalColor();
-        // Nudged once here, on the transition, rather than forced every frame: forcing would
-        // mean a performer could never look at anything else while Global is on, and would
-        // make restoreLocalColor's job ambiguous.
-        this.colorMode.setValue(ColorMode.FIXED);
       } else {
         restoreLocalColor();
       }
@@ -225,6 +221,20 @@ public class ModColorize extends ColorizeEffect implements UIDeviceControls<ModC
     if (!on) {
       return;
     }
+    // FIXED is held for as long as Global is on, not nudged once on the transition. That
+    // distinction crashed a live rig: ColorizeEffect.onParameterChanged fires setGradientColor
+    // whenever color1 moves, and in LINKED and RELATIVE modes setGradientColor *writes color2
+    // back* from color1 plus its offsets. Driving color1 and color2 every frame while the
+    // effect sat in one of those modes fed that derivation its own output and LXEngine.run()
+    // died with a StackOverflowError on the first frame. A project loaded with Global on never
+    // saw the transition -- load() seeds wasGlobal from the saved value precisely so it does
+    // not -- so the one-time nudge never ran and the mode stayed wherever the file left it.
+    //
+    // FIXED is also the only mode in which color1/color2 *are* the gradient, so this is not a
+    // workaround: outside it, driving them means nothing. setValue is a no-op on an unchanged
+    // value, so holding it costs a comparison per frame. The performer's own mode is still
+    // captured and handed back when Global goes off.
+    this.colorMode.setValue(ColorMode.FIXED);
     final ApotheneumColor color = ApotheneumColor.get(getLX());
     final int stopShift = this.shift.getValuei();
     final int primary = ApotheneumColor.resolvePrimaryOrNeutral(color, null, stopShift);
