@@ -274,15 +274,10 @@ public class ModColorizeGlobalColorTest extends HeadlessLxTest {
 
     final ModColorize loaded = new ModColorize(lx);
     loaded.load(lx, obj);
-    assertEquals(0, loaded.global.getValuei(),
-      "Global defaults off, so a project that predates it loads untouched");
-    assertEquals(savedStart, loaded.color1.getColor(),
-      "and its own Start colour is exactly what it saved");
+    assertEquals(1, loaded.global.getValuei(), "Global defaults on for a project that predates it");
+    assertNotEquals(savedStart, loaded.color1.getColor(),
+      "Global on has taken over the ends, which is what makes the capture necessary");
 
-    // Turning Global on and back off must still hand that colour back.
-    loaded.global.setValue(1);
-    loaded.writeThroughForTest();
-    assertNotEquals(savedStart, loaded.color1.getColor(), "Global on takes over the ends");
     loaded.global.setValue(0);
     loaded.writeThroughForTest();
     assertEquals(savedStart, loaded.color1.getColor(),
@@ -301,8 +296,8 @@ public class ModColorizeGlobalColorTest extends HeadlessLxTest {
     final ApotheneumColor global = register(lx);
     final ModColorize colorize = globalOn(lx);
 
-    assertEquals(0, new ModColorize(lx).global.getValuei(),
-      "Global defaults off, so loading an existing project never repaints it");
+    assertEquals(1, new ModColorize(lx).global.getValuei(),
+      "Global defaults on -- a device follows the shared colour unless told otherwise");
     assertEquals(global.primaryColor(null), colorize.color1.getColor());
     assertEquals(global.secondaryColor(null), colorize.color2.getColor());
   }

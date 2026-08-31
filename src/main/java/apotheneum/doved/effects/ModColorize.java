@@ -82,10 +82,18 @@ public class ModColorize extends ColorizeEffect implements UIDeviceControls<ModC
    *
    * <p><b>This changes how an already-saved ModColorize loads.</b> A project file written before
    * this parameter existed has no value for it, so those instances come back with global colour
-   * on and their saved {@code colorMode} overridden to {@code FIXED}. That is the intended
-   * migration -- the point of the shared colour state is that devices follow it by default --
-   * but it is a visible change to existing work, not a silent no-op, so turn this off on any
-   * device that was deliberately holding its own colour.
+   * on and their saved {@code colorMode} held at {@code FIXED}. That is the intended migration
+   * and the owner's explicit call -- <em>"it should always be on; if you enable the plugin,
+   * then it should be on"</em> -- the point of a shared colour state being that devices follow
+   * it unless told otherwise. Nothing is lost by it: {@link #load} captures the colours {@code
+   * super.load} just restored, so switching this off hands the device's own look straight back.
+   *
+   * <p>This defaulted off for one build, after driving {@code color1}/{@code color2} every frame
+   * on a device sitting in {@code LINKED} mode took Chromatik down with a {@code
+   * StackOverflowError} on the first frame. Defaulting off was the wrong half of that fix --
+   * the real one is {@link #writeGlobalColor} holding {@code colorMode} at {@code FIXED} for as
+   * long as this is on, which is what stops {@code ColorizeEffect}'s own derivation of {@code
+   * color2} from being fed its own output. With that in place, on is safe and on is correct.
    *
    * <p>A {@code CompoundDiscreteParameter} rather than a {@code BooleanParameter} for the same
    * reason every other parameter on this class is one: only the former is an {@code
@@ -93,7 +101,7 @@ public class ModColorize extends ColorizeEffect implements UIDeviceControls<ModC
    * performer wants on a knob or a MIDI switch.
    */
   public final CompoundDiscreteParameter global =
-    new CompoundDiscreteParameter("Global", new String[] { "Off", "On" }, 0)
+    new CompoundDiscreteParameter("Global", new String[] { "Off", "On" }, 1)
     .setDescription("Take both ends from the shared Apotheneum Color rather than this device's own Start/End pickers");
 
   /**

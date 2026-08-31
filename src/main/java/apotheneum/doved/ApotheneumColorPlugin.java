@@ -74,9 +74,50 @@ public class ApotheneumColorPlugin implements LXPlugin {
     if (existing instanceof ApotheneumColor) {
       return (ApotheneumColor) existing;
     }
+    if (isStaleReload(existing, ApotheneumColor.class)) {
+      warnStaleReload(ApotheneumColor.PATH);
+      return null;
+    }
     throw new IllegalStateException(
       "Engine child '" + ApotheneumColor.PATH + "' is not an ApotheneumColor: "
       + existing.getClass().getName());
+  }
+
+  /**
+   * Whether {@code existing} is this same class from a <em>previous</em> load of the package —
+   * the signature of a reinstall over a running Chromatik.
+   *
+   * <p>Reinstalling the package builds new classes under a new classloader, but the component
+   * registered at the engine path is still the instance the old classloader made. Its class has
+   * the identical name and is a completely different {@code Class} object, so {@code instanceof}
+   * against the newly-loaded type is false and every {@code ApotheneumColor.get} returns null —
+   * which is why colour silently falls back to neutral white after a reinstall and comes back
+   * on the next restart.
+   */
+  private static boolean isStaleReload(LXComponent existing, Class<?> expected) {
+    return existing.getClass().getName().equals(expected.getName());
+  }
+
+  /**
+   * Says what happened and what to do about it, once, instead of throwing.
+   *
+   * <p>There is no fix available from here. {@code LXEngine.registerComponent} only adds — LX
+   * exposes no child removal, and {@code LXComponent.children} is an unmodifiable view — so the
+   * stale component cannot be swapped out for a fresh one. Reaching into the private map by
+   * reflection would technically work and is deliberately not done: a live project's modulation
+   * mappings address these parameters through this exact instance, so replacing it mid-session
+   * would quietly break a performer's wiring to fix a message.
+   *
+   * <p>Throwing was worse than the problem. It aborted plugin initialization, so the failure
+   * arrived as a stack trace about a type mismatch rather than as "you reinstalled; restart" —
+   * and the neutral-white fallback that follows is already a defined, survivable state.
+   */
+  private static void warnStaleReload(String path) {
+    LX.error(new IllegalStateException("stale " + path),
+      PREFIX + "the package was reinstalled while Chromatik was running, so '" + path
+      + "' is still the instance the previous build registered. Colour will resolve neutral "
+      + "white until Chromatik is restarted. This is a reinstall-only condition; nothing is "
+      + "wrong with the project.");
   }
 
   /** {@link #getOrRegisterConfig}'s counterpart for {@link ApotheneumGradient}. */
@@ -89,6 +130,10 @@ public class ApotheneumColorPlugin implements LXPlugin {
     }
     if (existing instanceof ApotheneumGradient) {
       return (ApotheneumGradient) existing;
+    }
+    if (isStaleReload(existing, ApotheneumGradient.class)) {
+      warnStaleReload(ApotheneumGradient.PATH);
+      return null;
     }
     throw new IllegalStateException(
       "Engine child '" + ApotheneumGradient.PATH + "' is not an ApotheneumGradient: "
