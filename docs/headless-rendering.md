@@ -162,8 +162,11 @@ mvn -Ptests test-compile exec:exec \
   -DapotheneumGradient=0,90,0
 ```
 
-It collapses toward the *midpoint*, not toward primary, so a flat render is the even blend
-of the two ends rather than either end — see `ApotheneumGradient.applySpread`. A value
+It collapses toward *primary*, not toward the midpoint, so a flat render is each surface's
+own primary — which means `-DapotheneumColor` with a non-`None` axis still shows two
+colours at spread 0, split across the exchanged surfaces. Rendering with axis set and
+spread 0 is the cheapest way to see that split; see `ApotheneumGradient.applySpread` for
+why collapsing to the midpoint (this control's original behaviour) erased it. A value
 outside `[0, 1]` is rejected rather than clamped, so a mistyped spec fails loudly instead
 of rendering a full gradient while the command line claims otherwise.
 

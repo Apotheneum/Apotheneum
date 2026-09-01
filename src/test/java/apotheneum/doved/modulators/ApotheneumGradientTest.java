@@ -1,6 +1,7 @@
 package apotheneum.doved.modulators;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -10,6 +11,7 @@ import org.junit.jupiter.api.Test;
 
 import apotheneum.HeadlessLxTest;
 import heronarts.lx.LX;
+import heronarts.lx.color.LXColor;
 import heronarts.lx.model.LXModel;
 import heronarts.lx.model.LXPoint;
 
@@ -205,26 +207,54 @@ public class ApotheneumGradientTest extends HeadlessLxTest {
   }
 
   /**
-   * {@code spread} collapses the gradient toward its midpoint rather than toward primary --
-   * previously carried only by {@code applySpread}'s javadoc, with no test, so a regression in
-   * the formula would have gone undetected. See that method for why the midpoint and not zero.
+   * {@code spread} collapses the gradient toward primary rather than toward the primary/secondary
+   * midpoint. This is the inverse of what this test asserted before 2026-08-31, and the reason
+   * for the flip is the whole point: {@code ApotheneumColor.axis} varies surfaces by
+   * <em>exchanging</em> primary and secondary, and an exchanged pair has the same midpoint as the
+   * original -- so a midpoint collapse made Axis a provable no-op at {@code spread = 0}. See
+   * {@code applySpread}'s javadoc, and {@link #flatColourStillSplitsAcrossAnExchangedAxis} for the
+   * property that regression-proofs it.
    */
   @Test
-  void spreadCollapsesTowardTheMidpointNotTowardPrimary() {
+  void spreadCollapsesTowardPrimaryNotTowardTheMidpoint() {
     // spread = 1 is the identity: the full gradient, unchanged.
     assertEquals(0, ApotheneumGradient.applySpread(0, 1), EPSILON);
     assertEquals(0.5, ApotheneumGradient.applySpread(0.5, 1), EPSILON);
     assertEquals(1, ApotheneumGradient.applySpread(1, 1), EPSILON);
 
-    // spread = 0 is flat: every input lands on the midpoint, so both ends blend evenly.
-    assertEquals(0.5, ApotheneumGradient.applySpread(0, 0), EPSILON);
-    assertEquals(0.5, ApotheneumGradient.applySpread(0.5, 0), EPSILON);
-    assertEquals(0.5, ApotheneumGradient.applySpread(1, 0), EPSILON);
+    // spread = 0 is flat: every input lands on 0, i.e. on this surface's own primary.
+    assertEquals(0, ApotheneumGradient.applySpread(0, 0), EPSILON);
+    assertEquals(0, ApotheneumGradient.applySpread(0.5, 0), EPSILON);
+    assertEquals(0, ApotheneumGradient.applySpread(1, 0), EPSILON);
 
-    // Halfway is halfway toward the midpoint from either end -- symmetric, and never toward 0.
-    assertEquals(0.25, ApotheneumGradient.applySpread(0, 0.5), EPSILON);
-    assertEquals(0.75, ApotheneumGradient.applySpread(1, 0.5), EPSILON);
-    assertEquals(0.5, ApotheneumGradient.applySpread(0.5, 0.5), EPSILON);
+    // Halfway narrows the band toward the primary end, continuously and without a jump.
+    assertEquals(0, ApotheneumGradient.applySpread(0, 0.5), EPSILON);
+    assertEquals(0.25, ApotheneumGradient.applySpread(0.5, 0.5), EPSILON);
+    assertEquals(0.5, ApotheneumGradient.applySpread(1, 0.5), EPSILON);
+  }
+
+  /**
+   * The property the formula exists to satisfy, asserted on the two ends rather than on the
+   * arithmetic: with the roles exchanged the way {@code ApotheneumColor.axis} exchanges them, a
+   * flat surface and its exchanged partner must resolve to <em>different</em> colours. Under the
+   * old midpoint collapse both sides landed on {@code lerp(a, b, 0.5)} and this assertion failed,
+   * which is exactly the bug the owner saw on the wall.
+   */
+  @Test
+  void flatColourStillSplitsAcrossAnExchangedAxis() {
+    final int a = LXColor.rgb(255, 0, 0);
+    final int b = LXColor.rgb(0, 128, 255);
+    final double flat = ApotheneumGradient.applySpread(0.5, 0);
+
+    // One surface reads (primary, secondary); its axis-exchanged partner reads (secondary,
+    // primary) -- the only thing axis changes. GradientMultiplyEffect lerps each by the same t.
+    final int unexchanged = LXColor.lerp(a, b, flat);
+    final int exchanged = LXColor.lerp(b, a, flat);
+
+    assertNotEquals(unexchanged, exchanged,
+      "Flat colour must still differ across an exchanged axis, or Axis does nothing at Spread 0");
+    assertEquals(a, unexchanged);
+    assertEquals(b, exchanged);
   }
 
   /** {@code spreadOrDefault} answers the full gradient when no instance is registered, matching
