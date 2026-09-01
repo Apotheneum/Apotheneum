@@ -131,18 +131,35 @@ import heronarts.lx.utils.LXUtils;
  * discontinuity or degrading-blend argument turned up against it -- see {@link #applySpread}
  * for the formula and why it stays smooth at every value.
  *
- * <p><b>Flat resolves to the midpoint of primary and secondary, not primary alone.</b> The
- * gradient position {@code t} (from {@link #normalize}) is rescaled toward the center of its own
- * {@code [0, 1]} range -- {@code effectiveT = 0.5 + spread * (t - 0.5)} -- rather than toward
- * zero. Both read as continuous in {@code spread}, but they say different things about what
- * "flat" is: scaling toward zero collapses every surface onto primary alone, with secondary's
- * whole presence fading out as an edge case of one particular colour; scaling toward the center
- * collapses onto the blend of the two, the same way turning a literal "Spread" knob down on any
- * two-sided control narrows the band symmetrically from both ends until it meets in the middle.
- * The owner asked to name this control {@code spread} (or {@code amount}); {@code spread} was
- * chosen for exactly this reason -- the metaphor it names is the symmetric one, not "fade toward
- * the first colour" -- and midpoint-collapse is what makes turning it down look like the
- * gradient tightening toward a colour rather than sliding toward an unrelated one.
+ * <p><b>Flat resolves to each surface's own primary, not to the midpoint of primary and
+ * secondary.</b> The gradient position {@code t} (from {@link #normalize}) is scaled toward zero
+ * -- {@code effectiveT = spread * t} -- so {@code spread = 0} lands every point on that
+ * surface's primary.
+ *
+ * <p>This is a correction, made 2026-08-31, and the reasoning it replaces is worth keeping
+ * visible because it was wrong for a specific and non-obvious reason. The original formula
+ * narrowed toward the center ({@code 0.5 + spread * (t - 0.5)}) on the argument that "spread"
+ * names a symmetric metaphor: turning a two-sided control down should tighten the band from both
+ * ends until it meets in the middle, rather than sliding the whole thing toward one end. That
+ * argument is sound in isolation and wrong in this system, because it ignores what {@link
+ * ApotheneumColor#axis} does. {@code axis} does not give half the surfaces a different pair of
+ * colours -- it gives them the same pair with {@linkplain ApotheneumColor#primaryColor primary}
+ * and {@linkplain ApotheneumColor#secondaryColor secondary} exchanged. The midpoint of an
+ * exchanged pair is the same colour as the midpoint of the original, so collapsing every surface
+ * onto that midpoint made {@code axis} a provable no-op at {@code spread = 0}: the room went one
+ * flat colour, and no setting of Axis could split it. Reported by the owner, running exactly
+ * that state: <em>"Apotheneum Gradient patterns are not getting the effects of inside/outside
+ * cylinder versus cube. It's always the same color everywhere."</em>
+ *
+ * <p>Collapsing toward primary instead is what makes flat colour and {@code axis} compose. Each
+ * surface resolves its <em>own</em> primary -- which {@code axis} has already exchanged on half
+ * of them -- so {@code spread = 0} with {@code axis = In/Out} is flat primary on the exteriors
+ * and flat secondary on the interiors, which is the "two flat colours, split by surface" the
+ * whole {@code pair}/{@code axis} design exists to produce. The objection that secondary
+ * "fades out as an edge case of one colour" only holds at {@code axis = None}, where the room
+ * genuinely is meant to be one colour throughout. Nothing about the formula's continuity
+ * changes: it is still smooth in both {@code spread} and {@code t} at every value, and {@code
+ * spread = 1} is still exactly the identity, so the full gradient renders as it always did.
  *
  * <h2>The null-instance fallback</h2>
  *
@@ -248,14 +265,15 @@ public class ApotheneumGradient extends LXComponent implements LXOscComponent {
   /**
    * How much of the projected {@code [0, 1]} gradient position survives, {@code 1} the full
    * gradient down to {@code 0} flat -- see the class javadoc's collapsing-to-flat section for
-   * why this is continuous rather than a boolean, and why it narrows toward the midpoint of
-   * primary/secondary rather than toward primary alone. Applied via {@link #applySpread},
-   * alongside this class's other per-point projection math.
+   * why this is continuous rather than a boolean, and why it narrows toward each surface's own
+   * primary rather than toward the primary/secondary midpoint (which made {@link
+   * ApotheneumColor#axis} a no-op here). Applied via {@link #applySpread}, alongside this
+   * class's other per-point projection math.
    */
   public final CompoundParameter spread = new CompoundParameter("Spread", DEFAULT_SPREAD, 0, 1)
     .setDescription(
       "How much of the gradient survives -- 1 is the full gradient, 0 collapses every surface "
-      + "to one flat color (the midpoint blend of primary and secondary)");
+      + "to its own flat primary, which Axis has already exchanged on half of them");
 
   public ApotheneumGradient(LX lx) {
     super(lx, "Apotheneum Gradient");
@@ -471,21 +489,22 @@ public class ApotheneumGradient extends LXComponent implements LXOscComponent {
   }
 
   /**
-   * Rescales a normalized gradient position {@code t} (a {@link #normalize} result) toward
-   * {@code 0.5} by {@code spread} -- see the class javadoc's collapsing-to-flat section for why
-   * this narrows toward the midpoint rather than toward 0 (primary). At {@code spread = 1} this
-   * is the identity ({@code t} unchanged, the full gradient); at {@code spread = 0} every input
-   * maps to exactly {@code 0.5} regardless of {@code t} (flat, the primary/secondary midpoint
-   * blend); every value in between narrows the effective range symmetrically around the center,
-   * continuously -- there is no value of {@code spread} at which this formula is discontinuous
-   * in either {@code spread} or {@code t}, so a performer sweeping the knob down sees the
-   * gradient's band tighten smoothly rather than jump. {@code t} is assumed to already be in
-   * {@code [0, 1]} (a {@link #normalize} result); the result is clamped defensively in case a
-   * modulation source pushes {@code spread} fractionally outside {@code [0, 1]}, not because the
-   * formula itself can leave that range for an in-range {@code spread}.
+   * Scales a normalized gradient position {@code t} (a {@link #normalize} result) toward
+   * {@code 0} by {@code spread} -- see the class javadoc's collapsing-to-flat section for why
+   * this collapses onto the caller's primary rather than onto the primary/secondary midpoint,
+   * and why that is a correction to the formula this method shipped with. At {@code spread = 1}
+   * this is the identity ({@code t} unchanged, the full gradient); at {@code spread = 0} every
+   * input maps to exactly {@code 0} regardless of {@code t} (flat, that surface's primary);
+   * every value in between narrows the effective range toward the primary end, continuously --
+   * there is no value of {@code spread} at which this formula is discontinuous in either
+   * {@code spread} or {@code t}, so a performer sweeping the knob down sees the gradient's band
+   * tighten smoothly rather than jump. {@code t} is assumed to already be in {@code [0, 1]} (a
+   * {@link #normalize} result); the result is clamped defensively in case a modulation source
+   * pushes {@code spread} fractionally outside {@code [0, 1]}, not because the formula itself
+   * can leave that range for an in-range {@code spread}.
    */
   public static double applySpread(double t, double spread) {
-    return LXUtils.clamp(0.5 + spread * (t - 0.5), 0, 1);
+    return LXUtils.clamp(spread * t, 0, 1);
   }
 
 }
