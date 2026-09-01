@@ -1,5 +1,6 @@
 package apotheneum.video;
 
+import heronarts.glx.ui.UI2dComponent;
 import heronarts.lx.LX;
 import heronarts.lx.LXComponent;
 import heronarts.lx.LXPlugin;
@@ -39,6 +40,22 @@ public class ApotheneumVideoUIPlugin implements LXStudio.Plugin {
     this.panel = new UIVideoWallPanel(
       ui, this.launcher, this.previewLauncher, config, ui.leftPane.global.getContentWidth());
     ui.leftPane.global.addChildren(this.panel);
+  }
+
+  /**
+   * Builds the video wall panel for the UI render harness
+   * ({@code apotheneum.render.RenderLeftPaneSection}), which cannot construct
+   * one itself: the panel and its launcher are both package-private here.
+   * Constructing a launcher starts no processes — it only holds the config and
+   * port until something asks it to play.
+   */
+  public static UI2dComponent buildPanelForRender(LXStudio.UI ui, ApotheneumVideo config, float width) {
+    return new UIVideoWallPanel(
+      ui,
+      new VideoWallLauncher(config, config.getPort()),
+      new VideoWallLauncher(config, config.getPort()),
+      config,
+      width);
   }
 
   @Override

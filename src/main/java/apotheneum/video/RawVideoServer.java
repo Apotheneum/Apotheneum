@@ -170,6 +170,11 @@ final class RawVideoServer {
             cropWidth,
             cropHeight
           );
+          // Applied here rather than in the consumer's ffmpeg chain: the chain
+          // is a child process built once per settings change, so a dial swept
+          // by hand would restart it on every step. Scaling the raw bytes keeps
+          // it live, and reaches every viewer of the feed, wall and preview alike.
+          scaleBrightness(buffer, this.config.brightness.getValue());
         } else {
           // Hold the connection open so re-enabling resumes without a reconnect.
           Arrays.fill(buffer, (byte) 0);
@@ -211,6 +216,27 @@ final class RawVideoServer {
       buffer[at++] = (byte) ((color >> 16) & 0xff);
       buffer[at++] = (byte) ((color >> 8) & 0xff);
       buffer[at++] = (byte) (color & 0xff);
+    }
+  }
+
+  /**
+   * Scales every channel by {@code brightness} (0-1), in place. Applied after
+   * the doorway bridge so the reconstructed spans dim with the picture they
+   * were interpolated from.
+   */
+  static void scaleBrightness(byte[] buffer, double brightness) {
+    if (brightness >= 1.) {
+      return;
+    }
+    if (brightness <= 0.) {
+      Arrays.fill(buffer, (byte) 0);
+      return;
+    }
+    // Fixed-point: 255 * 256 >> 8 is exactly 255, so full brightness at any
+    // channel value round-trips rather than losing a count to truncation.
+    final int scale = (int) (brightness * 256. + .5);
+    for (int i = 0; i < buffer.length; ++i) {
+      buffer[i] = (byte) (((buffer[i] & 0xff) * scale) >> 8);
     }
   }
 

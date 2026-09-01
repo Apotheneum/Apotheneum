@@ -4,6 +4,8 @@ import apotheneum.doved.ApotheneumColorPlugin;
 import apotheneum.doved.UIApotheneumColorSection;
 import apotheneum.doved.UIApotheneumGradientSection;
 import apotheneum.doved.modulators.ApotheneumColor;
+import apotheneum.video.ApotheneumVideo;
+import apotheneum.video.ApotheneumVideoUIPlugin;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
@@ -74,7 +76,9 @@ public final class RenderLeftPaneSection {
   public static void main(String[] args) throws Exception {
     outputDirectory = args.length == 1 ? Path.of(args[0]) : Path.of("target", "ui-review");
     Files.createDirectories(outputDirectory);
-    for (String stem : new String[] { "ApotheneumColorSection", "ApotheneumGradientSection" }) {
+    for (String stem : new String[] {
+      "ApotheneumColorSection", "ApotheneumGradientSection", "VideoWallPanel"
+    }) {
       Files.deleteIfExists(outputDirectory.resolve(stem + ".png"));
       Files.deleteIfExists(outputDirectory.resolve(stem + ".json"));
     }
@@ -202,14 +206,22 @@ public final class RenderLeftPaneSection {
       // still costs one Chromatik launch -- and, more to the point, a section that is not built
       // here is a section nobody is looking at. UIApotheneumGradientSection's Spread row was
       // added without this harness knowing the section existed.
+      // The video wall panel is a GLOBAL section too, contributed by a different plugin. Its
+      // config is constructed directly rather than resolved from the engine: the harness never
+      // enables ApotheneumVideoPlugin, and the panel only reads parameters off the component.
       final UI2dComponent[] sections = {
         new UIApotheneumColorSection(ui, config, measuredWidth),
         new UIApotheneumGradientSection(
-          ui, ApotheneumColorPlugin.getOrRegisterGradient(studio), measuredWidth)
+          ui, ApotheneumColorPlugin.getOrRegisterGradient(studio), measuredWidth),
+        ApotheneumVideoUIPlugin.buildPanelForRender(ui, new ApotheneumVideo(studio), measuredWidth)
       };
-      final String[] stems = { "ApotheneumColorSection", "ApotheneumGradientSection" };
+      final String[] stems = {
+        "ApotheneumColorSection", "ApotheneumGradientSection", "VideoWallPanel"
+      };
       final String[] classNames = {
-        UIApotheneumColorSection.class.getName(), UIApotheneumGradientSection.class.getName()
+        UIApotheneumColorSection.class.getName(),
+        UIApotheneumGradientSection.class.getName(),
+        "apotheneum.video.UIVideoWallPanel"
       };
       ui.addLayer(new CaptureLayer(ui, studio, sections, stems, classNames));
       log("section=" + String.join(",", classNames));
