@@ -101,7 +101,10 @@ public class ApotheneumVideoPlugin implements LXPlugin {
       + existing.getClass().getName());
   }
 
-  /** Fraction of the crop that is actually lit, for the same source and crop a viewer would receive right now. */
+  /**
+   * Fraction of the crop that is actually lit in the frame a viewer would
+   * receive right now — same source, same crop, same brightness.
+   */
   private void sampleLitFraction(double deltaMs) {
     if (!this.config.enabled.isOn()) {
       this.config.setLitFraction(0.0);
@@ -135,6 +138,12 @@ public class ApotheneumVideoPlugin implements LXPlugin {
       this.config.cropWidth.getValuei(),
       this.config.cropHeight.getValuei()
     );
+    // Scaled like the served frame: this status reports what a viewer is
+    // actually receiving, which is why it already reads 0 when the stream is
+    // disabled rather than reporting the source behind it. Without this, a
+    // brightness of 0 sends black to the wall while the panel claims pixels
+    // are lit.
+    RawVideoServer.scaleBrightness(this.litBuffer, this.config.brightness.getValue());
     this.config.setLitFraction(litFraction(this.litBuffer));
   }
 

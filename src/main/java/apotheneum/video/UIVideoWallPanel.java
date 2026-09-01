@@ -22,6 +22,7 @@ import heronarts.glx.ui.component.UICollapsibleSection;
 import heronarts.glx.ui.component.UIDropMenu;
 import heronarts.glx.ui.component.UIIntegerBox;
 import heronarts.glx.ui.component.UILabel;
+import heronarts.glx.ui.component.UISlider;
 import heronarts.lx.LXLoopTask;
 import heronarts.lx.parameter.DiscreteParameter;
 import heronarts.lx.parameter.LXParameterListener;
@@ -74,6 +75,8 @@ class UIVideoWallPanel extends UICollapsibleSection {
     GROUP_HEADING_HEIGHT + GROUP_ROW_SPACING + 3 * ROW_HEIGHT + 2 * GROUP_ROW_SPACING;
   private static final float PANELS_GROUP_HEIGHT =
     GROUP_HEADING_HEIGHT + GROUP_ROW_SPACING + 2 * ROW_HEIGHT + GROUP_ROW_SPACING;
+  private static final float OUTPUT_GROUP_HEIGHT =
+    GROUP_HEADING_HEIGHT + GROUP_ROW_SPACING + ROW_HEIGHT;
   private static final float PLAYBACK_GROUP_HEIGHT =
     GROUP_HEADING_HEIGHT + GROUP_ROW_SPACING + ROW_HEIGHT + 2 * GROUP_ROW_SPACING + 2 * CONTROL_HEIGHT;
 
@@ -84,6 +87,7 @@ class UIVideoWallPanel extends UICollapsibleSection {
     PRESET_GROUP_HEIGHT + GROUP_SPACING
     + PICTURE_GROUP_HEIGHT + GROUP_SPACING
     + PANELS_GROUP_HEIGHT + GROUP_SPACING
+    + OUTPUT_GROUP_HEIGHT + GROUP_SPACING
     + PLAYBACK_GROUP_HEIGHT + GROUP_SPACING
     + STATUS_HEIGHT;
   // Inverse of UICollapsibleSection's content sizing: content height is
@@ -236,6 +240,18 @@ class UIVideoWallPanel extends UICollapsibleSection {
       stackedRow(contentWidth, "Panel Count", this.panelCountBox)
     );
 
+    // Global rather than per-preset, like enabled and the crop: it trims the
+    // feed itself to balance the wall against the room, so switching looks
+    // should not jump the wall's level. setShowLabel(false) because stackedRow
+    // already captions it and UISlider draws its own label under the track.
+    final UI2dContainer outputGroup = UI2dContainer.newVerticalContainer(contentWidth, GROUP_ROW_SPACING,
+      groupHeading(contentWidth, "OUTPUT"),
+      stackedRow(contentWidth, "Brightness",
+        (UI2dComponent) new UISlider(UISlider.Direction.HORIZONTAL, 0, 0, contentWidth, CONTROL_HEIGHT)
+          .setParameter(this.config.brightness)
+          .setShowLabel(false))
+    );
+
     final UI2dContainer playbackGroup = UI2dContainer.newVerticalContainer(contentWidth, GROUP_ROW_SPACING,
       groupHeading(contentWidth, "PLAYBACK"),
       stackedRow(contentWidth, "Display", displayMenu),
@@ -243,7 +259,7 @@ class UIVideoWallPanel extends UICollapsibleSection {
       this.previewButton
     );
 
-    addChildren(presetGroup, pictureGroup, panelsGroup, playbackGroup, this.status);
+    addChildren(presetGroup, pictureGroup, panelsGroup, outputGroup, playbackGroup, this.status);
 
     bindActivePreset();
     probeDisplaysAsync();

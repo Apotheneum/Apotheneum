@@ -4,6 +4,7 @@ import apotheneum.Apotheneum;
 import heronarts.lx.LX;
 import heronarts.lx.LXComponent;
 import heronarts.lx.parameter.BooleanParameter;
+import heronarts.lx.parameter.CompoundParameter;
 import heronarts.lx.parameter.DiscreteParameter;
 import heronarts.lx.parameter.EnumParameter;
 import heronarts.lx.parameter.LXParameterListener;
@@ -37,6 +38,12 @@ public class ApotheneumVideo extends LXComponent {
   public final BooleanParameter enabled =
     new BooleanParameter("Enabled", true)
     .setDescription("Whether the video stream is running");
+
+  public final CompoundParameter brightness =
+    new CompoundParameter("Brightness", 1, 0, 1)
+    .setDescription(
+      "Master brightness scale applied to every pixel of the outgoing video, so the wall can be "
+      + "balanced against the installation without touching the show's own levels");
 
   public final DiscreteParameter cropX =
     new DiscreteParameter("X", 0, 0, VideoSource.MAX_WIDTH)
@@ -124,6 +131,7 @@ public class ApotheneumVideo extends LXComponent {
   public ApotheneumVideo(LX lx) {
     super(lx);
     addParameter("enabled", this.enabled);
+    addParameter("brightness", this.brightness);
     addParameter("cropX", this.cropX);
     addParameter("cropY", this.cropY);
     addParameter("cropWidth", this.cropWidth);
