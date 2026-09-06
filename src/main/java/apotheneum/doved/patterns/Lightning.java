@@ -33,15 +33,19 @@ public class Lightning extends ApotheneumRasterPattern
       .setDescription("Trigger a lightning strike");
 
   public enum Algorithm {
-    MIDPOINT("Midpoint"),
-    L_SYSTEM("L-System"),
-    RRT("RRT"),
-    PHYSICAL("Physical");
+    MIDPOINT("Midpoint", new MidpointDisplacementAlgorithm()),
+    L_SYSTEM("L-System", new LSystemAlgorithm()),
+    RRT("RRT", new RRTAlgorithm()),
+    PHYSICAL("Physical", new PhysicallyBasedAlgorithm());
+
+    private static final Algorithm[] VALUES = values();
 
     private final String displayName;
+    private final LightningGenerator generator;
 
-    Algorithm(String displayName) {
+    Algorithm(String displayName, LightningGenerator generator) {
       this.displayName = displayName;
+      this.generator = generator;
     }
 
     public String getDisplayName() {
@@ -49,10 +53,9 @@ public class Lightning extends ApotheneumRasterPattern
     }
 
     public static String[] getDisplayNames() {
-      Algorithm[] values = values();
-      String[] names = new String[values.length];
-      for (int i = 0; i < values.length; i++) {
-        names[i] = values[i].displayName;
+      String[] names = new String[VALUES.length];
+      for (int i = 0; i < VALUES.length; i++) {
+        names[i] = VALUES[i].displayName;
       }
       return names;
     }
@@ -245,23 +248,11 @@ public class Lightning extends ApotheneumRasterPattern
   }
 
   private LightningGenerator getLightningGenerator() {
-    Algorithm selectedAlgorithm = Algorithm.values()[algorithm.getValuei()];
-    switch (selectedAlgorithm) {
-      case MIDPOINT:
-        return new MidpointDisplacementAlgorithm();
-      case L_SYSTEM:
-        return new LSystemAlgorithm();
-      case RRT:
-        return new RRTAlgorithm();
-      case PHYSICAL:
-        return new PhysicallyBasedAlgorithm();
-      default:
-        return new MidpointDisplacementAlgorithm();
-    }
+    return Algorithm.VALUES[algorithm.getValuei()].generator;
   }
 
   private Object getAlgorithmParameters() {
-    Algorithm selectedAlgorithm = Algorithm.values()[algorithm.getValuei()];
+    Algorithm selectedAlgorithm = Algorithm.VALUES[algorithm.getValuei()];
     switch (selectedAlgorithm) {
       case MIDPOINT:
         return new MidpointDisplacementAlgorithm.Parameters(
