@@ -212,7 +212,7 @@ class UIVideoWallPanel extends UICollapsibleSection {
       @Override
       protected void onToggle(boolean active) {
         if (active) {
-          UIVideoWallPanel.this.previewLauncher.openOrFocusPreview();
+          UIVideoWallPanel.this.previewLauncher.revealPreview();
         }
       }
     };
