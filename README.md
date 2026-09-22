@@ -10,9 +10,17 @@ Learn more on the [Apotheneum Wiki &rarr;](https://github.com/Apotheneum/Apothen
 
 ---
 
-### Copyright Notice
+### License
 
-Unless otherwise indicated, all contents in this repository are copyright their original authors (as stated in the file or recorded by the version history). Materials here are not under open source license, artworks are the intellecual property of their creators.
+The software in this repository is available for noncommercial use under the
+[PolyForm Noncommercial License 1.0.0](LICENSE). Copyright remains with each
+original contributor, as identified in source files and the version history.
+Contributors remain free to use and license their own work independently.
+
+Commercial use is not granted by the public license, but permission may be
+available—please contact the relevant copyright holders through the Apotheneum
+project. See [LICENSING.md](LICENSING.md) for the license scope, commercial-use
+process, and separately licensed materials.
 
 ---
 
