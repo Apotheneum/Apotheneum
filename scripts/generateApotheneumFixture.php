@@ -40,6 +40,8 @@ for ($i = 1; $i <= 12; ++$i) {
   $ip = sprintf("%02d", 20 + $i);
   $params []= '"cyl'.$digit.'On": { "type": "boolean", "default": true, "label": "CYL '.$digit.'", "description": "CYL-'.$digit.' Enabled" }';
   $params []= '"cyl'.$digit.'Flip": { "type": "boolean", "default": true, "label": "CYL '.$digit.' Flip", "description": "CYL-'.$digit.' Flip" }';
+  $params []= '"cyl'.$digit.'HackInt": { "type": "boolean", "default": false, "label": "CYL '.$digit.' IHack", "description": "CYL-'.$digit.' Hack Int" }';
+  $params []= '"cyl'.$digit.'HackExt": { "type": "boolean", "default": false, "label": "CYL '.$digit.' EHack", "description": "CYL-'.$digit.' Hack Ext" }';
   $params []= '"cyl'.$digit.'B2F": { "type": "boolean", "default": false, "label": "CYL '.$digit.' B2F", "description": "CYL-'.$digit.' Back to Front" }';  
   $params []= '"cyl'.$digit.'": { "type": "string", "default": "10.0.1.1'.$ip.'", "label": "CYL '.$digit.' IP", "description": "CYL-'.$digit.' IP address" }';
 }
@@ -463,43 +465,81 @@ for ($i = 0; $i < 12; ++$i) {
   $univExt = 120 + 6*$d;
   $univInt = 123 + 6*$d;
 
-  // Exterior cube universe
+  $notExtHack = ' & !$cyl'.$digit.'HackExt';
+  $isExtHack = ' & $cyl'.$digit.'HackExt';
+  $notIntHack = ' & !$cyl'.$digit.'HackInt';
+  $isIntHack = ' & $cyl'.$digit.'HackInt';
+
+  // Exterior cylinder universe
   $output = '{
-      "enabled": "$cyl'.$digit.'On & !$cyl'.$digit.'Flip",
+      "enabled": "$cyl'.$digit.'On & !$cyl'.$digit.'Flip'.$notExtHack.'",
+      "protocol": "artnet",
+      "host": "$cyl'.$digit.'",
+      "universe": '.$univExt.',
+      "segments": ';
+
+  $outputHack = '{
+      "enabled": "$cyl'.$digit.'On & !$cyl'.$digit.'Flip'.$isExtHack.'",
       "protocol": "artnet",
       "host": "$cyl'.$digit.'",
       "universe": '.$univExt.',
       "segments": ';
 
   $outputFlip = '{
-      "enabled": "$cyl'.$digit.'On & $cyl'.$digit.'Flip",
+      "enabled": "$cyl'.$digit.'On & $cyl'.$digit.'Flip'.$notExtHack.'",
       "protocol": "artnet",
       "host": "$cyl'.$digit.'",
       "universe": '.$univExt.',
       "segments": ';
 
-  $sInt = 18000;
-  $sExt = 23160;
+  $outputFlipHack = '{
+      "enabled": "$cyl'.$digit.'On & $cyl'.$digit.'Flip'.$isExtHack.'",
+      "protocol": "artnet",
+      "host": "$cyl'.$digit.'",
+      "universe": '.$univExt.',
+      "segments": ';
+
+  // Model indices: the cylinder exterior runs 18000-23159, the interior 23160-28319
+  $sExterior = 18000;
+  $sInterior = 23160;
 
   $segments = array();
+  $segmentsHack = array();
   for ($s = 0; $s < 10; ++$s) {
-    $start = $sInt + $i * 430 + $s * 43;
+    $start = $sExterior + $i * 430 + $s * 43;
     $num = ($d % 3 == 2) ? 32 : 43;
     $reverse = ($s % 2 == 1) ? ', "reverse": true' : '';
     $segments []= '{ "start": '.$start.', "num": '.$num.$reverse.' }';
+    if ($s == 0) {
+      ++$start;
+      --$num;
+    }
+    $segmentsHack []= '{ "start": '.$start.', "num": '.$num.$reverse.' }';
   }
   $output .= "[\n        ".join(",\n        ", $segments);
   $output .= '
       ]
     }';
   $outputs []= $output;
+
+  $outputHack .= "[\n        ".join(",\n        ", $segmentsHack);
+  $outputHack .= '
+      ]
+    }';
+  $outputs []= $outputHack;
   
   $segmentsFlip = array();
+  $segmentsFlipHack = array();
   for ($s = 9; $s >= 0; --$s) {
-    $start = $sInt + $i * 430 + $s * 43;
+    $start = $sExterior + $i * 430 + $s * 43;
     $num = ($d % 3 == 2) ? 32 : 43;
     $reverse = ($s % 2 == 0) ? ', "reverse": true' : '';
     $segmentsFlip []= '{ "start": '.$start.', "num": '.$num.$reverse.' }';
+    if ($s == 9) {
+      ++$start;
+      --$num;
+    }
+    $segmentsFlipHack []= '{ "start": '.$start.', "num": '.$num.$reverse.' }';
   }
   $outputFlip .= "[\n        ".join(",\n        ", $segmentsFlip);
   $outputFlip .= '
@@ -507,46 +547,90 @@ for ($i = 0; $i < 12; ++$i) {
     }';
   $outputsFlip []= $outputFlip;
 
-  // Interior cube universe
+  $outputFlipHack .= "[\n        ".join(",\n        ", $segmentsFlipHack);
+  $outputFlipHack .= '
+      ]
+    }';
+  $outputsFlip []= $outputFlipHack;
+
+  // Interior cylinder universe
   $output = '{
-      "enabled": "$cyl'.$digit.'On & !$cyl'.$digit.'Flip",
+      "enabled": "$cyl'.$digit.'On & !$cyl'.$digit.'Flip'.$notIntHack.'",
+      "protocol": "artnet",
+      "host": "$cyl'.$digit.'",
+      "universe": '.$univInt.',
+      "segments": ';
+
+  $outputHack = '{
+      "enabled": "$cyl'.$digit.'On & !$cyl'.$digit.'Flip'.$isIntHack.'",
       "protocol": "artnet",
       "host": "$cyl'.$digit.'",
       "universe": '.$univInt.',
       "segments": ';
       
   $outputFlip = '{
-      "enabled": "$cyl'.$digit.'On & $cyl'.$digit.'Flip",
+      "enabled": "$cyl'.$digit.'On & $cyl'.$digit.'Flip'.$notIntHack.'",
+      "protocol": "artnet",
+      "host": "$cyl'.$digit.'",
+      "universe": '.$univInt.',
+      "segments": ';
+
+  $outputFlipHack = '{
+      "enabled": "$cyl'.$digit.'On & $cyl'.$digit.'Flip'.$isIntHack.'",
       "protocol": "artnet",
       "host": "$cyl'.$digit.'",
       "universe": '.$univInt.',
       "segments": ';
       
   $segments = array();
+  $segmentsHack = array();
   for ($s = 0; $s < 10; ++$s) {
-    $start = $sExt + $i * 430 + $s * 43;
+    $start = $sInterior + $i * 430 + $s * 43;
     $num = ($d % 3 == 2) ? 32 : 43;
     $reverse = ($s % 2 == 1) ? ', "reverse": true' : '';
     $segments []= '{ "start": '.$start.', "num": '.$num.$reverse.' }';
+    if ($s == 0) {
+      ++$start;
+      --$num;
+    }
+    $segmentsHack []= '{ "start": '.$start.', "num": '.$num.$reverse.' }';
   }
   $output .= "[\n        ".join(",\n        ", $segments);
   $output .= '
       ]
     }';
   $outputs []= $output;
+
+  $outputHack .= "[\n        ".join(",\n        ", $segmentsHack);
+  $outputHack .= '
+      ]
+    }';
+  $outputs []= $outputHack;
   
   $segmentsFlip = array();
+  $segmentsFlipHack = array();
   for ($s = 9; $s >= 0; --$s) {
-    $start = $sExt + $i * 430 + $s * 43;
+    $start = $sInterior + $i * 430 + $s * 43;
     $num = ($d % 3 == 2) ? 32 : 43;
     $reverse = ($s % 2 == 0) ? ', "reverse": true' : '';
     $segmentsFlip []= '{ "start": '.$start.', "num": '.$num.$reverse.' }';
+    if ($s == 9) {
+      ++$start;
+      --$num;
+    }
+    $segmentsFlipHack []= '{ "start": '.$start.', "num": '.$num.$reverse.' }';
   }
   $outputFlip .= "[\n        ".join(",\n        ", $segmentsFlip);
   $outputFlip .= '
       ]
     }';
   $outputsFlip []= $outputFlip;
+
+  $outputFlipHack .= "[\n        ".join(",\n        ", $segmentsFlipHack);
+  $outputFlipHack .= '
+      ]
+    }';
+  $outputsFlip []= $outputFlipHack;
 }
 
 echo '    '.join(",\n    ", $outputs).",\n";
